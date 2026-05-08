@@ -1,0 +1,102 @@
+import * as THREE  from "three";
+import * as Errors from "./errors.js";
+
+
+/******************************************************************************/
+/* RENDERER                                                                   */
+/******************************************************************************/
+
+/*
+ * Wraps THREE.WebGLRenderer. `setActiveCamera` takes a THREE.Camera instance,
+ * not a controller — controllers own their cameras and pass them through.
+ * devicePixelRatio is clamped at 2× to avoid a 4K perf cliff.
+ */
+
+const MAX_PIXEL_RATIO = 2;
+const CLEAR_COLOR     = 0x0a0e14;
+
+
+class Renderer
+{
+    constructor(canvasWrapper)
+    {
+        this.canvasWrapper = canvasWrapper;
+
+        this.canvas = document.createElement("canvas");
+        canvasWrapper.appendChild(this.canvas);
+
+        if(!this.canvas.getContext("webgl2") && !this.canvas.getContext("webgl"))
+        {
+            throw new Errors.WebGLUnavailableError("WebGL is not available in this browser.");
+        }
+
+        this.renderer = new THREE.WebGLRenderer(
+        {
+            canvas:    this.canvas,
+            antialias: true,
+            alpha:     false
+        });
+        this.renderer.setClearColor(CLEAR_COLOR, 1);
+
+        this.scene        = null;
+        this.activeCamera = null;
+
+        this._resizeObserver = new ResizeObserver(entries =>
+        {
+            for(const entry of entries)
+            {
+                const { width, height } = entry.contentRect;
+                this.setSize(width, height);
+            }
+        });
+        this._resizeObserver.observe(canvasWrapper);
+    }
+
+    setActiveCamera(camera)
+    {
+        this.activeCamera = camera;
+        this._syncCameraAspect();
+    }
+
+    setScene(scene)
+    {
+        this.scene = scene;
+    }
+
+    setSize(width, height)
+    {
+        if(width <= 0 || height <= 0) { return; }
+
+        const dpr = Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO);
+        this.renderer.setPixelRatio(dpr);
+        this.renderer.setSize(width, height, false);
+
+        this._syncCameraAspect();
+    }
+
+    render()
+    {
+        if(!this.scene || !this.activeCamera) { return; }
+        this.renderer.render(this.scene, this.activeCamera);
+    }
+
+    dispose()
+    {
+        this._resizeObserver.disconnect();
+        this.renderer.dispose();
+        this.canvas.remove();
+    }
+
+    _syncCameraAspect()
+    {
+        if(!this.activeCamera || !this.activeCamera.isPerspectiveCamera) { return; }
+
+        const rect = this.canvasWrapper.getBoundingClientRect();
+        if(rect.width <= 0 || rect.height <= 0) { return; }
+
+        this.activeCamera.aspect = rect.width / rect.height;
+        this.activeCamera.updateProjectionMatrix();
+    }
+}
+
+export { Renderer };

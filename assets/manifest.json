@@ -1,0 +1,35 @@
+{
+    "version": 1,
+    "assets": [
+        {
+            "id":   "floor.stone.basic",
+            "path": "assets/kaykit/dungeon-remastered/models/gltf/floor_tile_large.gltf",
+            "type": "gltf",
+            "tier": "core"
+        },
+        {
+            "id":   "wall.stone.straight",
+            "path": "assets/kaykit/dungeon-remastered/models/gltf/wall.gltf",
+            "type": "gltf",
+            "tier": "core"
+        },
+        {
+            "id":   "wall.stone.corner",
+            "path": "assets/kaykit/dungeon-remastered/models/gltf/wall_corner.gltf",
+            "type": "gltf",
+            "tier": "core"
+        },
+        {
+            "id":   "wall.stone.half",
+            "path": "assets/kaykit/dungeon-remastered/models/gltf/wall_half.gltf",
+            "type": "gltf",
+            "tier": "core"
+        },
+        {
+            "id":   "character.skeleton.minion",
+            "path": "assets/kaykit/skeletons/characters/gltf/Skeleton_Minion.glb",
+            "type": "gltf",
+            "tier": "core"
+        }
+    ]
+}

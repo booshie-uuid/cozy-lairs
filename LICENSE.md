@@ -38,3 +38,11 @@ Kay Lousberg has put extraordinary care into the KayKit packs, and a great deal 
 - **Crediting Kay** prominently in any project that uses these assets, even when not strictly required by the license.
 
 Independent creators like Kay are why hobby game development is accessible at all. If the assets bring value to your work, please return some of that value back to them.
+
+---
+
+## Third-Party Code — Claude Skills
+
+Some of the Claude Code skills in `.claude/skills/` are adapted from **claudekit** by **duthaho** (<https://github.com/duthaho/claudekit/>), released under the **MIT License**. Adaptations and modifications for Cozy Lairs remain subject to claudekit's MIT terms with respect to the portions originating from that project.
+
+The MIT License text is available at <https://opensource.org/license/mit>.

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cozy Lairs</title>
+    <link rel="stylesheet" href="./styles/main.css">
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three":                              "./libs/three/index.js",
+            "three/addons/loaders/GLTFLoader.js": "./libs/three/GLTFLoader.js",
+            "three/addons/utils/SkeletonUtils.js":"./libs/three/SkeletonUtils.js"
+        }
+    }
+    </script>
+
+    <script src="./libs/knockout-3.5.1.js"></script>
+</head>
+<body>
+    <div id="canvas-wrapper"></div>
+
+    <div id="hud">
+        <div id="camera-mode-chip"
+             data-bind="text: cameraMode() === 'builder' ? 'Builder' : 'First Person'"></div>
+    </div>
+
+    <div id="loading-overlay" class="fade-target" data-bind="fadeOut: isReady">
+        <div class="loading-overlay-inner">
+            <h1 class="loading-overlay-title">COZY LAIRS</h1>
+            <p class="loading-overlay-status"   data-bind="text: loadStatus"></p>
+            <div class="loading-overlay-progress">
+                <div class="loading-overlay-bar"
+                     data-bind="style: { width: loadPercent() + '%' }"></div>
+            </div>
+            <p class="loading-overlay-percent"  data-bind="text: loadPercent() + '%'"></p>
+        </div>
+    </div>
+
+    <script type="module" src="./scripts/app.js"></script>
+</body>
+</html>
