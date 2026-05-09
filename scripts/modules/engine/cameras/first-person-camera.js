@@ -14,11 +14,11 @@ import { CameraController } from "./camera-controller.js";
  * keeps internal state in sync when it does.
  */
 
-const DEFAULT_EYE_HEIGHT  = 1.7;
-const DEFAULT_WALK_SPEED  = 4;
-const LOOK_SENSITIVITY    = 0.0025;
-const PITCH_LIMIT         = Math.PI / 2 - 0.05;
-const LOOK_BUTTON         = 2;
+const DEFAULT_EYE_HEIGHT = 1.7;
+const DEFAULT_WALK_SPEED = 4;
+const LOOK_SENSITIVITY = 0.0025;
+const PITCH_LIMIT = Math.PI / 2 - 0.05;
+const LOOK_BUTTON = 2;
 
 
 class FirstPersonCamera extends CameraController
@@ -43,9 +43,9 @@ class FirstPersonCamera extends CameraController
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 500);
         this.applyTransform();
 
-        this.onPointerDown       = this.onPointerDown.bind(this);
-        this.onPointerUp         = this.onPointerUp.bind(this);
-        this.onPointerMove       = this.onPointerMove.bind(this);
+        this.onPointerDown = this.onPointerDown.bind(this);
+        this.onPointerUp = this.onPointerUp.bind(this);
+        this.onPointerMove = this.onPointerMove.bind(this);
         this.onPointerLockChange = this.onPointerLockChange.bind(this);
     }
 
@@ -63,6 +63,7 @@ class FirstPersonCamera extends CameraController
         this.input.off("pointerup",         this.onPointerUp);
         this.input.off("pointermove",       this.onPointerMove);
         this.input.off("pointerlockchange", this.onPointerLockChange);
+
         if(this.pointerLocked)
         {
             this.input.exitPointerLock();

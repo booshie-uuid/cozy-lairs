@@ -13,7 +13,7 @@ import * as Errors from "./errors.js";
  */
 
 const MAX_PIXEL_RATIO = 2;
-const CLEAR_COLOR     = 0x0a0e14;
+const CLEAR_COLOR = 0x0a0e14;
 
 
 class Renderer

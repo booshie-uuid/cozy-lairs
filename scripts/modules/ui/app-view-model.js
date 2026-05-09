@@ -47,14 +47,18 @@ class AppViewModel
         this.viewportTooSmall = ko.pureComputed(() =>
         {
             const { width, height } = this.viewport();
+            
             if(width === 0 && height === 0) { return false; }   // pre-init / SSR
+            
             return width < MIN_VIEWPORT_WIDTH || height < MIN_VIEWPORT_HEIGHT;
         });
 
         this.loadPercent = ko.pureComputed(() =>
         {
             const { loaded, total } = this.loadProgress();
+            
             if(total <= 0) { return 0; }
+            
             return Math.round((loaded / total) * 100);
         });
     }

@@ -30,6 +30,7 @@ class Emitter
             this.handlers.set(event, set);
         }
         set.add(handler);
+        
         return handler;
     }
 

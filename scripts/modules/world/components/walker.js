@@ -64,6 +64,7 @@ class Walker
             o.position.z = target.z;
             this.advance();
             this.faceTowards(this.waypoints[this.targetIndex]);
+
             return;
         }
 
@@ -102,6 +103,7 @@ class Walker
         const o = this.entity.object3D;
         const dx = target.x - o.position.x;
         const dz = target.z - o.position.z;
+        
         if(dx * dx + dz * dz > ARRIVE_EPSILON * ARRIVE_EPSILON)
         {
             o.rotation.y = Math.atan2(dx, dz) + FACING_OFFSET;

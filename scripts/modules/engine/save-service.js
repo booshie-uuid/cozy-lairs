@@ -181,9 +181,11 @@ class SaveService extends Emitter
             const blob = new Blob([json], { type: FILE_MIME });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
+
             a.href = url;
             a.download = SUGGESTED_FILENAME;
             a.click();
+            
             URL.revokeObjectURL(url);
 
             this.emit("saved", { size: json.length, mode: "download" });
@@ -220,6 +222,7 @@ class SaveService extends Emitter
             const message = isQuota
                 ? `Autosave exceeded localStorage quota (${json.length.toLocaleString()} bytes). Reduce the lair size or save to a file.`
                 : "Autosave write to localStorage failed.";
+            
             this.emitSaveFailed(message, err);
         }
     }
@@ -229,6 +232,7 @@ class SaveService extends Emitter
         const error = (cause instanceof Errors.SaveError)
             ? cause
             : new Errors.SaveError(message, cause ? { cause } : undefined);
+        
         this.emit("saveFailed", error);
     }
 }

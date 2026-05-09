@@ -151,7 +151,7 @@ class BuilderCamera extends CameraController
         if(this.draggingButton === ORBIT_BUTTON)
         {
             this.targetTheta -= event.dx * ORBIT_SPEED;
-            this.targetPhi   = THREE.MathUtils.clamp(
+            this.targetPhi = THREE.MathUtils.clamp(
                 this.targetPhi - event.dy * ORBIT_SPEED,
                 PHI_MIN,
                 PHI_MAX

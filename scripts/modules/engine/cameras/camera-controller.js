@@ -19,10 +19,10 @@ class CameraController
         this.camera = null;
     }
 
-    activate()           {}
-    deactivate()         {}
-    fixedUpdate(_dt)     {}
-    frameUpdate(_alpha)  {}
+    activate() {}
+    deactivate() {}
+    fixedUpdate(_dt) {}
+    frameUpdate(_alpha) {}
 }
 
 export { CameraController };

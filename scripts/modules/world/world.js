@@ -41,6 +41,7 @@ class World extends Emitter
         }
 
         this.emit("entityAdded", entity);
+        
         return entity;
     }
 

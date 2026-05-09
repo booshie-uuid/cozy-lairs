@@ -78,6 +78,7 @@ class Renderable
     {
         const geometry = new THREE.BoxGeometry(PLACEHOLDER_SIZE, PLACEHOLDER_SIZE, PLACEHOLDER_SIZE);
         const material = new THREE.MeshBasicMaterial({ color: PLACEHOLDER_COLOR, wireframe: true });
+        
         return new THREE.Mesh(geometry, material);
     }
 }

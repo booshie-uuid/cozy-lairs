@@ -33,10 +33,12 @@ class Entity
     addComponent(component)
     {
         this.components.set(component.constructor, component);
+
         if(typeof component.attach === "function")
         {
             component.attach(this);
         }
+
         return component;
     }
 
@@ -46,6 +48,7 @@ class Entity
         {
             throw new Error("Entity is already in a world; remove it first.");
         }
+
         this.world = world;
     }
 
@@ -80,6 +83,7 @@ class Entity
                 components[Klass.name] = component.toJSON();
             }
         }
+        
         return { kind: this.kind, components };
     }
 

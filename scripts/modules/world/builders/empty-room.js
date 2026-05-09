@@ -98,7 +98,9 @@ function addPerimeterWall(world, assets, cx, cz, side, atCorner, offset)
     const length = atCorner ? offset : 0;
     const originOffset = atCorner ? HALF_WALL_ORIGIN_OFFSET : 0;
     const wall = Entity.fromKind(kind, assets);
+    
     wall.addComponent(new EdgePlacement(cx, cz, side, length, originOffset));
+    
     world.addEntity(wall);
 }
 

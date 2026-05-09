@@ -108,7 +108,7 @@ class DevConsole
 
     record(emitter, event, payload)
     {
-        if(this.recording)            { return; }
+        if(this.recording) { return; }
         if(this.viewModel.isPaused()) { return; }
         if(this.isNoisy(event) && !this.viewModel.showNoisy()) { return; }
 
@@ -186,7 +186,7 @@ class DevConsole
     capture(payload)
     {
         if(payload === null || payload === undefined) { return ""; }
-        if(typeof payload !== "object")               { return String(payload); }
+        if(typeof payload !== "object") { return String(payload); }
 
         let json;
         try

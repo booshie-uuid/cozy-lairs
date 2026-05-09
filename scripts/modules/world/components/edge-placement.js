@@ -17,8 +17,8 @@ import * as Errors from "../../engine/errors.js";
  * centre it on the requested position.
  */
 
-const HALF_TURN     = Math.PI;
-const QUARTER_TURN  = Math.PI / 2;
+const HALF_TURN = Math.PI;
+const QUARTER_TURN = Math.PI / 2;
 
 const ROTATION_BY_SIDE =
 {

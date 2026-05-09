@@ -59,6 +59,7 @@ class Input extends Emitter
         target.addEventListener("pointerdown", this.onPointerDown);
         target.addEventListener("pointerup", this.onPointerUp);
         target.addEventListener("wheel", this.onWheel, { passive: false });
+
         document.addEventListener("pointerlockchange", this.onPointerLockChange);
     }
 
@@ -102,7 +103,9 @@ class Input extends Emitter
         this.target.removeEventListener("pointerdown", this.onPointerDown);
         this.target.removeEventListener("pointerup", this.onPointerUp);
         this.target.removeEventListener("wheel", this.onWheel);
+
         document.removeEventListener("pointerlockchange", this.onPointerLockChange);
+        
         this.keys.clear();
         this.handlers.clear();
     }
