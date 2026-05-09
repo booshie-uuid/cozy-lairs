@@ -5,14 +5,14 @@
       "kind": "floor.stone.basic",
       "components": {
         "Renderable": { "kind": "floor.stone.basic" },
-        "GridPlacement": { "cx": 2, "cz": 1, "rotationStep": 0 }
+        "GridPlacement": { "cx": 2, "cz": 1, "rotationStep": 0, "walkable": true }
       }
     },
     {
       "kind": "floor.stone.basic",
       "components": {
         "Renderable": { "kind": "floor.stone.basic" },
-        "GridPlacement": { "cx": 3, "cz": 1, "rotationStep": 0 }
+        "GridPlacement": { "cx": 3, "cz": 1, "rotationStep": 0, "walkable": true }
       }
     },
     {
@@ -41,11 +41,12 @@
       "components": {
         "Renderable": { "kind": "character.skeleton.minion" },
         "Walker": {
-          "waypoints": [
-            { "x": 12, "z": 8 },
-            { "x": 24, "z": 28 }
+          "speed": 1.6,
+          "path": [
+            { "cx": 3, "cz": 2 },
+            { "cx": 6, "cz": 7 }
           ],
-          "speed": 1.6
+          "pathIndex": 1
         }
       }
     }

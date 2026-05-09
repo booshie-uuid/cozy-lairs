@@ -83,11 +83,9 @@ test("round-trip — programmatically built world preserves entity count and com
     source.addEntity(corner);
 
     const minion = Entity.fromKind("character.skeleton.minion", STUB_ASSETS);
-    minion.addComponent(new Walker(
-        [{ x: 4, z: 4 }, { x: 12, z: 12 }],
-        2.0
-    ));
+    const walker = minion.addComponent(new Walker({ speed: 2.0 }));
     source.addEntity(minion);
+    walker.followPath([{ cx: 1, cz: 1 }, { cx: 3, cz: 3 }]);
 
     const snapshot = WorldSerializer.toJSON(source);
 

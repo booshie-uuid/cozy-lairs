@@ -123,3 +123,19 @@ test("offsets the room footprint by x0/z0", () =>
         expect(found).toBe(true);
     }
 });
+
+
+test("floor tiles register as walkable cells on the grid", () =>
+{
+    const world = buildRoom({ x0: 2, z0: 1, width: 6, depth: 8 });
+
+    expect(world.grid.walkableCells().length).toBe(48);
+
+    for(let dx = 0; dx < 6; dx++)
+    {
+        for(let dz = 0; dz < 8; dz++)
+        {
+            expect(world.grid.isWalkable(2 + dx, 1 + dz)).toBe(true);
+        }
+    }
+});

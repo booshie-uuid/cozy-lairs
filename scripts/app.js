@@ -13,11 +13,14 @@ import { World }  from "./modules/world/world.js";
 import { Grid }   from "./modules/world/grid.js";
 import { Entity } from "./modules/world/entity.js";
 
-import { Walker }     from "./modules/world/components/walker.js";
-import { Renderable } from "./modules/world/components/renderable.js";
+import { Walker }           from "./modules/world/components/walker.js";
+import { Animator }         from "./modules/world/components/animator.js";
+import { Renderable }       from "./modules/world/components/renderable.js";
+import { WanderBehaviour }  from "./modules/world/components/wander-behaviour.js";
 
-import { buildEmptyRoom }   from "./modules/world/builders/empty-room.js";
-import * as WorldSerializer from "./modules/world/world-serializer.js";
+import { buildEmptyRoom }    from "./modules/world/builders/empty-room.js";
+import * as DecorBuilder     from "./modules/world/builders/decor.js";
+import * as WorldSerializer  from "./modules/world/world-serializer.js";
 
 import { AppViewModel } from "./modules/ui/app-view-model.js";
 import "./modules/ui/bindings.js";
@@ -25,17 +28,35 @@ import "./modules/ui/bindings.js";
 
 const ko = window.ko;
 
-const VERSION = "V0_21_0";
+const VERSION = "V1_9_0";
 
-const ROOM = { x0: 2, z0: 1, width: 6, depth: 8 };
+const ROOM = { x0: 1, z0: 1, width: 8, depth: 10 };
+const GRID_WIDTH = 10;
+const GRID_DEPTH = 12;
+const GRID_CELL_SIZE = 4;
+
 const TOGGLE_CAMERA_KEY = "Tab";
 const SAVE_KEY = "KeyS";
 const DEV_TOGGLE_KEY = "Backquote";
 
-const PATROL_START_CELL = { cx: 3, cz: 2 };
-const PATROL_END_CELL = { cx: 6, cz: 7 };
-const PATROL_SPEED = 1.6;
+const MINION_SPEED = 1.6;
+const MINION_SPAWN_CELL = { cx: 2, cz: 2 };
 const MANIFEST_PATH = "assets/manifest.json";
+
+// KayKit Rig_Medium clip names. The rig ships A/B (and sometimes C) variants
+// for many states — picking one variant per state. Full naming convention
+// captured in CLAUDE.md → "KayKit characters and animations are separate".
+const MINION_CLIPS = { idle: "Idle_A", walk: "Walking_A" };
+
+const DECOR_LAYOUT =
+[
+    { kind: "decor.barrel", cx: 4, cz: 9 },
+    { kind: "decor.barrel", cx: 6, cz: 9 },
+    { kind: "decor.crate",  cx: 4, cz: 4 },
+    { kind: "decor.crate",  cx: 5, cz: 4 },
+    { kind: "decor.crate",  cx: 5, cz: 5 },
+    { kind: "decor.crate",  cx: 6, cz: 5 }
+];
 
 const SCENE_AMBIENT_SKY = 0xffffff;
 const SCENE_AMBIENT_GROUND = 0x303040;
@@ -205,7 +226,7 @@ class App
 
     buildWorld()
     {
-        this.world = new World(new Grid(10, 10, 4));
+        this.world = new World(new Grid(GRID_WIDTH, GRID_DEPTH, GRID_CELL_SIZE));
         this.renderer.setScene(this.world.scene);
 
         const ambient = new THREE.HemisphereLight(
@@ -220,28 +241,53 @@ class App
         this.world.scene.add(sun);
 
         const grid = this.world.grid;
-        const worldSize = grid.width * grid.cellSize;
-        const worldCentre = worldSize / 2;
+        const worldWidth  = grid.width * grid.cellSize;
+        const worldDepth  = grid.depth * grid.cellSize;
+        const helperSize      = Math.max(worldWidth, worldDepth);
+        const helperDivisions = Math.max(grid.width, grid.depth);
 
-        const helper = new THREE.GridHelper(worldSize, grid.width, GRID_HELPER_MAJOR_COLOUR, GRID_HELPER_MINOR_COLOUR);
-        helper.position.set(worldCentre, GRID_HELPER_Y_OFFSET, worldCentre);
+        const helper = new THREE.GridHelper(helperSize, helperDivisions, GRID_HELPER_MAJOR_COLOUR, GRID_HELPER_MINOR_COLOUR);
+        helper.position.set(worldWidth / 2, GRID_HELPER_Y_OFFSET, worldDepth / 2);
         this.world.scene.add(helper);
 
         buildEmptyRoom(this.world, this.assets, ROOM);
-        this.spawnPatrollingMinion();
+        this.placeDecor();
+        this.spawnMinion();
     }
 
-    spawnPatrollingMinion()
+    placeDecor()
     {
-        const start = this.world.grid.cellToWorld(PATROL_START_CELL.cx, PATROL_START_CELL.cz);
-        const end = this.world.grid.cellToWorld(PATROL_END_CELL.cx, PATROL_END_CELL.cz);
+        for(const { kind, cx, cz } of DECOR_LAYOUT)
+        {
+            if(kind === "decor.barrel")     { DecorBuilder.addBarrel(this.world, this.assets, cx, cz); }
+            else if(kind === "decor.crate") { DecorBuilder.addCrate(this.world, this.assets, cx, cz); }
+            else { console.warn(`[App] Unknown decor kind: ${kind}`); }
+        }
+    }
 
+    spawnMinion()
+    {
         const minion = Entity.fromKind("character.skeleton.minion", this.assets);
-        minion.addComponent(new Walker(
-            [{ x: start.x, z: start.z }, { x: end.x, z: end.z }],
-            PATROL_SPEED
-        ));
+        minion.addComponent(new Walker({ speed: MINION_SPEED }));
+
+        // KayKit ships character meshes and clip libraries separately — both
+        // bind to the shared "Rig_Medium" skeleton, so the cloned character's
+        // bone names will resolve against any clip from the rig libraries.
+        const animations =
+        [
+            ...this.assets.getAnimations("character.skeleton.minion"),
+            ...this.assets.getAnimations("animations.rig-medium.general"),
+            ...this.assets.getAnimations("animations.rig-medium.movement")
+        ];
+        minion.addComponent(new Animator({ clipMap: MINION_CLIPS, animations }));
+
+        minion.addComponent(new WanderBehaviour());
+
+        const spawn = this.world.grid.cellToWorld(MINION_SPAWN_CELL.cx, MINION_SPAWN_CELL.cz);
+        minion.object3D.position.set(spawn.x, 0, spawn.z);
+
         this.world.addEntity(minion);
+        minion.getComponent(Animator).crossfade("idle");
     }
 
     buildCameraControllers()

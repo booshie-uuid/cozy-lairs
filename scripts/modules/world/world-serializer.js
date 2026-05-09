@@ -34,7 +34,10 @@ const COMPONENT_BUILDERS =
 
     GridPlacement: (entity, data) =>
     {
-        entity.addComponent(new GridPlacement(data.cx, data.cz, data.rotationStep));
+        const options = {};
+        if(data.walkable === true) { options.walkable = true; }
+        if(data.blocks   === true) { options.blocks   = true; }
+        entity.addComponent(new GridPlacement(data.cx, data.cz, data.rotationStep, options));
     },
 
     EdgePlacement: (entity, data) =>
@@ -49,7 +52,11 @@ const COMPONENT_BUILDERS =
 
     Walker: (entity, data) =>
     {
-        entity.addComponent(new Walker(data.waypoints, data.speed));
+        const walker = entity.addComponent(new Walker({ speed: data.speed }));
+        if(Array.isArray(data.path) && data.path.length > 0)
+        {
+            walker.pendingFollow = { path: data.path, startIndex: data.pathIndex };
+        }
     }
 };
 

@@ -113,6 +113,46 @@ The capture sink installs into `Emitter.devSink`. Gameplay code cannot subscribe
 
 KayKit packs live under `assets/kaykit/<pack-slug>/models/{gltf,textures}/`. The `models/` intermediary is part of how Kay packages — do not flatten it. The asset manifest at `assets/manifest.json` is the only place file paths appear; gameplay code refers to assets by flat dot-id (`floor.stone.basic`).
 
+### World axes — +X is east, +Z is north
+
+The world's compass orientation is encoded in `buildEmptyRoom`: walls placed at `cz = z0` are the "south" side, walls at `cz = z0 + depth - 1` are the "north" side. So `+X` runs east, `+Z` runs north (and `-Z` is south, `-X` is west). When laying out decor, patrol cells, or anything else with a directional name, use this convention. There is no in-world compass HUD yet — when the user asks "which way is north?" the answer is "increasing Z" (until/unless we add a compass widget).
+
+### Cozy theme — what's where, and what's off-limits
+
+The cozy-grimoire visual identity lives in `styles/cozy.css`, loaded **after** `main.css` in `index.html`. `main.css` keeps the V0 neutral dark theme; `cozy.css` only restyles the surfaces in the V1 aesthetic scope. The split lets dev surfaces stay neutral by default — important for instrumentation legibility.
+
+In scope (restyled by `cozy.css`):
+
+- `#camera-mode-chip`, `#save-status-chip` (HUD chips)
+- `#loading-overlay` and its descendants (incl. the inline minion-with-candle SVG sketch in `index.html`)
+- `#toast-tray` and `.toast` variants
+- `#min-viewport-overlay` and its descendants
+
+Out of scope (stays neutral, do **not** restyle in `cozy.css`):
+
+- `#dev-console` and its descendants
+- `#fatal-overlay` and its descendants
+- `#fps-chip`
+
+Palette (CSS custom properties in `:root`): `--cozy-aubergine` `#2a1a3a`, `--cozy-candle-gold` `#f0c674`, `--cozy-parchment` `#f4ead5`, `--cozy-ember` `#bf616a`, `--cozy-sage` `#a3be8c`, plus `-soft` / `-deep` / `-dim` siblings. Reach for these instead of inlining hex codes.
+
+Typography: heading = `EB Garamond` (with `Georgia` / `Times New Roman` fallbacks), body = `Atkinson Hyperlegible` (with system-ui fallbacks). Self-hosted woff2s under `styles/fonts/` (six files: EB Garamond's variable woff2 covers 400 + 500 via `font-weight: 400 500`; Atkinson Hyperlegible ships separate 400 and 700 files; each font has a `latin` + `latin-ext` subset pair gated by `unicode-range`). `@font-face` rules with `font-display: swap` live at the top of `cozy.css`. Source / license note in `styles/fonts/SOURCE.md`. Both fonts are SIL OFL 1.1.
+
+Decorative SVGs live in `styles/icons/` (`corner.svg`, `divider.svg`) plus the inline minion-with-candle sketch in the loading overlay's HTML so it animates with the fade. Source / license note in `styles/icons/SOURCE.md`. The corner ornament is hardcoded gold; if multiple themes ever need different tints, switch to a `mask-image` + `background-color` approach.
+
+The `.cozy-divider` class is reusable — drop a `<div class="cozy-divider"></div>` between sections that want the central-diamond rule.
+
+### KayKit characters and animations are separate
+
+KayKit ships character meshes and animation clips in **separate** GLBs that bind to a shared rig. A character GLB (e.g. `Skeleton_Minion.glb`) has the SkinnedMesh and skeleton but **no** embedded `AnimationClip`s — `gltf.animations` is empty. The clips live in dedicated rig libraries:
+
+- `assets/kaykit/skeletons/animations/gltf/Rig_Medium/` — base rig clips that ship with the Skeletons pack: `Rig_Medium_General.glb`, `Rig_Medium_MovementBasic.glb`.
+- `assets/kaykit/character-animations/animations/gltf/Rig_Medium/` — the **character-animations** extension pack adds: `CombatMelee`, `CombatRanged`, `MovementAdvanced`, `Simulation`, `Special`, `Tools` (and `Rig_Large` equivalents for the larger characters). Same rig, so clips drop in alongside the base set.
+
+Manifest entries in `assets/manifest.json` use ids like `animations.rig-medium.general`. `App.spawnMinion` combines the per-character clip array with each rig library's clips and hands the merged array to the `Animator` component. Bone names are preserved by `SkeletonUtils.clone`, so the original `AnimationClip` tracks resolve against the cloned skeleton.
+
+Rig_Medium clip names follow `<State>_<Variant>` — usually `_A` and `_B`, sometimes `_C`. Common states observed on the Skeleton_Minion: `Idle_A`, `Idle_B`, `Walking_A/B/C`, `Running_A/B`, `Hit_A/B`, `Death_A/B`, `Jump_Start/Land/Idle/Full_Short/Full_Long`, `Spawn_Air/Ground`, `Interact`, `PickUp`, `Throw`, `Use_Item`. There is no plain `Idle` or `Walk` — always pick a variant. The current `MINION_CLIPS` map in `app.js` uses `Idle_A` and `Walking_A`.
+
 ### KayKit Dungeon Remastered uses 4m cells
 
 KayKit's native cell convention is **4 metres**. `floor_tile_large.gltf` is 4×4×0.15m; `wall.gltf` is 4×4×1m (4m wide spanning the full cell edge). The world `Grid` should be constructed with `new Grid(width, depth, 4)` to match. There are smaller half-scale floor variants (`floor_tile_small.gltf` is 2×2m) but no matching small wall tiles, so don't try to scale-down the world — match KayKit's 4m. The Grid class itself defaults to `cellSize = 2` for generic use; cozy-lairs always overrides to 4.

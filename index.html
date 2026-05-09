@@ -4,7 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Cozy Lairs</title>
+
     <link rel="stylesheet" href="./styles/main.css">
+    <link rel="stylesheet" href="./styles/cozy.css">
 
     <script type="importmap">
     {
@@ -24,6 +26,8 @@
     <div id="hud">
         <div id="camera-mode-chip"
              data-bind="text: cameraMode() === 'builder' ? 'Builder' : 'First Person'"></div>
+        <div id="save-status-chip"
+             data-bind="text: saveStatus"></div>
     </div>
 
     <div id="fatal-overlay" hidden>
@@ -41,6 +45,7 @@
     <div id="min-viewport-overlay" data-bind="visible: viewportTooSmall">
         <div class="min-viewport-inner">
             <h2>Cozy Lairs needs a bit more room</h2>
+            <div class="cozy-divider"></div>
             <p>Try resizing the window to at least 1024×640.</p>
         </div>
     </div>
@@ -52,7 +57,27 @@
 
     <div id="loading-overlay" class="fade-target" data-bind="fadeOut: isReady">
         <div class="loading-overlay-inner">
+            <svg class="loading-overlay-sketch"
+                 viewBox="0 0 80 80"
+                 xmlns="http://www.w3.org/2000/svg"
+                 aria-hidden="true">
+                <g stroke="#f0c674" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+                    <!-- Hooded figure -->
+                    <path d="M 28 70 L 30 35 Q 40 22 50 35 L 52 70"/>
+                    <path d="M 33 38 Q 40 32 47 38"/>
+                    <circle cx="37" cy="40" r="0.6" fill="#f0c674"/>
+                    <circle cx="43" cy="40" r="0.6" fill="#f0c674"/>
+                    <!-- Outstretched arm + candle -->
+                    <path d="M 50 48 L 62 52"/>
+                    <rect x="63" y="40" width="2" height="12" fill="#f4ead5" fill-opacity="0.35"/>
+                    <line x1="64" y1="40" x2="64" y2="38"/>
+                    <path d="M 64 38 Q 62 34 64 30 Q 66 34 64 38 Z" fill="#f0c674" fill-opacity="0.75"/>
+                    <!-- Marginal ground line -->
+                    <line x1="22" y1="72" x2="58" y2="72" stroke-dasharray="1 2" opacity="0.6"/>
+                </g>
+            </svg>
             <h1 class="loading-overlay-title">COZY LAIRS</h1>
+            <div class="cozy-divider"></div>
             <p class="loading-overlay-status"   data-bind="text: loadStatus"></p>
             <div class="loading-overlay-progress">
                 <div class="loading-overlay-bar"

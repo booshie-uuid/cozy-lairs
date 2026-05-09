@@ -35,7 +35,7 @@ function buildEmptyRoom(world, assets, { x0, z0, width, depth })
         for(let dz = 0; dz < depth; dz++)
         {
             const floor = Entity.fromKind("floor.stone.basic", assets);
-            floor.addComponent(new GridPlacement(x0 + dx, z0 + dz, 0));
+            floor.addComponent(new GridPlacement(x0 + dx, z0 + dz, 0, { walkable: true }));
             world.addEntity(floor);
         }
     }

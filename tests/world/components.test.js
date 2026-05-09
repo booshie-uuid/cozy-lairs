@@ -176,3 +176,84 @@ test("GridPlacement rotationStep maps to the correct quarter turns", () =>
         world.removeEntity(entity);
     }
 });
+
+
+test("GridPlacement defaults — neither walkable nor blocks", () =>
+{
+    const placement = new GridPlacement(1, 1);
+    expect(placement.walkable).toBe(false);
+    expect(placement.blocks).toBe(false);
+});
+
+
+test("GridPlacement walkable: true registers floor on add and clears on remove", () =>
+{
+    const world  = new World(new Grid(4, 4));
+    const entity = makeEntity();
+    entity.addComponent(new GridPlacement(2, 1, 0, { walkable: true }));
+
+    world.addEntity(entity);
+    expect(world.grid.isWalkable(2, 1)).toBe(true);
+    expect(world.grid.floorCells.has("2,1")).toBe(true);
+
+    world.removeEntity(entity);
+    expect(world.grid.isWalkable(2, 1)).toBe(false);
+    expect(world.grid.floorCells.has("2,1")).toBe(false);
+});
+
+
+test("GridPlacement blocks: true registers blocker on add and clears on remove", () =>
+{
+    const world  = new World(new Grid(4, 4));
+    const floor  = makeEntity("floor");
+    const blocker = makeEntity("blocker");
+
+    floor.addComponent(new GridPlacement(2, 2, 0, { walkable: true }));
+    blocker.addComponent(new GridPlacement(2, 2, 0, { blocks: true }));
+
+    world.addEntity(floor);
+    world.addEntity(blocker);
+
+    expect(world.grid.blockedCells.has("2,2")).toBe(true);
+    expect(world.grid.isWalkable(2, 2)).toBe(false);
+
+    world.removeEntity(blocker);
+    expect(world.grid.blockedCells.has("2,2")).toBe(false);
+    expect(world.grid.isWalkable(2, 2)).toBe(true);
+});
+
+
+test("GridPlacement default flags do not touch floor or blocked sets", () =>
+{
+    const world  = new World(new Grid(4, 4));
+    const entity = makeEntity();
+    entity.addComponent(new GridPlacement(0, 0, 0));
+
+    world.addEntity(entity);
+
+    expect(world.grid.floorCells.size).toBe(0);
+    expect(world.grid.blockedCells.size).toBe(0);
+});
+
+
+test("GridPlacement.toJSON omits flags when false, includes them when true", () =>
+{
+    const plain = new GridPlacement(3, 5, 2);
+    expect(plain.toJSON()).toEqual({ cx: 3, cz: 5, rotationStep: 2 });
+
+    const floor = new GridPlacement(3, 5, 0, { walkable: true });
+    expect(floor.toJSON()).toEqual({ cx: 3, cz: 5, rotationStep: 0, walkable: true });
+
+    const blocker = new GridPlacement(3, 5, 0, { blocks: true });
+    expect(blocker.toJSON()).toEqual({ cx: 3, cz: 5, rotationStep: 0, blocks: true });
+
+    const both = new GridPlacement(3, 5, 0, { walkable: true, blocks: true });
+    expect(both.toJSON()).toEqual({ cx: 3, cz: 5, rotationStep: 0, walkable: true, blocks: true });
+});
+
+
+test("GridPlacement constructor rejects non-boolean flag values", () =>
+{
+    expect(() => new GridPlacement(0, 0, 0, { walkable: "yes" })).toThrow();
+    expect(() => new GridPlacement(0, 0, 0, { blocks: 1 })).toThrow();
+});

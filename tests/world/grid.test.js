@@ -113,3 +113,91 @@ test("getOccupant on out-of-bounds returns null without throwing", () =>
     const grid = new Grid(4, 4);
     expect(grid.getOccupant(99, 99)).toBe(null);
 });
+
+
+test("markFloor + unmarkFloor round-trip via isWalkable", () =>
+{
+    const grid = new Grid(4, 4);
+
+    expect(grid.isWalkable(1, 1)).toBe(false);
+
+    grid.markFloor(1, 1);
+    expect(grid.isWalkable(1, 1)).toBe(true);
+
+    grid.unmarkFloor(1, 1);
+    expect(grid.isWalkable(1, 1)).toBe(false);
+});
+
+
+test("setBlocked overrides floor for isWalkable", () =>
+{
+    const grid = new Grid(4, 4);
+
+    grid.markFloor(2, 2);
+    expect(grid.isWalkable(2, 2)).toBe(true);
+
+    grid.setBlocked(2, 2);
+    expect(grid.isWalkable(2, 2)).toBe(false);
+
+    grid.clearBlocked(2, 2);
+    expect(grid.isWalkable(2, 2)).toBe(true);
+});
+
+
+test("isWalkable truth table — floor, blocker, neither", () =>
+{
+    const grid = new Grid(4, 4);
+
+    grid.markFloor(0, 0);
+    grid.markFloor(1, 0);
+    grid.setBlocked(1, 0);
+
+    expect(grid.isWalkable(0, 0)).toBe(true);  // floor, not blocked
+    expect(grid.isWalkable(1, 0)).toBe(false); // floor, blocked
+    expect(grid.isWalkable(2, 0)).toBe(false); // no floor
+});
+
+
+test("isWalkable returns false for out-of-bounds without throwing", () =>
+{
+    const grid = new Grid(4, 4);
+    expect(grid.isWalkable(-1, 0)).toBe(false);
+    expect(grid.isWalkable(0, 4)).toBe(false);
+    expect(grid.isWalkable(99, 99)).toBe(false);
+});
+
+
+test("markFloor / unmarkFloor / setBlocked / clearBlocked throw GridBoundsError on out-of-bounds", () =>
+{
+    const grid = new Grid(4, 4);
+    expect(() => grid.markFloor(5, 0)).toThrow(Errors.GridBoundsError);
+    expect(() => grid.unmarkFloor(0, -1)).toThrow(Errors.GridBoundsError);
+    expect(() => grid.setBlocked(4, 4)).toThrow(Errors.GridBoundsError);
+    expect(() => grid.clearBlocked(-1, -1)).toThrow(Errors.GridBoundsError);
+});
+
+
+test("walkableCells filters blockers and returns parsed cell coords", () =>
+{
+    const grid = new Grid(4, 4);
+
+    grid.markFloor(0, 0);
+    grid.markFloor(1, 0);
+    grid.markFloor(2, 0);
+    grid.setBlocked(1, 0);
+
+    const cells = grid.walkableCells();
+    const sorted = [...cells].sort((a, b) => a.cx - b.cx);
+
+    expect(sorted).toEqual([
+        { cx: 0, cz: 0 },
+        { cx: 2, cz: 0 }
+    ]);
+});
+
+
+test("walkableCells returns empty array when nothing is marked", () =>
+{
+    const grid = new Grid(4, 4);
+    expect(grid.walkableCells()).toEqual([]);
+});

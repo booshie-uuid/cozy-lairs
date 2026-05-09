@@ -1,0 +1,306 @@
+/* Cozy Lairs — cozy grimoire theme overlay. */
+/*
+ * Loaded after main.css. Restyles only the surfaces in the V1 aesthetic
+ * scope: camera-mode chip, save-status chip, loading overlay, toast tray,
+ * and the minimum-viewport overlay.
+ *
+ * Dev console, fatal overlay, and FPS chip deliberately stay neutral
+ * (defined in main.css) — they're developer surfaces and don't share the
+ * game's identity.
+ */
+
+
+/******************************************************************************/
+/* SELF-HOSTED FONTS                                                          */
+/******************************************************************************/
+
+/*
+ * Self-hosted woff2s under styles/fonts/. Paths are relative to this file.
+ * `font-display: swap` renders fallback fonts immediately and swaps when the
+ * webfont arrives. `unicode-range` lets the browser skip the latin-ext file
+ * for ASCII-only text.
+ *
+ * Source: Google Fonts API (woff2 files only). License: SIL Open Font
+ * License 1.1 — see styles/fonts/SOURCE.md.
+ */
+
+@font-face
+{
+    font-family: "EB Garamond";
+    font-style: normal;
+    font-weight: 400 500;
+    font-display: swap;
+    src: url("./fonts/eb-garamond-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face
+{
+    font-family: "EB Garamond";
+    font-style: normal;
+    font-weight: 400 500;
+    font-display: swap;
+    src: url("./fonts/eb-garamond-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face
+{
+    font-family: "Atkinson Hyperlegible";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("./fonts/atkinson-hyperlegible-400-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face
+{
+    font-family: "Atkinson Hyperlegible";
+    font-style: normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url("./fonts/atkinson-hyperlegible-400-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face
+{
+    font-family: "Atkinson Hyperlegible";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("./fonts/atkinson-hyperlegible-700-latin.woff2") format("woff2");
+    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face
+{
+    font-family: "Atkinson Hyperlegible";
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url("./fonts/atkinson-hyperlegible-700-latin-ext.woff2") format("woff2");
+    unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+
+:root
+{
+    /* Palette ─ "evil overlord's planning notebook" */
+    --cozy-aubergine:        #2a1a3a;
+    --cozy-aubergine-soft:   #3a2a4f;
+    --cozy-aubergine-deep:   #1a0d28;
+    --cozy-candle-gold:      #f0c674;
+    --cozy-candle-gold-dim:  #b08c40;
+    --cozy-parchment:        #f4ead5;
+    --cozy-parchment-dim:    #c0b08c;
+    --cozy-ember:            #bf616a;
+    --cozy-sage:             #a3be8c;
+
+    /* Typography */
+    --cozy-font-display: "EB Garamond",         Georgia,    "Times New Roman", serif;
+    --cozy-font-body:    "Atkinson Hyperlegible", system-ui, -apple-system,    "Segoe UI", sans-serif;
+
+    /* Chrome */
+    --cozy-radius:        6px;
+    --cozy-panel-bg:      rgba(42, 26, 58, 0.88);
+    --cozy-panel-border:  1px solid var(--cozy-candle-gold-dim);
+    --cozy-panel-shadow:  0 4px 14px rgba(0, 0, 0, 0.45);
+}
+
+
+/******************************************************************************/
+/* HUD CHIPS                                                                  */
+/******************************************************************************/
+
+#camera-mode-chip
+{
+    background-color: var(--cozy-panel-bg);
+    border:           var(--cozy-panel-border);
+    color:            var(--cozy-parchment);
+    font-family:      var(--cozy-font-body);
+    border-radius:    var(--cozy-radius);
+    padding:          0.5em 1em;
+    box-shadow:       var(--cozy-panel-shadow);
+}
+
+#save-status-chip
+{
+    position:         absolute;
+    bottom:           1rem;
+    right:            1rem;
+    padding:          0.45em 1em;
+    background-color: var(--cozy-panel-bg);
+    border:           var(--cozy-panel-border);
+    border-radius:    var(--cozy-radius);
+    color:            var(--cozy-parchment);
+    font-family:      var(--cozy-font-body);
+    font-size:        clamp(0.7rem, 1.4vmin, 0.85rem);
+    letter-spacing:   0.04em;
+    pointer-events:   none;
+    box-shadow:       var(--cozy-panel-shadow);
+}
+
+
+/******************************************************************************/
+/* LOADING OVERLAY                                                            */
+/******************************************************************************/
+
+#loading-overlay
+{
+    background-color: var(--cozy-aubergine-deep);
+    color:            var(--cozy-parchment);
+}
+
+.loading-overlay-sketch
+{
+    display: block;
+    width: clamp(56px, 12vmin, 96px);
+    height: auto;
+    margin: 0 auto clamp(0.5rem, 1.5vmin, 1rem);
+    opacity: 0.85;
+}
+
+.loading-overlay-title
+{
+    font-family: var(--cozy-font-display);
+    font-weight: 500;
+    color:       var(--cozy-candle-gold);
+    opacity:     1;
+}
+
+.loading-overlay-status
+{
+    font-family: var(--cozy-font-body);
+    color:       var(--cozy-parchment-dim);
+    opacity:     1;
+}
+
+.loading-overlay-progress
+{
+    height:           5px;
+    background-color: rgba(244, 234, 213, 0.12);
+    border:           1px solid var(--cozy-candle-gold-dim);
+    border-radius:    3px;
+}
+
+.loading-overlay-bar
+{
+    background-color: var(--cozy-candle-gold);
+}
+
+.loading-overlay-percent
+{
+    font-family: var(--cozy-font-body);
+    color:       var(--cozy-parchment-dim);
+    opacity:     1;
+}
+
+
+/******************************************************************************/
+/* TOAST TRAY                                                                 */
+/******************************************************************************/
+
+.toast
+{
+    background-color: var(--cozy-panel-bg);
+    border:           var(--cozy-panel-border);
+    border-radius:    var(--cozy-radius);
+    color:            var(--cozy-parchment);
+    font-family:      var(--cozy-font-body);
+    box-shadow:       0 6px 18px rgba(0, 0, 0, 0.55);
+}
+
+.toast.is-info    { border-left: 3px solid var(--cozy-candle-gold-dim); }
+.toast.is-warning { border-left: 3px solid var(--cozy-candle-gold); }
+.toast.is-error   { border-left: 3px solid var(--cozy-ember); }
+
+/* Subtle corner flourishes on toast panels — top corners only, kept small
+   so they don't crowd the message text. */
+.toast
+{
+    position: relative;
+}
+
+.toast::before,
+.toast::after
+{
+    content: "";
+    position: absolute;
+    top: 4px;
+    width: 12px;
+    height: 12px;
+    background-image: url("./icons/corner.svg");
+    background-size: contain;
+    background-repeat: no-repeat;
+    pointer-events: none;
+    opacity: 0.8;
+}
+
+.toast::before { left: 4px; }
+.toast::after  { right: 4px; transform: scaleX(-1); }
+
+
+/******************************************************************************/
+/* MIN VIEWPORT OVERLAY                                                       */
+/******************************************************************************/
+
+#min-viewport-overlay
+{
+    background-color: var(--cozy-aubergine-deep);
+    color:            var(--cozy-parchment);
+}
+
+.min-viewport-inner
+{
+    position:      relative;
+    padding:       2.5rem 3rem;
+    border:        var(--cozy-panel-border);
+    border-radius: var(--cozy-radius);
+    background-color: rgba(42, 26, 58, 0.6);
+}
+
+.min-viewport-inner::before,
+.min-viewport-inner::after,
+.min-viewport-inner > .corner-tl,
+.min-viewport-inner > .corner-br
+{
+    content: "";
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background-image: url("./icons/corner.svg");
+    background-size: contain;
+    background-repeat: no-repeat;
+    pointer-events: none;
+}
+
+.min-viewport-inner::before { top: 6px; left: 6px; }
+.min-viewport-inner::after  { top: 6px; right: 6px; transform: scaleX(-1); }
+
+.min-viewport-inner h2
+{
+    font-family: var(--cozy-font-display);
+    font-weight: 500;
+    color:       var(--cozy-candle-gold);
+}
+
+.min-viewport-inner p
+{
+    color:       var(--cozy-parchment-dim);
+    font-family: var(--cozy-font-body);
+    opacity:     1;
+}
+
+/* Cozy divider — horizontal rule with a central diamond dingbat. */
+.cozy-divider
+{
+    height: 16px;
+    margin: 0.6rem auto;
+    background-image: url("./icons/divider.svg");
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    width: min(20rem, 80%);
+}

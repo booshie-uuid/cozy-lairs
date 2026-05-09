@@ -122,6 +122,16 @@ class AssetManager
         return this.cloneAsset(cached);
     }
 
+    getAnimations(id)
+    {
+        const cached = this.cache.get(id);
+        if(!cached)
+        {
+            throw new Errors.AssetLoadError(`Asset "${id}" is not loaded. Did you forget preloadCore()?`);
+        }
+        return cached.animations;
+    }
+
     has(id)
     {
         return this.cache.has(id);

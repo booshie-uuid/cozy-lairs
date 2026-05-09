@@ -30,6 +30,30 @@
             "path": "assets/kaykit/skeletons/characters/gltf/Skeleton_Minion.glb",
             "type": "gltf",
             "tier": "core"
+        },
+        {
+            "id":   "decor.barrel",
+            "path": "assets/kaykit/dungeon-remastered/models/gltf/barrel_large.gltf",
+            "type": "gltf",
+            "tier": "core"
+        },
+        {
+            "id":   "decor.crate",
+            "path": "assets/kaykit/dungeon-remastered/models/gltf/crates_stacked.gltf",
+            "type": "gltf",
+            "tier": "core"
+        },
+        {
+            "id":   "animations.rig-medium.general",
+            "path": "assets/kaykit/skeletons/animations/gltf/Rig_Medium/Rig_Medium_General.glb",
+            "type": "gltf",
+            "tier": "core"
+        },
+        {
+            "id":   "animations.rig-medium.movement",
+            "path": "assets/kaykit/skeletons/animations/gltf/Rig_Medium/Rig_Medium_MovementBasic.glb",
+            "type": "gltf",
+            "tier": "core"
         }
     ]
 }

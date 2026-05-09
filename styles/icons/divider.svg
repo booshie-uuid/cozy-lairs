@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 16" width="240" height="16" preserveAspectRatio="none">
+    <!-- Two thin gold rules flanking a central diamond dingbat. -->
+    <line x1="0"   y1="8" x2="100" y2="8" stroke="#b08c40" stroke-width="0.5"/>
+    <line x1="140" y1="8" x2="240" y2="8" stroke="#b08c40" stroke-width="0.5"/>
+    <g transform="translate(120 8)">
+        <polygon points="0,-4 4,0 0,4 -4,0" fill="#f0c674"/>
+        <polygon points="0,-2.2 2.2,0 0,2.2 -2.2,0" fill="#2a1a3a"/>
+    </g>
+</svg>

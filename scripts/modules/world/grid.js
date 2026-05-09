@@ -24,6 +24,8 @@ class Grid
         this.cellSize = cellSize;
 
         this.occupants = new Map();
+        this.floorCells = new Set();
+        this.blockedCells = new Set();
     }
 
     isInBounds(cx, cz)
@@ -78,6 +80,61 @@ class Grid
             throw new Errors.GridBoundsError(`Cell (${cx}, ${cz}) is outside grid bounds (${this.width}x${this.depth}).`);
         }
         this.occupants.delete(this.cellKey(cx, cz));
+    }
+
+    markFloor(cx, cz)
+    {
+        if(!this.isInBounds(cx, cz))
+        {
+            throw new Errors.GridBoundsError(`Cell (${cx}, ${cz}) is outside grid bounds (${this.width}x${this.depth}).`);
+        }
+        this.floorCells.add(this.cellKey(cx, cz));
+    }
+
+    unmarkFloor(cx, cz)
+    {
+        if(!this.isInBounds(cx, cz))
+        {
+            throw new Errors.GridBoundsError(`Cell (${cx}, ${cz}) is outside grid bounds (${this.width}x${this.depth}).`);
+        }
+        this.floorCells.delete(this.cellKey(cx, cz));
+    }
+
+    setBlocked(cx, cz)
+    {
+        if(!this.isInBounds(cx, cz))
+        {
+            throw new Errors.GridBoundsError(`Cell (${cx}, ${cz}) is outside grid bounds (${this.width}x${this.depth}).`);
+        }
+        this.blockedCells.add(this.cellKey(cx, cz));
+    }
+
+    clearBlocked(cx, cz)
+    {
+        if(!this.isInBounds(cx, cz))
+        {
+            throw new Errors.GridBoundsError(`Cell (${cx}, ${cz}) is outside grid bounds (${this.width}x${this.depth}).`);
+        }
+        this.blockedCells.delete(this.cellKey(cx, cz));
+    }
+
+    isWalkable(cx, cz)
+    {
+        if(!this.isInBounds(cx, cz)) { return false; }
+        const key = this.cellKey(cx, cz);
+        return this.floorCells.has(key) && !this.blockedCells.has(key);
+    }
+
+    walkableCells()
+    {
+        const cells = [];
+        for(const key of this.floorCells)
+        {
+            if(this.blockedCells.has(key)) { continue; }
+            const [cxStr, czStr] = key.split(",");
+            cells.push({ cx: Number(cxStr), cz: Number(czStr) });
+        }
+        return cells;
     }
 
     cellKey(cx, cz)
