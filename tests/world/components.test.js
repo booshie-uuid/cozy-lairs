@@ -99,6 +99,30 @@ test("Renderable mounts a placeholder mesh when the asset can't be resolved", ()
 });
 
 
+test("Renderable.reattach swaps the mesh for a fresh clone (used by manifest reload)", () =>
+{
+    const meshA = new THREE.Mesh();
+    const meshB = new THREE.Mesh();
+    let nextMesh = meshA;
+    const assets = { get: () => nextMesh };
+
+    const entity = makeEntity();
+    const renderable = entity.addComponent(new Renderable("any.kind", assets));
+
+    const world = new World(new Grid(4, 4));
+    world.addEntity(entity);
+
+    expect(entity.object3D.children.length).toBe(1);
+    expect(entity.object3D.children[0]).toBe(meshA);
+
+    nextMesh = meshB;
+    renderable.reattach();
+
+    expect(entity.object3D.children.length).toBe(1);
+    expect(entity.object3D.children[0]).toBe(meshB);
+});
+
+
 /* GRID PLACEMENT *************************************************************/
 
 test("GridPlacement.toJSON captures cx, cz, and rotationStep", () =>

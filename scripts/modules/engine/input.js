@@ -19,6 +19,19 @@ import { Emitter } from "./emitter.js";
  *
  * Pointer dx/dy come from `event.movementX/Y` so they remain meaningful under
  * pointer-lock (where x/y stop updating).
+ *
+ * Held-key state rules:
+ *   - Keys pressed with Ctrl or Meta held are NOT added to `keys`. Ctrl+S
+ *     is a save shortcut, not a movement input — without this, every Ctrl+S
+ *     would also nudge the camera back.
+ *   - `keys` is cleared on `window.blur`. The browser may swallow keyup
+ *     events when focus moves to a native dialog or another window, which
+ *     would otherwise leave a movement key stuck "on" indefinitely.
+ *   - Auto-repeated keydowns are suppressed before emit/keys.add. No
+ *     consumer in the codebase wants them — cameras poll `isDown(code)`,
+ *     command bindings already gate on `!event.repeat`. preventDefault
+ *     still fires on repeats so held shortcut keys (Tab, KeyS) keep
+ *     suppressing their browser defaults.
  */
 
 class Input extends Emitter
@@ -27,39 +40,41 @@ class Input extends Emitter
     {
         super();
         this.target = target;
-        this._keys  = new Set();
-        this._preventDefaultCodes = new Set();
+        this.keys = new Set();
+        this.preventDefaultCodes = new Set();
 
-        this._onKeydown           = this._onKeydown.bind(this);
-        this._onKeyup             = this._onKeyup.bind(this);
-        this._onPointerMove       = this._onPointerMove.bind(this);
-        this._onPointerDown       = this._onPointerDown.bind(this);
-        this._onPointerUp         = this._onPointerUp.bind(this);
-        this._onWheel             = this._onWheel.bind(this);
-        this._onPointerLockChange = this._onPointerLockChange.bind(this);
+        this.onKeydown = this.onKeydown.bind(this);
+        this.onKeyup = this.onKeyup.bind(this);
+        this.onBlur = this.onBlur.bind(this);
+        this.onPointerMove = this.onPointerMove.bind(this);
+        this.onPointerDown = this.onPointerDown.bind(this);
+        this.onPointerUp = this.onPointerUp.bind(this);
+        this.onWheel = this.onWheel.bind(this);
+        this.onPointerLockChange = this.onPointerLockChange.bind(this);
 
-        target.addEventListener("keydown",     this._onKeydown);
-        target.addEventListener("keyup",       this._onKeyup);
-        target.addEventListener("pointermove", this._onPointerMove);
-        target.addEventListener("pointerdown", this._onPointerDown);
-        target.addEventListener("pointerup",   this._onPointerUp);
-        target.addEventListener("wheel",       this._onWheel, { passive: false });
-        document.addEventListener("pointerlockchange", this._onPointerLockChange);
+        target.addEventListener("keydown", this.onKeydown);
+        target.addEventListener("keyup", this.onKeyup);
+        target.addEventListener("blur", this.onBlur);
+        target.addEventListener("pointermove", this.onPointerMove);
+        target.addEventListener("pointerdown", this.onPointerDown);
+        target.addEventListener("pointerup", this.onPointerUp);
+        target.addEventListener("wheel", this.onWheel, { passive: false });
+        document.addEventListener("pointerlockchange", this.onPointerLockChange);
     }
 
     isDown(code)
     {
-        return this._keys.has(code);
+        return this.keys.has(code);
     }
 
     preventDefaultFor(code)
     {
-        this._preventDefaultCodes.add(code);
+        this.preventDefaultCodes.add(code);
     }
 
     allowDefaultFor(code)
     {
-        this._preventDefaultCodes.delete(code);
+        this.preventDefaultCodes.delete(code);
     }
 
     requestPointerLock(element)
@@ -80,28 +95,35 @@ class Input extends Emitter
 
     dispose()
     {
-        this.target.removeEventListener("keydown",     this._onKeydown);
-        this.target.removeEventListener("keyup",       this._onKeyup);
-        this.target.removeEventListener("pointermove", this._onPointerMove);
-        this.target.removeEventListener("pointerdown", this._onPointerDown);
-        this.target.removeEventListener("pointerup",   this._onPointerUp);
-        this.target.removeEventListener("wheel",       this._onWheel);
-        document.removeEventListener("pointerlockchange", this._onPointerLockChange);
-        this._keys.clear();
-        this._handlers.clear();
+        this.target.removeEventListener("keydown", this.onKeydown);
+        this.target.removeEventListener("keyup", this.onKeyup);
+        this.target.removeEventListener("blur", this.onBlur);
+        this.target.removeEventListener("pointermove", this.onPointerMove);
+        this.target.removeEventListener("pointerdown", this.onPointerDown);
+        this.target.removeEventListener("pointerup", this.onPointerUp);
+        this.target.removeEventListener("wheel", this.onWheel);
+        document.removeEventListener("pointerlockchange", this.onPointerLockChange);
+        this.keys.clear();
+        this.handlers.clear();
     }
 
 
     /* HANDLERS ***************************************************************/
 
-    _onKeydown(event)
+    onKeydown(event)
     {
-        if(this._preventDefaultCodes.has(event.code))
+        if(this.preventDefaultCodes.has(event.code))
         {
             event.preventDefault();
         }
 
-        this._keys.add(event.code);
+        if(event.repeat) { return; }
+
+        if(!event.ctrlKey && !event.metaKey)
+        {
+            this.keys.add(event.code);
+        }
+
         this.emit("keydown",
         {
             code:   event.code,
@@ -110,13 +132,13 @@ class Input extends Emitter
             shift:  event.shiftKey,
             alt:    event.altKey,
             meta:   event.metaKey,
-            repeat: event.repeat
+            repeat: false
         });
     }
 
-    _onKeyup(event)
+    onKeyup(event)
     {
-        this._keys.delete(event.code);
+        this.keys.delete(event.code);
         this.emit("keyup",
         {
             code:  event.code,
@@ -128,7 +150,7 @@ class Input extends Emitter
         });
     }
 
-    _onPointerMove(event)
+    onPointerMove(event)
     {
         this.emit("pointermove",
         {
@@ -141,7 +163,7 @@ class Input extends Emitter
         });
     }
 
-    _onPointerDown(event)
+    onPointerDown(event)
     {
         this.emit("pointerdown",
         {
@@ -152,7 +174,7 @@ class Input extends Emitter
         });
     }
 
-    _onPointerUp(event)
+    onPointerUp(event)
     {
         this.emit("pointerup",
         {
@@ -163,7 +185,7 @@ class Input extends Emitter
         });
     }
 
-    _onWheel(event)
+    onWheel(event)
     {
         this.emit("wheel",
         {
@@ -173,12 +195,17 @@ class Input extends Emitter
         });
     }
 
-    _onPointerLockChange()
+    onPointerLockChange()
     {
         this.emit("pointerlockchange",
         {
             locked: document.pointerLockElement !== null
         });
+    }
+
+    onBlur()
+    {
+        this.keys.clear();
     }
 }
 

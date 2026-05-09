@@ -140,3 +140,421 @@ html, body
     opacity: 0.5;
     font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
 }
+
+
+/******************************************************************************/
+/* DEV CONSOLE                                                                */
+/******************************************************************************/
+
+#dev-console
+{
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(40rem, 80vw);
+    z-index: 200;
+
+    display: flex;
+    flex-direction: column;
+    background-color: rgba(12, 16, 22, 0.96);
+    border-left: 1px solid rgba(216, 222, 233, 0.15);
+    color: #d8dee9;
+    font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+    font-size: 0.75rem;
+
+    transform: translateX(100%);
+    transition: transform 0.25s ease-out;
+}
+
+#dev-console.is-open
+{
+    transform: translateX(0);
+}
+
+.dev-console-header
+{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid rgba(216, 222, 233, 0.1);
+}
+
+.dev-console-tabs
+{
+    display: flex;
+    gap: 0.3rem;
+}
+
+.dev-console-tab
+{
+    background: transparent;
+    border: 1px solid transparent;
+    color: inherit;
+    font: inherit;
+    padding: 0.25rem 0.7rem;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.dev-console-tab.is-active
+{
+    border-color: rgba(216, 222, 233, 0.2);
+    background-color: rgba(216, 222, 233, 0.06);
+    opacity: 1;
+}
+
+.dev-console-close
+{
+    background: transparent;
+    border: none;
+    color: inherit;
+    font-size: 1.2rem;
+    line-height: 1;
+    width: 1.6rem;
+    height: 1.6rem;
+    cursor: pointer;
+    opacity: 0.6;
+}
+
+.dev-console-close:hover
+{
+    opacity: 1;
+}
+
+.dev-console-quick-actions
+{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid rgba(216, 222, 233, 0.08);
+}
+
+.dev-console-quick-actions .dev-console-button
+{
+    font-size: 0.7rem;
+    padding: 0.2rem 0.55rem;
+}
+
+.dev-console-pane
+{
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.dev-console-controls
+{
+    display: flex;
+    gap: 0.3rem;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid rgba(216, 222, 233, 0.08);
+}
+
+.dev-console-filter
+{
+    flex: 1;
+    background-color: rgba(216, 222, 233, 0.04);
+    border: 1px solid rgba(216, 222, 233, 0.1);
+    color: inherit;
+    font: inherit;
+    padding: 0.25rem 0.4rem;
+    border-radius: 3px;
+}
+
+.dev-console-filter:focus
+{
+    outline: none;
+    border-color: rgba(136, 192, 208, 0.5);
+}
+
+.dev-console-toggle
+{
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0 0.4rem;
+    opacity: 0.7;
+    cursor: pointer;
+    user-select: none;
+}
+
+.dev-console-toggle input
+{
+    margin: 0;
+}
+
+.dev-console-button
+{
+    background-color: rgba(216, 222, 233, 0.06);
+    border: 1px solid rgba(216, 222, 233, 0.15);
+    color: inherit;
+    font: inherit;
+    padding: 0.25rem 0.7rem;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.dev-console-button:hover
+{
+    background-color: rgba(216, 222, 233, 0.12);
+}
+
+.dev-console-events
+{
+    flex: 1;
+    list-style: none;
+    margin: 0;
+    padding: 0.3rem 0;
+    overflow-y: auto;
+}
+
+.dev-console-event
+{
+    display: grid;
+    grid-template-columns: 4rem 8rem 8rem 1fr;
+    gap: 0.4rem;
+    padding: 0.15rem 0.6rem;
+    line-height: 1.4;
+    border-bottom: 1px solid rgba(216, 222, 233, 0.04);
+}
+
+.dev-console-event:hover
+{
+    background-color: rgba(216, 222, 233, 0.04);
+}
+
+.dev-console-event-time
+{
+    opacity: 0.4;
+    text-align: right;
+}
+
+.dev-console-event-emitter
+{
+    color: #a3be8c;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dev-console-event-name
+{
+    color: #88c0d0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dev-console-event-payload
+{
+    opacity: 0.7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.dev-console-stats
+{
+    overflow-y: auto;
+    padding: 0.6rem 0.8rem;
+}
+
+.dev-console-stats-grid
+{
+    display: grid;
+    grid-template-columns: 12rem 1fr;
+    column-gap: 1rem;
+    row-gap: 0.3rem;
+    margin: 0;
+}
+
+.dev-console-stats-grid dt
+{
+    opacity: 0.5;
+}
+
+.dev-console-stats-grid dd
+{
+    margin: 0;
+    color: #88c0d0;
+}
+
+
+/******************************************************************************/
+/* FATAL ERROR OVERLAY                                                        */
+/******************************************************************************/
+
+#fatal-overlay
+{
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background-color: rgba(10, 14, 20, 0.97);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+#fatal-overlay[hidden]
+{
+    display: none;
+}
+
+.fatal-overlay-inner
+{
+    width: min(90vw, 40rem);
+    color: #d8dee9;
+}
+
+.fatal-overlay-inner h1
+{
+    font-size: clamp(1.4rem, 3vmin, 2rem);
+    margin: 0 0 1rem;
+    color: #bf616a;
+}
+
+.fatal-overlay-inner h2
+{
+    font-size: clamp(0.9rem, 1.6vmin, 1.05rem);
+    margin: 0 0 0.4rem;
+    opacity: 0.7;
+    font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+}
+
+.fatal-overlay-inner p
+{
+    margin: 0 0 1rem;
+    line-height: 1.5;
+}
+
+.fatal-overlay-inner details
+{
+    font-size: 0.8rem;
+}
+
+.fatal-overlay-inner summary
+{
+    cursor: pointer;
+    opacity: 0.6;
+    margin-bottom: 0.5rem;
+}
+
+.fatal-overlay-inner pre
+{
+    margin: 0;
+    padding: 0.6rem;
+    background-color: rgba(216, 222, 233, 0.05);
+    border: 1px solid rgba(216, 222, 233, 0.1);
+    border-radius: 4px;
+    font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+    font-size: 0.7rem;
+    line-height: 1.4;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    opacity: 0.7;
+}
+
+
+/******************************************************************************/
+/* TOAST TRAY                                                                 */
+/******************************************************************************/
+
+#toast-tray
+{
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 300;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    pointer-events: none;
+    max-width: min(28rem, 80vw);
+}
+
+.toast
+{
+    padding: 0.55em 0.85em;
+    background-color: rgba(10, 14, 20, 0.92);
+    border: 1px solid rgba(216, 222, 233, 0.15);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+    animation: toast-in 0.2s ease-out;
+}
+
+.toast.is-info    { border-left: 3px solid #88c0d0; }
+.toast.is-warning { border-left: 3px solid #ebcb8b; }
+.toast.is-error   { border-left: 3px solid #bf616a; }
+
+@keyframes toast-in
+{
+    from { opacity: 0; transform: translateX(0.6rem); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+
+/******************************************************************************/
+/* MIN VIEWPORT OVERLAY                                                       */
+/******************************************************************************/
+
+#min-viewport-overlay
+{
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    background-color: rgba(10, 14, 20, 0.95);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    text-align: center;
+}
+
+.min-viewport-inner h2
+{
+    font-size: clamp(1rem, 2.4vmin, 1.4rem);
+    margin: 0 0 0.5rem;
+    letter-spacing: 0.04em;
+}
+
+.min-viewport-inner p
+{
+    margin: 0;
+    opacity: 0.6;
+}
+
+
+/******************************************************************************/
+/* FPS CHIP                                                                   */
+/******************************************************************************/
+
+#fps-chip
+{
+    position: fixed;
+    left: 1rem;
+    bottom: 1rem;
+    z-index: 199;
+    padding: 0.3em 0.7em;
+    background-color: rgba(10, 14, 20, 0.7);
+    border: 1px solid rgba(216, 222, 233, 0.15);
+    border-radius: 999px;
+    font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+    font-size: 0.75rem;
+    color: #88c0d0;
+    pointer-events: none;
+}
+
+.fps-chip-unit
+{
+    margin-left: 0.3em;
+    opacity: 0.4;
+}

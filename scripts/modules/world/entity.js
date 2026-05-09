@@ -24,10 +24,10 @@ class Entity
 {
     constructor(kind, object3D)
     {
-        this.kind       = kind;
-        this.object3D   = object3D;
+        this.kind = kind;
+        this.object3D = object3D;
         this.components = new Map();
-        this.world      = null;
+        this.world = null;
     }
 
     addComponent(component)

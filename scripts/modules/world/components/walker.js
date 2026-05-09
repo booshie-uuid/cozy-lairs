@@ -29,10 +29,10 @@ class Walker
             }
             return { x: wp.x, z: wp.z };
         });
-        this.speed       = speed;
+        this.speed = speed;
         this.targetIndex = 1;
-        this.direction   = 1;
-        this.entity      = null;
+        this.direction = 1;
+        this.entity = null;
     }
 
     attach(entity)
@@ -44,16 +44,16 @@ class Walker
     {
         const start = this.waypoints[0];
         this.entity.object3D.position.set(start.x, 0, start.z);
-        this._faceTowards(this.waypoints[this.targetIndex]);
+        this.faceTowards(this.waypoints[this.targetIndex]);
     }
 
     update(dt)
     {
-        const o      = this.entity.object3D;
+        const o = this.entity.object3D;
         const target = this.waypoints[this.targetIndex];
 
-        const dx   = target.x - o.position.x;
-        const dz   = target.z - o.position.z;
+        const dx = target.x - o.position.x;
+        const dz = target.z - o.position.z;
         const dist = Math.sqrt(dx * dx + dz * dz);
 
         const step = this.speed * dt;
@@ -62,8 +62,8 @@ class Walker
         {
             o.position.x = target.x;
             o.position.z = target.z;
-            this._advance();
-            this._faceTowards(this.waypoints[this.targetIndex]);
+            this.advance();
+            this.faceTowards(this.waypoints[this.targetIndex]);
             return;
         }
 
@@ -80,14 +80,14 @@ class Walker
     {
         return {
             waypoints: this.waypoints,
-            speed:     this.speed
+            speed: this.speed
         };
     }
 
 
     /* INTERNAL ***************************************************************/
 
-    _advance()
+    advance()
     {
         const next = this.targetIndex + this.direction;
         if(next >= this.waypoints.length || next < 0)
@@ -97,9 +97,9 @@ class Walker
         this.targetIndex += this.direction;
     }
 
-    _faceTowards(target)
+    faceTowards(target)
     {
-        const o  = this.entity.object3D;
+        const o = this.entity.object3D;
         const dx = target.x - o.position.x;
         const dz = target.z - o.position.z;
         if(dx * dx + dz * dz > ARRIVE_EPSILON * ARRIVE_EPSILON)

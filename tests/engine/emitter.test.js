@@ -3,7 +3,7 @@ import { Emitter } from "../../scripts/modules/engine/emitter.js";
 
 afterEach(() =>
 {
-    Emitter._devSink = null;
+    Emitter.devSink = null;
 });
 
 
@@ -75,7 +75,7 @@ test("dev sink fires once per emit with (emitter, event, payload)", () =>
 {
     const emitter = new Emitter();
     const captured = [];
-    Emitter._devSink = (em, event, payload) =>
+    Emitter.devSink = (em, event, payload) =>
     {
         captured.push({ em, event, payload });
     };
@@ -93,7 +93,7 @@ test("dev sink fires even when there are no direct subscribers", () =>
 {
     const emitter = new Emitter();
     let fired = 0;
-    Emitter._devSink = () => { fired += 1; };
+    Emitter.devSink = () => { fired += 1; };
 
     emitter.emit("ping");
 
@@ -104,7 +104,7 @@ test("dev sink fires even when there are no direct subscribers", () =>
 test("dev sink null is the default and has no side effect", () =>
 {
     const emitter = new Emitter();
-    expect(Emitter._devSink).toBe(null);
+    expect(Emitter.devSink).toBe(null);
     expect(() => emitter.emit("anything")).not.toThrow();
 });
 
@@ -116,7 +116,7 @@ test("dev sink exception does not break direct subscribers", () =>
     const seen = [];
 
     emitter.on("e", () => seen.push("subscriber ran"));
-    Emitter._devSink = () => { throw new Error("sink boom"); };
+    Emitter.devSink = () => { throw new Error("sink boom"); };
 
     emitter.emit("e");
 

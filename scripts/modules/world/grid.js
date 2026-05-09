@@ -19,11 +19,11 @@ class Grid
 {
     constructor(width, depth, cellSize = DEFAULT_CELL_SIZE)
     {
-        this.width    = width;
-        this.depth    = depth;
+        this.width = width;
+        this.depth = depth;
         this.cellSize = cellSize;
 
-        this._occupants = new Map();
+        this.occupants = new Map();
     }
 
     isInBounds(cx, cz)
@@ -62,13 +62,13 @@ class Grid
         {
             throw new Errors.GridBoundsError(`Cell (${cx}, ${cz}) is outside grid bounds (${this.width}x${this.depth}).`);
         }
-        this._occupants.set(this._key(cx, cz), entity);
+        this.occupants.set(this.cellKey(cx, cz), entity);
     }
 
     getOccupant(cx, cz)
     {
         if(!this.isInBounds(cx, cz)) { return null; }
-        return this._occupants.get(this._key(cx, cz)) || null;
+        return this.occupants.get(this.cellKey(cx, cz)) || null;
     }
 
     clearOccupant(cx, cz)
@@ -77,10 +77,10 @@ class Grid
         {
             throw new Errors.GridBoundsError(`Cell (${cx}, ${cz}) is outside grid bounds (${this.width}x${this.depth}).`);
         }
-        this._occupants.delete(this._key(cx, cz));
+        this.occupants.delete(this.cellKey(cx, cz));
     }
 
-    _key(cx, cz)
+    cellKey(cx, cz)
     {
         return `${cx},${cz}`;
     }

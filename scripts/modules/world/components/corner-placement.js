@@ -31,8 +31,8 @@ class CornerPlacement
         {
             throw new Errors.PlacementError(`CornerPlacement: invalid corner "${corner}" (expected one of: ${Object.keys(ROTATION_BY_CORNER).join(", ")}).`);
         }
-        this.vx     = vx;
-        this.vz     = vz;
+        this.vx = vx;
+        this.vz = vz;
         this.corner = corner;
         this.entity = null;
     }

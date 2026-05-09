@@ -586,7 +586,7 @@ Place a simple character entity in the room with a `Walker` component that patro
 - [*] Create `scripts/modules/world/components/walker.js` — holds waypoints array, current index, speed, `update(dt)` moves the entity along the path and ping-pongs at the endpoints.
 - [*] In `App.start()`, after `buildEmptyRoom`: place a character entity at one corner of the room with a Walker component patrolling between two opposite cells.
 - [*] Bump `VERSION` to `V1_14_0`.
-- [ ] Verify in browser: **THIS IS THE FOUNDATION DEMO** — the room is visible, builder camera frames it on boot, the placeholder character walks back and forth, Tab switches to FP mode where you can walk around with WASD and watch the character patrol from a first-person perspective.
+- [*] Verify in browser: **THIS IS THE FOUNDATION DEMO** — the room is visible, builder camera frames it on boot, the placeholder character walks back and forth, Tab switches to FP mode where you can walk around with WASD and watch the character patrol from a first-person perspective.
 
 ### Decisions
 
@@ -596,6 +596,10 @@ Place a simple character entity in the room with a `Walker` component that patro
 - **`PATROL_SPEED = 1.6 m/s`** — slow enough to read clearly at 4m cells, fast enough to be a clear motion signal.
 - **Patrol path: cell (3, 2) ↔ cell (6, 7)** — diagonal across the interior of the 6×8 room, leaving a 1-cell margin from walls.
 - **No tests for Walker.** Pure visual feature; Grid math + `cellToWorld` already tested elsewhere.
+
+---
+
+## Task 15: WorldSerializer — toJSON / fromJSON round-trip
 
 ### Objective
 
@@ -615,18 +619,24 @@ Implement the world-level serialiser that produces and consumes a plain-object s
 
 ### Steps
 
-- [ ] Create `scripts/modules/world/world-serializer.js` exporting `WorldSerializer` (or a pair of free functions `toJSON`, `fromJSON`).
-- [ ] `toJSON(world)` iterates entities, for each calls `entity.toJSON()` (which iterates components and calls each component's `toJSON()`), produces `{ version: 1, entities: [...] }`.
-- [ ] `fromJSON(world, snapshot, assets)` clears the world (remove all entities), iterates `snapshot.entities`, calls `Entity.fromKind(...)`, applies component data, collects unknown-kind warnings; returns `{ loaded: n, skipped: m, warnings: [...] }`.
-- [ ] Create `tests/data/world/empty-room-6x8.json` — a hand-authored snapshot of the room from Task 12 (ok to generate this once via a temporary `console.log(JSON.stringify(WorldSerializer.toJSON(world)))` and commit the result).
-- [ ] Create `tests/world/world-serializer.test.js` covering: round-trip equality, unknown-kind warnings, version field present.
-- [ ] Run `npm test`.
-- [ ] Bump `VERSION` to `V1_15_0`.
-- [ ] Verify: tests pass; no browser-side change.
+- [*] Create `scripts/modules/world/world-serializer.js` exporting `WorldSerializer` (or a pair of free functions `toJSON`, `fromJSON`).
+- [*] `toJSON(world)` iterates entities, for each calls `entity.toJSON()` (which iterates components and calls each component's `toJSON()`), produces `{ version: 1, entities: [...] }`.
+- [*] `fromJSON(world, snapshot, assets)` clears the world (remove all entities), iterates `snapshot.entities`, calls `Entity.fromKind(...)`, applies component data, collects unknown-kind warnings; returns `{ loaded: n, skipped: m, warnings: [...] }`.
+- [*] Create `tests/data/world/empty-room-6x8.json` — a hand-authored snapshot of the room from Task 12 (ok to generate this once via a temporary `console.log(JSON.stringify(WorldSerializer.toJSON(world)))` and commit the result).
+- [*] Create `tests/world/world-serializer.test.js` covering: round-trip equality, unknown-kind warnings, version field present.
+- [*] Run `npm test`.
+- [*] Bump `VERSION` to `V1_15_0`.
+- [*] Verify: tests pass; no browser-side change.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- **Module exports two free functions, not a class.** `toJSON(world)` and `fromJSON(world, snapshot, assets)` — there's no instance state to carry, and the namespace-import convention (`import * as WorldSerializer`) reads cleanly at the call site.
+- **Component reconstruction uses a class-name → builder registry.** A small `COMPONENT_BUILDERS` table maps the saved class name (e.g. `"GridPlacement"`) to a function that constructs the component and adds it to the entity. New components register here when their save shape is finalised.
+- **Renderable is auto-added by `Entity.fromKind`, so its snapshot entries are skipped on load.** Including `Renderable` in `toJSON` keeps the snapshot self-describing; skipping it on load avoids a duplicate component on the entity. Documented at the top of `world-serializer.js`.
+- **`Transform` is the one component that uses `applyJSON` rather than constructor args.** It mutates the entity's existing `Object3D`, so the builder calls `addComponent(new Transform())` then `applyJSON(data)`. Other components use constructor args directly.
+- **Unknown kinds and unknown component classes never throw.** Both produce entries in `result.warnings` and the lair loads minus the orphan. Matches the design's "graceful degrade" stance for save/load.
+- **Fixture authored by hand**, not generated. Six entities covering every component class (`GridPlacement`, `EdgePlacement`, `CornerPlacement`, `Walker`, `Renderable`); enough surface to exercise round-trip without depending on `buildEmptyRoom` output.
+- **VERSION bump corrected to `V0_15_0`** (not `V1_15_0` as the original step says). Plan-v0 means plan number 0; the V1.x.x was the bug fixed before resuming. Task list keeps the original wording so the original intent stays visible in the diff history.
 
 ---
 
@@ -650,21 +660,27 @@ Implement `SaveService` wrapping the File System Access API with retained `FileS
 
 ### Steps
 
-- [ ] Create `scripts/modules/engine/save-service.js` extending `Emitter`.
-- [ ] `constructor({ getSnapshot, autosaveIntervalMs = 30000 })` — stores the snapshot-producer callback.
-- [ ] `save()`: if `_handle` is null and `window.showSaveFilePicker` exists, prompt and store the handle. If no FSA support, trigger a download. Write the snapshot. Emit `saved` or `saveFailed`.
-- [ ] `_startAutosave()`: every interval, write `getSnapshot()` to `localStorage["cozy-lairs.autosave"]`. Catch quota errors and emit `saveFailed`.
-- [ ] `loadFromAutosave()`: read and parse from localStorage; null if absent or invalid.
-- [ ] `dispose()`: clear interval.
-- [ ] Create `tests/engine/save-service.test.js` with `// @vitest-environment jsdom`. Mock `window.showSaveFilePicker`, `FileSystemFileHandle`, `createWritable`. Cover: first save prompts and retains handle, second save silent, fallback when picker undefined, autosave writes to localStorage, autosave catches quota error.
-- [ ] In `App.start()`, instantiate SaveService, subscribe `viewModel.saveStatus` to its events. Bind `Ctrl+S` on `input.keydown` to call `saveService.save(WorldSerializer.toJSON(world))` (preventDefault).
-- [ ] Run `npm test`.
-- [ ] Bump `VERSION` to `V1_16_0`.
-- [ ] Verify in browser: Ctrl+S opens the file picker the first time; subsequent Ctrl+S writes silently; reload the page, check `localStorage` has the autosave entry; tests pass.
+- [*] Create `scripts/modules/engine/save-service.js` extending `Emitter`.
+- [*] `constructor({ getSnapshot, autosaveIntervalMs = 30000 })` — stores the snapshot-producer callback.
+- [*] `save()`: if `_handle` is null and `window.showSaveFilePicker` exists, prompt and store the handle. If no FSA support, trigger a download. Write the snapshot. Emit `saved` or `saveFailed`.
+- [*] `_startAutosave()`: every interval, write `getSnapshot()` to `localStorage["cozy-lairs.autosave"]`. Catch quota errors and emit `saveFailed`.
+- [*] `loadFromAutosave()`: read and parse from localStorage; null if absent or invalid.
+- [*] `dispose()`: clear interval.
+- [*] Create `tests/engine/save-service.test.js` with `// @vitest-environment jsdom`. Mock `window.showSaveFilePicker`, `FileSystemFileHandle`, `createWritable`. Cover: first save prompts and retains handle, second save silent, fallback when picker undefined, autosave writes to localStorage, autosave catches quota error.
+- [*] In `App.start()`, instantiate SaveService, subscribe `viewModel.saveStatus` to its events. Bind `Ctrl+S` on `input.keydown` to call `saveService.save(WorldSerializer.toJSON(world))` (preventDefault).
+- [*] Run `npm test`.
+- [*] Bump `VERSION` to `V1_16_0`.
+- [*] Verify in browser: Ctrl+S opens the file picker the first time; subsequent Ctrl+S writes silently; reload the page, check `localStorage` has the autosave entry; tests pass.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- **Autosave is started explicitly via `startAutosave()`, not from the constructor.** Lets tests instantiate the service without timer side-effects. App.js calls `startAutosave()` after wiring listeners. `dispose()` calls `stopAutosave()`.
+- **Autosave size is exposed for monitoring.** User flagged the ~5 MB localStorage cap as a concern. SaveService tracks `lastAutosaveSize` and `lastAutosaveAt`, and a new `autosaved` event carries `{ size, at }` so the dev console (Task 18) can show growth. `QuotaExceededError` is detected by both `err.name === "QuotaExceededError"` and DOMException `code === 22`, then re-emitted as `saveFailed` with a human-readable message; the timer keeps ticking.
+- **Picker cancellation surfaces as `saveFailed` with `cause.name === "AbortError"`.** The view-model differentiates and shows "Save cancelled" rather than a scary failure message. SaveError preserves the original cause via the `Error.cause` option so consumers can inspect it.
+- **`Ctrl+S` binding**: `input.preventDefaultFor("KeyS")` suppresses the browser's "Save Page As" default. A dedicated `_saveHandler` on `input.keydown` checks `event.code === "KeyS" && event.ctrl && !event.repeat`. Trade-off: every plain `KeyS` keydown also has `preventDefault` called; this is harmless today (no text inputs in the HUD, FP camera reads `KeyS` from `_keys` which isn't affected by preventDefault), but if a text input ever lands in the HUD this binding will need to become input-aware.
+- **Storage is dependency-injected** (`storage` constructor option, defaults to `window.localStorage`). Tests pass a Map-backed stub for predictability; the FSA-cancellation test and download-fallback test use real `URL.createObjectURL` mocks. No `forceFailNextSave` debug hook yet — that lands with the dev console quick actions in Task 19.
+- **VERSION bump corrected to `V0_16_0`** (not `V1_16_0` as the original step says). Plan number 0 stays until plan-v1 is created. Step text left as-was for diff visibility.
+- **Input fix surfaced during verify**: Ctrl+S was registering KeyS as held (camera nudged back) and the picker dialog stealing focus could leave KeyS stuck "on" indefinitely. Fixed in `engine/input.js`: keydowns with Ctrl or Meta held no longer add to `_keys`, and a new `window.blur` listener clears `_keys` whenever focus leaves the page (covers dialogs, Alt-Tab, OS prompts). 3 new Input tests cover these cases. See plan-level Issues / Adjustments.
 
 ---
 
@@ -688,18 +704,27 @@ Build the dev console panel and the events tab. Install the `Emitter._devSink` t
 
 ### Steps
 
-- [ ] Create `scripts/modules/engine/dev/dev-console-view-model.js` exposing observables for `isOpen`, `activeTab`, `eventsBuffer` (an `ko.observableArray` of the last 500 events), `isPaused`, `emitterFilter`, `eventFilter`.
-- [ ] Create `scripts/modules/engine/dev/dev-console.js` with `install()` that sets `Emitter._devSink = (emitter, event, payload) => this._record(emitter, event, payload)`.
-- [ ] `_record` short-circuits if `isPaused`; constructs `{ time: performance.now(), emitterClass, emitterName, event, payload }` and pushes to the ring buffer (replacing oldest if at cap).
-- [ ] Add HTML in `index.html`: a `<aside id="dev-console" data-bind="visible: isOpen">` containing tab buttons and an `<ul>` for events. CSS for slide-in animation, monospace font, dark theme.
-- [ ] Add a KO `foreach` over the filtered events buffer (computed observable applying regex filters).
-- [ ] In `App.start()`: instantiate `DevConsole`, call `install()`. Bind backtick on `input.keydown` to toggle. On boot, check `URLSearchParams` for `debug=1` and auto-open.
-- [ ] Bump `VERSION` to `V1_17_0`.
-- [ ] Verify in browser: press backtick — panel slides in; observe live events from Input (keydown, pointermove), World (entityAdded), SaveService (saved). Filter by class name; pause/resume works; `?debug=1` auto-opens.
+- [*] Create `scripts/modules/engine/dev/dev-console-view-model.js` exposing observables for `isOpen`, `activeTab`, `eventsBuffer` (an `ko.observableArray` of the last 500 events), `isPaused`, `emitterFilter`, `eventFilter`.
+- [*] Create `scripts/modules/engine/dev/dev-console.js` with `install()` that sets `Emitter._devSink = (emitter, event, payload) => this._record(emitter, event, payload)`.
+- [*] `_record` short-circuits if `isPaused`; constructs `{ time: performance.now(), emitterClass, emitterName, event, payload }` and pushes to the ring buffer (replacing oldest if at cap).
+- [*] Add HTML in `index.html`: a `<aside id="dev-console" data-bind="visible: isOpen">` containing tab buttons and an `<ul>` for events. CSS for slide-in animation, monospace font, dark theme.
+- [*] Add a KO `foreach` over the filtered events buffer (computed observable applying regex filters).
+- [*] In `App.start()`: instantiate `DevConsole`, call `install()`. Bind backtick on `input.keydown` to toggle. On boot, check `URLSearchParams` for `debug=1` and auto-open.
+- [*] Bump `VERSION` to `V1_17_0`.
+- [*] Verify in browser: press backtick — panel slides in; observe live events from Input (keydown, pointermove), World (entityAdded), SaveService (saved). Filter by class name; pause/resume works; `?debug=1` auto-opens.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- **Capture and display are decoupled.** `DevConsole` owns the ring buffer (a fixed 500-slot array with `_writeAt` + `_count`); the view-model owns the displayed `eventsBuffer` observableArray. A `setInterval(100ms)` flush copies the buffer snapshot into the observable only when `_dirty`, so high-frequency events (pointermove, fixedUpdate) don't trigger a KO re-evaluation per emit.
+- **Payload capture stringifies at record time** using a `JSON.stringify` replacer that swaps any class instance (constructor !== Object, not an Array) for `[ClassName]`. This bounds the payload size and prevents Three.js Object3D cycles from blowing up the buffer; circular structures still throw inside JSON.stringify and are caught into a `[unserialisable: ...]` placeholder. Records are truncated at 240 chars for display.
+- **Re-entrancy guard** (`_recording` flag) short-circuits any sink call that fires while the sink is already running. The dev sink itself never emits, but a logging handler in gameplay code might (e.g. logging an error during emit) — the guard keeps the sink honest under those conditions.
+- **`uninstall` only clears `Emitter._devSink` if it still points at our sink.** If something else has installed itself in the meantime (e.g., a future profiler), `uninstall` leaves the new sink in place. Tested.
+- **`?debug=1` auto-open and Backquote toggle.** Backquote uses `preventDefaultFor("Backquote")` like the other game shortcuts; the toggle handler also early-returns when the focused element is an `INPUT`/`TEXTAREA`/`contenteditable`, so typing backticks in the dev console's regex filters doesn't slam the panel shut.
+- **CSS lives in `styles/main.css`**, not a separate file. Visual aesthetic note from CLAUDE.md ("not terminal/IDE chrome") is honoured for the *game's* visual identity; the dev console is a developer tool, monospace + neutral dark is appropriate there. Section header `DEV CONSOLE` keeps the file navigable.
+- **VERSION bump corrected to `V0_17_0`** (not `V1_17_0`). Plan number 0 stays until plan-v1.
+- **Verify-time noise pass.** User asked why we were spamming events for held keys and pointer movement. Two fixes:
+    1. **Input** now suppresses keydown emit + `_keys.add` on `event.repeat === true`. No consumer in the codebase wanted them — every command binding already gated on `!event.repeat`, and cameras poll `isDown` rather than listening. `preventDefault` still fires on repeats so held shortcut keys (Tab, KeyS) keep suppressing their browser defaults. The existing "repeat flag is included" test was rewritten to assert the new behaviour, plus a preventDefault-on-repeat test added.
+    2. **DevConsole** gained a `noisyEvents` option (defaulting to `["pointermove"]`) and the view-model gained a `showNoisy` observable + checkbox. Pointermove is dropped at capture time when `showNoisy` is false, so the 500-slot ring buffer no longer fills up in seconds. Three new tests cover noisy-default-drop / noisy-on / noisyEvents-override.
 
 ---
 
@@ -721,17 +746,24 @@ Add the stats tab — FPS, ms/frame, sim tick rate, draw calls, triangle count, 
 
 ### Steps
 
-- [ ] Add observables to `DevConsoleViewModel`: `fps`, `frameMs`, `simTickRate`, `drawCalls`, `triangles`, `entityCount`, `assetCacheSize`.
-- [ ] Create a `_pollStats()` method scheduled via `setInterval(100ms)` that reads `renderer.info.render.calls`, `.triangles`, `world.entities.size`, `assetManager.cacheSize`, and a frame timer kept in the GameLoop.
-- [ ] Extend `GameLoop` with public `fps` and `frameMs` properties (rolling average over last ~30 frames).
-- [ ] Add a stats tab section to `index.html` with KO bindings for each value.
-- [ ] Add a small fixed-corner FPS chip visible whenever `isOpen` is true.
-- [ ] Bump `VERSION` to `V1_18_0`.
-- [ ] Verify in browser: stats update; numbers respond when entities are added/removed; FPS chip is visible during dev console use; closing the console hides the chip.
+- [*] Add observables to `DevConsoleViewModel`: `fps`, `frameMs`, `simTickRate`, `drawCalls`, `triangles`, `entityCount`, `assetCacheSize`.
+- [*] Create a `_pollStats()` method scheduled via `setInterval(100ms)` that reads `renderer.info.render.calls`, `.triangles`, `world.entities.size`, `assetManager.cacheSize`, and a frame timer kept in the GameLoop.
+- [*] Extend `GameLoop` with public `fps` and `frameMs` properties (rolling average over last ~30 frames).
+- [*] Add a stats tab section to `index.html` with KO bindings for each value.
+- [*] Add a small fixed-corner FPS chip visible whenever `isOpen` is true.
+- [*] Bump `VERSION` to `V1_18_0`.
+- [*] Verify in browser: stats update; numbers respond when entities are added/removed; FPS chip is visible during dev console use; closing the console hides the chip.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- **Stats poll piggybacks on the existing 100ms flush timer**, not a second `setInterval`. The events flush already runs at 10 Hz; doubling up the timer would just be noise. Renamed the timer callback `_tickPoll` (calls `_flushIfDirty` then `_pollStats`).
+- **DevConsole takes a `sources: { gameLoop, renderer, world, assets, saveService }` option** rather than reaching for app-wide globals. All sources are optional — missing ones leave their observables at default. Tested explicitly.
+- **Renderer wraps THREE.WebGLRenderer.info behind a `stats` getter** (`drawCalls`, `triangles`, `geometries`, `textures`). Avoids leaking `renderer.renderer.info.render.calls` plumbing into the dev console.
+- **Bonus: `autosaveSize` stat** — wired from `SaveService.lastAutosaveSize` and rendered with a human-readable formatter (`B`/`KB`/`MB`). Driven by the user's earlier "keep an eye on localStorage quota" feedback. The stats tab now shows live autosave size, so quota pressure is visible before it becomes a `saveFailed` toast.
+- **GameLoop stats shape**: `frameMs` is a rolling mean over the last 30 frames (fixed-size ring); `fps` is derived (1000/frameMs). `simTickRate` is recomputed once per second from a tick counter — the 30-frame window doesn't make sense at variable refresh rates for tick rate. All three are zero before the first `step()`.
+- **App.start() ordering changed**: split `_startLoop` into `_buildLoop` (constructs GameLoop) called *before* `_wireDevConsole`, plus `gameLoop.start()` called last. DevConsole needs a reference to the gameLoop instance for stats; the loop must exist by then but shouldn't be running before all wiring completes.
+- **VERSION bump corrected to `V0_18_0`** (not `V1_18_0`). Plan number 0 stays.
+- **Verify-time UX pass: relative event timestamps.** User flagged that the events tab's `time.toFixed(0) + 'ms'` display grew unbounded (page-load monotonic clock) and would blow out the column within minutes of session time. Switched to a "how long ago" formatter (`<1s` → `234ms`, `1–60s` → `12.3s`, `>=60s` → `>1m`). Implementation: `viewModel.nowMs` observable, ticked by the existing 100ms poll timer; per-row text binding calls `$parent.formatRelativeTime(time)` which subtracts `nowMs() - time` and formats. KO's expression-level dependency tracking re-evaluates the per-row bindings whenever `nowMs` changes, so displayed times keep updating even when no new events are firing. Formatter extracted to `dev/time-format.js` for direct testing without jsdom; 5 unit tests cover the bands, rounding, and clock-skew clamp.
 
 ---
 
@@ -754,20 +786,26 @@ Add the quick actions strip — buttons to toggle camera mode, dump world JSON t
 
 ### Steps
 
-- [ ] Add a `<div id="dev-quick-actions">` to the dev console template with four buttons.
-- [ ] Wire each button to a `DevConsoleViewModel` method:
+- [*] Add a `<div id="dev-quick-actions">` to the dev console template with four buttons.
+- [*] Wire each button to a `DevConsoleViewModel` method:
   - `toggleCameraMode()` → calls `App.setCameraMode(...)`.
   - `dumpWorldJSON()` → `console.log(JSON.stringify(WorldSerializer.toJSON(world), null, 2))`.
   - `forceSaveFailure()` → calls a debug-only `SaveService._forceFailNextSave()` flag-setter, then `saveService.save(...)`.
   - `reloadManifest()` → calls `assetManager.reload()` (new method that clears cache and re-runs preloadCore), then walks `world.entities` and calls each `Renderable.reattach()`.
-- [ ] Implement `SaveService._forceFailNextSave()` (sets a debug flag; next save emits `saveFailed` with a synthetic error and clears the flag).
-- [ ] Implement `AssetManager.reload()` and `Renderable.reattach()`.
-- [ ] Bump `VERSION` to `V1_19_0`.
-- [ ] Verify in browser: each button performs as documented; force-save-failure correctly fires the toast and leaves the world consistent; reload-manifest visibly refreshes the room.
+- [*] Implement `SaveService._forceFailNextSave()` (sets a debug flag; next save emits `saveFailed` with a synthetic error and clears the flag).
+- [*] Implement `AssetManager.reload()` and `Renderable.reattach()`.
+- [*] Bump `VERSION` to `V1_19_0`.
+- [*] Verify in browser: each button performs as documented; force-save-failure correctly fires the toast and leaves the world consistent; reload-manifest visibly refreshes the room.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- **Actions live on `viewModel.dev.actions` as a plain object**, not as KO-bound methods. The view-model creates four no-op stubs at construction; `App._wireDevConsole()` overwrites them with real implementations after services are built. Keeps the view-model independent of the App and lets the buttons bind harmlessly even if invoked before App overwrites the stubs.
+- **`SaveService.forceFailNextSave()` is public**, not `_forceFailNextSave` as the plan said. Underscore-prefix would imply "don't call this from outside" but the dev console action *is* an outside caller — there's no reason to fight the convention. Logic: sets `_forceFailNext = true`; the next `save()` checks the flag, clears it, and emits `saveFailed` with a synthetic SaveError. Doesn't touch the FSA picker.
+- **Renderable mount logic refactored** — `onAddedToWorld` now delegates to a new public `reattach()` method (and `onRemovedFromWorld` to a private `_detach()`). Reattach is idempotent: detaches the existing mesh first, then mounts a fresh clone. Used by the reload-manifest action to swap visuals without removing/re-adding entities.
+- **`AssetManager.reload()` clears `_cache`, `_inFlight`, and `_index`, then re-runs `loadManifest()` + `preloadCore()`.** This means manifest *additions* are picked up on reload (new test covers it), as well as path / tier changes. World-tier (lazy) assets are NOT reloaded — they re-fetch on next `load(id)` since the cache is empty.
+- **No toast yet for force-save-failure.** The plan's verify says "toast appears" but the toast tray lives in Task 20. For now the existing `saveStatus` observable shows "Save failed: Forced save failure (debug action)." in the HUD chip — surfaced through the same path real failures use. Once Task 20 lands, the toast will simply piggyback on the existing `saveFailed` subscription.
+- **Quick actions strip placement**: between the header tabs and the active-tab pane. Always visible regardless of which tab is selected — the actions are global, not per-tab. Reused the existing `dev-console-button` style with a smaller font for compactness.
+- **VERSION bump corrected to `V0_19_0`** (not `V1_19_0`). Plan number 0 stays.
 
 ---
 
@@ -790,18 +828,25 @@ Add the fatal error overlay surfaced by `App.start()` failures, register global 
 
 ### Steps
 
-- [ ] Add to `index.html`: `<div id="fatal-overlay" hidden>` with `<h1>Cozy Lairs failed to start</h1>`, an `<h2>` for error class name, a `<p>` for message, a `<details>` for stack. Style as a full-screen modal.
-- [ ] Wrap `App.start()`'s body in a try/catch that calls a `_showFatalError(err)` method which un-hides the overlay and populates fields. Do NOT continue with rendering loops or asset loading after a fatal.
-- [ ] Add global `window.addEventListener("error", ...)` and `unhandledrejection` listeners in `App.start()`. These call a `viewModel.toast(msg, level: "error")` method that pushes to a small toast queue (display top-right, 4 s auto-dismiss).
-- [ ] Add a `<div id="toast-tray">` bound to `viewModel.toasts` (`foreach`).
-- [ ] Add a `<div id="min-viewport-overlay" data-bind="visible: viewportTooSmall">` to `index.html`. `viewportTooSmall` is a KO computed driven by a `window.resize` listener that updates `viewModel.viewport({ width, height })`.
-- [ ] Style the min-viewport overlay (centered, friendly message: "Cozy Lairs needs a bit more room — try 1024×640 or larger.").
-- [ ] Bump `VERSION` to `V1_20_0`.
-- [ ] Verify in browser: deliberately throw inside `App.start()` (e.g. `throw new Error("test")` then revert) — fatal overlay appears with name/message/stack, nothing else runs; from the dev console, run `Promise.reject("test")` — toast appears; resize the window narrow — min-viewport overlay covers the canvas; resize back — overlay hides.
+- [*] Add to `index.html`: `<div id="fatal-overlay" hidden>` with `<h1>Cozy Lairs failed to start</h1>`, an `<h2>` for error class name, a `<p>` for message, a `<details>` for stack. Style as a full-screen modal.
+- [*] Wrap `App.start()`'s body in a try/catch that calls a `_showFatalError(err)` method which un-hides the overlay and populates fields. Do NOT continue with rendering loops or asset loading after a fatal.
+- [*] Add global `window.addEventListener("error", ...)` and `unhandledrejection` listeners in `App.start()`. These call a `viewModel.toast(msg, level: "error")` method that pushes to a small toast queue (display top-right, 4 s auto-dismiss).
+- [*] Add a `<div id="toast-tray">` bound to `viewModel.toasts` (`foreach`).
+- [*] Add a `<div id="min-viewport-overlay" data-bind="visible: viewportTooSmall">` to `index.html`. `viewportTooSmall` is a KO computed driven by a `window.resize` listener that updates `viewModel.viewport({ width, height })`.
+- [*] Style the min-viewport overlay (centered, friendly message: "Cozy Lairs needs a bit more room — try 1024×640 or larger.").
+- [*] Bump `VERSION` to `V1_20_0`.
+- [*] Verify in browser: deliberately throw inside `App.start()` (e.g. `throw new Error("test")` then revert) — fatal overlay appears with name/message/stack, nothing else runs; from the dev console, run `Promise.reject("test")` — toast appears; resize the window narrow — min-viewport overlay covers the canvas; resize back — overlay hides.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- **Toast queue extracted to `scripts/modules/ui/toast-queue.js`** rather than inlined into AppViewModel. `ToastQueue` takes a sink with `push(item)` and `remove(predicate)` — KO observableArray fits naturally, and tests use a Map-backed stub. 8 tests cover push/dismiss/clear/auto-dismiss/timer cancellation/monotonic ids. Default 4 s dismiss; configurable via constructor.
+- **Fatal overlay is static markup with no KO bindings.** A fatal during `App.start()` may fire BEFORE `ko.applyBindings`, in which case any data-bind on the overlay would be inert. Plain DOM (`document.getElementById` + `textContent` + `hidden = false`) is bulletproof. `_showFatalError` also stops the gameLoop so a half-initialised app doesn't keep rendering behind the overlay.
+- **`start()` is split into a thin outer `try/catch` and `_startInner`.** Lets the inner method stay readable while the wrapper handles fatals uniformly. The fatal path calls `_showFatalError(err)` then re-throws so the bootstrap's `.catch` still fires (preserving the existing console.error logging for devtools).
+- **Global handlers go through the toast queue, not the fatal overlay.** Per the design — uncaught errors at *runtime* are non-blocking; the game keeps running. `window.addEventListener("error", ...)` reads `event.message`; `unhandledrejection` reads `event.reason.message` (or stringifies). Toast level is "error" for both.
+- **`saveFailed` now ALSO pushes a toast** (in addition to the existing `saveStatus` chip). AbortError (user-cancelled picker) is a benign info toast; everything else is error-level. This closes the Task 19 loose end about "force save failure should show a toast" — both real and forced failures now go through the same toast path.
+- **Min-viewport threshold: 1024×640** (constants in `app-view-model.js`). The pre-init guard (`width === 0 && height === 0`) keeps the overlay hidden during construction in node tests / SSR-like contexts, only flipping true once a real `viewport()` value is set.
+- **Z-stack ordering** (per design): `fatal-overlay: 1000` > `toast-tray: 300` > `dev-console: 200` > `fps-chip: 199` > `min-viewport-overlay: 150` > `loading-overlay: 100` > `hud: 50` > canvas. Toasts deliberately float over the dev console — they're notifications.
+- **VERSION bump corrected to `V0_20_0`** (not `V1_20_0`). Plan number 0 stays.
 
 ---
 
@@ -823,15 +868,19 @@ Capture project-specific conventions established during the foundation build int
 
 ### Steps
 
-- [ ] Update `.claude/CLAUDE.md` with new convention sections: **Eventing — direct subscription, no global bus**; **Events are facts, never commands**; **Per-pack asset folder layout under `assets/kaykit/<pack-slug>/`**; **Testing — Vitest with logic-only by default, jsdom opt-in**; **Dev console — backtick toggle, `?debug=1` auto-open, dev sink is one-way**.
-- [ ] Create `README.md` at the project root with sections: Overview, Running the dev page (mentions a local static server with `npx serve`), Running tests (`npm test`), Asset setup (KayKit Dungeon Remastered placement, link to itch.io, encouragement to support Kay Lousberg), Demo controls, Project layout (link to design + plan).
-- [ ] Bump `VERSION` to `V1_21_0`.
-- [ ] Bump `.project/project.md`'s `Current Version` to `V1.21.0` and double-check that the design and plan links resolve.
-- [ ] Verify in browser: open the page, the boot banner / version display reads `V1_21_0`; `README.md` renders correctly when viewed on disk.
+- [*] Update `.claude/CLAUDE.md` with new convention sections: **Eventing — direct subscription, no global bus**; **Events are facts, never commands**; **Per-pack asset folder layout under `assets/kaykit/<pack-slug>/`**; **Testing — Vitest with logic-only by default, jsdom opt-in**; **Dev console — backtick toggle, `?debug=1` auto-open, dev sink is one-way**.
+- [*] Create `README.md` at the project root with sections: Overview, Running the dev page (mentions a local static server with `npx serve`), Running tests (`npm test`), Asset setup (KayKit Dungeon Remastered placement, link to itch.io, encouragement to support Kay Lousberg), Demo controls, Project layout (link to design + plan).
+- [*] Bump `VERSION` to `V1_21_0`.
+- [*] Bump `.project/project.md`'s `Current Version` to `V1.21.0` and double-check that the design and plan links resolve.
+- [*] Verify in browser: open the page, the boot banner / version display reads `V1_21_0`; `README.md` renders correctly when viewed on disk.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- **CLAUDE.md was mostly already current.** The "Eventing — direct subscription", "Asset folders", and "Tests" sections all existed from earlier task journaling. This task added one new section — **Dev console** — covering the backtick toggle, `?debug=1` auto-open, capture-vs-display split, the noise filter, and that `Emitter.devSink` is a one-way mirror. Two small refreshes at the same time: the stale `Emitter._devSink` reference in the eventing section was updated to `Emitter.devSink` (matched the rename pass under Task 20), and the namespace-imports list now mentions `world-serializer.js` alongside `errors.js`.
+- **CLAUDE.md is the durable convention store; the rules under `.claude/rules/` are the canon.** During Task 20's verify, the user asked for the "no `_` prefix" and "selective alignment" conventions to land in BOTH places — they're now in `.claude/rules/coding-style.md` (canonical) AND in CLAUDE.md (project-specific notes). README does not duplicate them; it points to the design and plan.
+- **README intentionally avoids implementation detail** that already lives in design-v0 and CLAUDE.md. It covers: how to run, how to test, where to put the assets, what the demo controls are, what the directory layout looks like — the things a fresh contributor needs the first 30 seconds. Anything deeper, the README links to the design / plan / LICENSE.
+- **Asset setup section pays Kay Lousberg forward.** The "Please support Kay Lousberg" subsection is in both LICENSE.md (legal context) and the README (because contributors land on README first, and a "pay above the suggested price" nudge goes a lot further there than buried in a license file).
+- **VERSION bump corrected to `V0_21_0` / `V0.21.0`** (not `V1_21_0` / `V1.21.0` as the original step says). Same plan-number-correction story as every prior task.
 
 ---
 
@@ -854,3 +903,12 @@ Files touched: `renderer.js`, `asset-manager.js`, `world/grid.js`, `engine/index
 User flagged that file-header comments had grown into multi-paragraph essays narrating decisions and recent changes — exactly what `.claude/rules/coding-style.md` calls out as "lengthy exposition" / "pointers to the recent X change". Cleaned up the worst offenders across `engine/`, `world/`, and `world/components/`: kept only the constraint-explaining and reference-table content (event vocabularies, lifecycle hooks, asset coordinate quirks, KayKit half-wall origin offset rationale), dropped narrative paragraphs that restated code or referenced rejected alternatives. Decision history stays in this plan; it doesn't belong in source headers where it'll rot.
 
 All 82 tests still pass.
+
+**[2026-05-09] Input held-key state fixed for modifier shortcuts and lost focus.**
+
+User reported during Task 16 verify that pressing Ctrl+S triggered the camera's S-axis movement, and that the S key would sometimes get stuck "held" while the file-save picker dialog was open. Both bugs traced to `engine/input.js`:
+
+1. `_onKeydown` unconditionally added `event.code` to `_keys`, so Ctrl+S registered KeyS as held — and any other future Ctrl/Meta shortcut would do the same to its trigger key. Fix: skip `_keys.add(...)` when `event.ctrlKey || event.metaKey`. The keydown event itself still emits with all modifier flags so listeners that *want* the combo (the save handler) keep working.
+2. The browser swallows keyup events when focus moves to a native dialog. Whatever was held when the dialog opened stayed in `_keys` forever. Fix: bind a `window.blur` listener that clears `_keys`. Covers Alt-Tab and other focus-loss too.
+
+3 new tests in `tests/engine/input.test.js`. 148 tests pass.

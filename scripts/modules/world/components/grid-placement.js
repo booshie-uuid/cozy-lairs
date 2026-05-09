@@ -22,10 +22,10 @@ class GridPlacement
         {
             throw new Errors.PlacementError(`GridPlacement: rotationStep must be an integer in 0..3 (got ${rotationStep}).`);
         }
-        this.cx           = cx;
-        this.cz           = cz;
+        this.cx = cx;
+        this.cz = cz;
         this.rotationStep = rotationStep;
-        this.entity       = null;
+        this.entity = null;
     }
 
     attach(entity)

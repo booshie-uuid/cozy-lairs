@@ -48,7 +48,7 @@ afterEach(() =>
 
 function patchLoader(manager, builder)
 {
-    manager._loader.load = (path, onLoad, onProgress, onError) =>
+    manager.loader.load = (path, onLoad, onProgress, onError) =>
     {
         try
         {
@@ -80,8 +80,8 @@ test("loadManifest indexes valid entries", async () =>
     const manager = new AssetManager("/manifest.json");
     await manager.loadManifest();
 
-    expect(manager._index.size).toBe(2);
-    expect(manager._index.get("a.one").path).toBe("a.gltf");
+    expect(manager.index.size).toBe(2);
+    expect(manager.index.get("a.one").path).toBe("a.gltf");
 });
 
 
@@ -251,7 +251,7 @@ test("concurrent load calls share a single in-flight promise", async () =>
 
     let calls = 0;
     const manager = new AssetManager("/manifest.json");
-    manager._loader.load = (path, onLoad) =>
+    manager.loader.load = (path, onLoad) =>
     {
         calls += 1;
         queueMicrotask(() => onLoad({ scene: new THREE.Group(), scenes: [], animations: [] }));
@@ -274,7 +274,7 @@ test("load rejects with AssetLoadError on loader failure", async () =>
     });
 
     const manager = new AssetManager("/manifest.json");
-    manager._loader.load = (path, onLoad, onProgress, onError) =>
+    manager.loader.load = (path, onLoad, onProgress, onError) =>
     {
         queueMicrotask(() => onError(new Error("file not found")));
     };
@@ -303,7 +303,7 @@ test("rejects with AssetLoadError if loaded glTF has no scene", async () =>
     });
 
     const manager = new AssetManager("/manifest.json");
-    manager._loader.load = (path, onLoad) =>
+    manager.loader.load = (path, onLoad) =>
     {
         queueMicrotask(() => onLoad({ scene: null, scenes: [], animations: [] }));
     };
@@ -325,7 +325,7 @@ test("preloadCore aggregates partial failures into a single AssetLoadError", asy
     });
 
     const manager = new AssetManager("/manifest.json");
-    manager._loader.load = (path, onLoad, onProgress, onError) =>
+    manager.loader.load = (path, onLoad, onProgress, onError) =>
     {
         if(path === "a.gltf")
         {
@@ -361,5 +361,60 @@ test("cacheSize reflects the number of cached assets", async () =>
 
     expect(manager.cacheSize).toBe(0);
     await manager.preloadCore();
+    expect(manager.cacheSize).toBe(2);
+});
+
+
+test("reload re-fetches the manifest and re-loads core assets", async () =>
+{
+    installMockFetch({
+        version: 1,
+        assets: [{ id: "x", path: "x.gltf", type: "gltf", tier: "core" }]
+    });
+
+    const manager = new AssetManager("/manifest.json");
+    patchLoader(manager, () => new THREE.Group());
+    await manager.loadManifest();
+    await manager.preloadCore();
+
+    expect(manager.cacheSize).toBe(1);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    await manager.reload();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(manager.cacheSize).toBe(1);
+    expect(manager.has("x")).toBe(true);
+});
+
+
+test("reload picks up manifest entries added since the last load", async () =>
+{
+    installMockFetch({
+        version: 1,
+        assets: [{ id: "old", path: "old.gltf", type: "gltf", tier: "core" }]
+    });
+
+    const manager = new AssetManager("/manifest.json");
+    patchLoader(manager, () => new THREE.Group());
+    await manager.loadManifest();
+    await manager.preloadCore();
+    expect(manager.has("old")).toBe(true);
+    expect(manager.has("fresh")).toBe(false);
+
+    // Simulate the manifest changing on disk between sessions.
+    mockManifest =
+    {
+        version: 1,
+        assets: [
+            { id: "old",   path: "old.gltf",   type: "gltf", tier: "core" },
+            { id: "fresh", path: "fresh.gltf", type: "gltf", tier: "core" }
+        ]
+    };
+
+    await manager.reload();
+
+    expect(manager.has("old")).toBe(true);
+    expect(manager.has("fresh")).toBe(true);
     expect(manager.cacheSize).toBe(2);
 });

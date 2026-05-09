@@ -21,8 +21,8 @@ class World extends Emitter
     constructor(grid)
     {
         super();
-        this.grid     = grid;
-        this.scene    = new THREE.Scene();
+        this.grid = grid;
+        this.scene = new THREE.Scene();
         this.entities = new Set();
     }
 

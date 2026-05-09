@@ -93,7 +93,7 @@ test("start is idempotent (double-start does not duplicate frames)", () =>
     const { loop } = makeLoop();
     loop.start();
     loop.start();
-    expect(loop._running).toBe(true);
+    expect(loop.running).toBe(true);
     loop.stop();
 });
 
@@ -112,4 +112,51 @@ test("constructor accepts default callbacks if none provided", () =>
 {
     const loop = new GameLoop();
     expect(() => loop.step(1 / 60)).not.toThrow();
+});
+
+
+/* STATS **********************************************************************/
+
+test("frameMs is a rolling average of recent step durations", () =>
+{
+    const { loop } = makeLoop();
+    expect(loop.frameMs).toBe(0);   // no samples yet
+
+    loop.step(0.020);              // 20 ms
+    loop.step(0.020);
+    loop.step(0.020);
+
+    expect(loop.frameMs).toBeCloseTo(20, 4);
+});
+
+
+test("fps is derived from frameMs (1000 / frameMs)", () =>
+{
+    const { loop } = makeLoop();
+    loop.step(1 / 60);
+    loop.step(1 / 60);
+    loop.step(1 / 60);
+
+    expect(loop.fps).toBeCloseTo(60, 1);
+});
+
+
+test("frameMs window caps at 30 samples (older samples roll out)", () =>
+{
+    const { loop } = makeLoop();
+
+    for(let i = 0; i < 30; i++) { loop.step(0.020); }
+    expect(loop.frameMs).toBeCloseTo(20, 4);
+
+    // Push 30 more samples at a different duration; window should be entirely new.
+    for(let i = 0; i < 30; i++) { loop.step(0.010); }
+    expect(loop.frameMs).toBeCloseTo(10, 4);
+});
+
+
+test("fps and frameMs are zero before any step is taken", () =>
+{
+    const { loop } = makeLoop();
+    expect(loop.frameMs).toBe(0);
+    expect(loop.fps).toBe(0);
 });

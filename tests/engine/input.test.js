@@ -79,15 +79,33 @@ test("multiple modifier keys pass through on keydown", () =>
 });
 
 
-test("repeat flag is included in keydown payload", () =>
+test("auto-repeated keydowns are suppressed entirely (not emitted, not added to _keys)", () =>
 {
     input = new Input(window);
     const seen = [];
     input.on("keydown", p => seen.push(p));
 
-    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyR", repeat: true }));
+    // First press emits and registers as down.
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyR", repeat: false }));
+    expect(seen.length).toBe(1);
+    expect(input.isDown("KeyR")).toBe(true);
 
-    expect(seen[0].repeat).toBe(true);
+    // Auto-repeats while held: suppressed.
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyR", repeat: true }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyR", repeat: true }));
+    expect(seen.length).toBe(1);
+});
+
+
+test("preventDefault still fires on auto-repeats so held browser shortcuts stay suppressed", () =>
+{
+    input = new Input(window);
+    input.preventDefaultFor("Tab");
+
+    const event = new KeyboardEvent("keydown", { code: "Tab", repeat: true, cancelable: true });
+    window.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
 });
 
 
@@ -159,4 +177,54 @@ test("pointerlockchange emits with derived `locked` boolean", () =>
 
     expect(seen.length).toBe(1);
     expect(seen[0].locked).toBe(true);
+});
+
+
+test("keys pressed with Ctrl held are not registered as `down`", () =>
+{
+    input = new Input(window);
+    const seen = [];
+    input.on("keydown", p => seen.push(p));
+
+    window.dispatchEvent(new KeyboardEvent("keydown",
+    {
+        code:    "KeyS",
+        key:     "s",
+        ctrlKey: true
+    }));
+
+    expect(seen.length).toBe(1);          // event still fires
+    expect(seen[0].ctrl).toBe(true);
+    expect(input.isDown("KeyS")).toBe(false);  // but movement state stays clean
+});
+
+
+test("keys pressed with Meta (Cmd) held are not registered as `down`", () =>
+{
+    input = new Input(window);
+
+    window.dispatchEvent(new KeyboardEvent("keydown",
+    {
+        code:    "KeyS",
+        key:     "s",
+        metaKey: true
+    }));
+
+    expect(input.isDown("KeyS")).toBe(false);
+});
+
+
+test("window blur clears all held keys", () =>
+{
+    input = new Input(window);
+
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyW" }));
+    window.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyD" }));
+    expect(input.isDown("KeyW")).toBe(true);
+    expect(input.isDown("KeyD")).toBe(true);
+
+    window.dispatchEvent(new Event("blur"));
+
+    expect(input.isDown("KeyW")).toBe(false);
+    expect(input.isDown("KeyD")).toBe(false);
 });

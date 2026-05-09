@@ -14,17 +14,17 @@ import * as THREE from "three";
  */
 
 const PLACEHOLDER_COLOR = 0xff00ff;
-const PLACEHOLDER_SIZE  = 1;
+const PLACEHOLDER_SIZE = 1;
 
 
 class Renderable
 {
     constructor(kind, assets)
     {
-        this.kind   = kind;
+        this.kind = kind;
         this.assets = assets;
         this.entity = null;
-        this._mesh  = null;
+        this.mesh = null;
     }
 
     attach(entity)
@@ -34,6 +34,18 @@ class Renderable
 
     onAddedToWorld(_world)
     {
+        this.reattach();
+    }
+
+    onRemovedFromWorld(_world)
+    {
+        this.detach();
+    }
+
+    reattach()
+    {
+        this.detach();
+
         let mesh;
         try
         {
@@ -42,19 +54,10 @@ class Renderable
         catch(err)
         {
             console.warn(`[Renderable] Could not load asset "${this.kind}":`, err && err.message ? err.message : err);
-            mesh = this._buildPlaceholder();
+            mesh = this.buildPlaceholder();
         }
         this.entity.object3D.add(mesh);
-        this._mesh = mesh;
-    }
-
-    onRemovedFromWorld(_world)
-    {
-        if(this._mesh)
-        {
-            this.entity.object3D.remove(this._mesh);
-            this._mesh = null;
-        }
+        this.mesh = mesh;
     }
 
     toJSON()
@@ -62,7 +65,16 @@ class Renderable
         return { kind: this.kind };
     }
 
-    _buildPlaceholder()
+    detach()
+    {
+        if(this.mesh)
+        {
+            this.entity.object3D.remove(this.mesh);
+            this.mesh = null;
+        }
+    }
+
+    buildPlaceholder()
     {
         const geometry = new THREE.BoxGeometry(PLACEHOLDER_SIZE, PLACEHOLDER_SIZE, PLACEHOLDER_SIZE);
         const material = new THREE.MeshBasicMaterial({ color: PLACEHOLDER_COLOR, wireframe: true });

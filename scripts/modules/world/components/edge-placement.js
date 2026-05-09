@@ -37,12 +37,12 @@ class EdgePlacement
         {
             throw new Errors.PlacementError(`EdgePlacement: invalid side "${side}" (expected one of: ${Object.keys(ROTATION_BY_SIDE).join(", ")}).`);
         }
-        this.cx           = cx;
-        this.cz           = cz;
-        this.side         = side;
+        this.cx = cx;
+        this.cz = cz;
+        this.side = side;
         this.lengthOffset = lengthOffset;
         this.originOffset = originOffset;
-        this.entity       = null;
+        this.entity = null;
     }
 
     attach(entity)
@@ -52,7 +52,7 @@ class EdgePlacement
 
     onAddedToWorld(world)
     {
-        const S    = world.grid.cellSize;
+        const S = world.grid.cellSize;
         const half = S / 2;
 
         let x = this.cx * S + half;

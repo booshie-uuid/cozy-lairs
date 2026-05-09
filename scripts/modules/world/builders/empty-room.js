@@ -45,11 +45,11 @@ function buildEmptyRoom(world, assets, { x0, z0, width, depth })
 
     for(let dx = 0; dx < width; dx++)
     {
-        const cx        = x0 + dx;
+        const cx = x0 + dx;
         const atWestEnd = (dx === 0);
         const atEastEnd = (dx === width - 1);
-        const atCorner  = atWestEnd || atEastEnd;
-        const offset    = atWestEnd ? +HALF_OFFSET : -HALF_OFFSET;
+        const atCorner = atWestEnd || atEastEnd;
+        const offset = atWestEnd ? +HALF_OFFSET : -HALF_OFFSET;
 
         addPerimeterWall(world, assets, cx, z0,             "south", atCorner, offset);
         addPerimeterWall(world, assets, cx, z0 + depth - 1, "north", atCorner, offset);
@@ -60,11 +60,11 @@ function buildEmptyRoom(world, assets, { x0, z0, width, depth })
 
     for(let dz = 0; dz < depth; dz++)
     {
-        const cz         = z0 + dz;
+        const cz = z0 + dz;
         const atSouthEnd = (dz === 0);
         const atNorthEnd = (dz === depth - 1);
-        const atCorner   = atSouthEnd || atNorthEnd;
-        const offset     = atSouthEnd ? +HALF_OFFSET : -HALF_OFFSET;
+        const atCorner = atSouthEnd || atNorthEnd;
+        const offset = atSouthEnd ? +HALF_OFFSET : -HALF_OFFSET;
 
         addPerimeterWall(world, assets, x0,             cz, "west", atCorner, offset);
         addPerimeterWall(world, assets, x0 + width - 1, cz, "east", atCorner, offset);
@@ -94,10 +94,10 @@ const HALF_WALL_ORIGIN_OFFSET = -1;
 
 function addPerimeterWall(world, assets, cx, cz, side, atCorner, offset)
 {
-    const kind         = atCorner ? "wall.stone.half" : "wall.stone.straight";
-    const length       = atCorner ? offset : 0;
+    const kind = atCorner ? "wall.stone.half" : "wall.stone.straight";
+    const length = atCorner ? offset : 0;
     const originOffset = atCorner ? HALF_WALL_ORIGIN_OFFSET : 0;
-    const wall         = Entity.fromKind(kind, assets);
+    const wall = Entity.fromKind(kind, assets);
     wall.addComponent(new EdgePlacement(cx, cz, side, length, originOffset));
     world.addEntity(wall);
 }

@@ -25,20 +25,20 @@ class AssetManager
 {
     constructor(manifestPath, progressCallback = () => {})
     {
-        this.manifestPath     = manifestPath;
+        this.manifestPath = manifestPath;
         this.progressCallback = progressCallback;
 
-        this._loader     = new GLTFLoader();
-        this._index      = new Map();
-        this._cache      = new Map();
-        this._inFlight   = new Map();
-        this._loaded     = 0;
-        this._coreTotal  = 0;
+        this.loader = new GLTFLoader();
+        this.index = new Map();
+        this.cache = new Map();
+        this.inFlight = new Map();
+        this.loaded = 0;
+        this.coreTotal = 0;
     }
 
     get cacheSize()
     {
-        return this._cache.size;
+        return this.cache.size;
     }
 
     async loadManifest()
@@ -68,25 +68,25 @@ class AssetManager
             throw new Errors.ManifestError(`Manifest is not valid JSON: ${err.message}`);
         }
 
-        this._validateManifest(json);
+        this.validateManifest(json);
 
-        this._index.clear();
+        this.index.clear();
         for(const entry of json.assets)
         {
-            this._index.set(entry.id, entry);
+            this.index.set(entry.id, entry);
         }
     }
 
     async preloadCore()
     {
-        const coreEntries = [...this._index.values()].filter(e => e.tier === "core");
+        const coreEntries = [...this.index.values()].filter(e => e.tier === "core");
 
-        this._coreTotal = coreEntries.length;
-        this._loaded    = 0;
+        this.coreTotal = coreEntries.length;
+        this.loaded = 0;
 
         if(coreEntries.length === 0) { return; }
 
-        const results  = await Promise.allSettled(coreEntries.map(entry => this._loadEntry(entry, true)));
+        const results = await Promise.allSettled(coreEntries.map(entry => this.loadEntry(entry, true)));
         const failures = results.filter(r => r.status === "rejected");
 
         if(failures.length > 0)
@@ -104,33 +104,45 @@ class AssetManager
 
     async load(id)
     {
-        const entry = this._index.get(id);
+        const entry = this.index.get(id);
         if(!entry)
         {
             throw new Errors.AssetLoadError(`Asset id "${id}" is not in the manifest.`);
         }
-        return this._loadEntry(entry, false);
+        return this.loadEntry(entry, false);
     }
 
     get(id)
     {
-        const cached = this._cache.get(id);
+        const cached = this.cache.get(id);
         if(!cached)
         {
             throw new Errors.AssetLoadError(`Asset "${id}" is not loaded. Did you forget preloadCore()?`);
         }
-        return this._cloneAsset(cached);
+        return this.cloneAsset(cached);
     }
 
     has(id)
     {
-        return this._cache.has(id);
+        return this.cache.has(id);
+    }
+
+    async reload()
+    {
+        this.cache.clear();
+        this.inFlight.clear();
+        this.index.clear();
+        this.loaded = 0;
+        this.coreTotal = 0;
+
+        await this.loadManifest();
+        await this.preloadCore();
     }
 
 
     /* INTERNAL ***************************************************************/
 
-    _validateManifest(json)
+    validateManifest(json)
     {
         if(!json || typeof json !== "object")
         {
@@ -168,14 +180,14 @@ class AssetManager
         }
     }
 
-    _loadEntry(entry, reportProgress)
+    loadEntry(entry, reportProgress)
     {
-        if(this._cache.has(entry.id))
+        if(this.cache.has(entry.id))
         {
-            return Promise.resolve(this._cache.get(entry.id));
+            return Promise.resolve(this.cache.get(entry.id));
         }
 
-        const inFlight = this._inFlight.get(entry.id);
+        const inFlight = this.inFlight.get(entry.id);
         if(inFlight)
         {
             return inFlight;
@@ -183,7 +195,7 @@ class AssetManager
 
         const promise = new Promise((resolve, reject) =>
         {
-            this._loader.load(
+            this.loader.load(
                 entry.path,
                 gltf =>
                 {
@@ -198,22 +210,22 @@ class AssetManager
                         {
                             root,
                             animations:     gltf.animations || [],
-                            hasSkinnedMesh: this._containsSkinnedMesh(root)
+                            hasSkinnedMesh: this.containsSkinnedMesh(root)
                         };
-                        this._cache.set(entry.id, bundle);
-                        this._inFlight.delete(entry.id);
+                        this.cache.set(entry.id, bundle);
+                        this.inFlight.delete(entry.id);
 
                         if(reportProgress)
                         {
-                            this._loaded += 1;
-                            this.progressCallback(this._loaded, this._coreTotal, entry.id);
+                            this.loaded += 1;
+                            this.progressCallback(this.loaded, this.coreTotal, entry.id);
                         }
 
                         resolve(bundle);
                     }
                     catch(err)
                     {
-                        this._inFlight.delete(entry.id);
+                        this.inFlight.delete(entry.id);
                         const wrapped = err instanceof Errors.AssetLoadError
                             ? err
                             : new Errors.AssetLoadError(`Failed to process asset "${entry.id}": ${err && err.message ? err.message : err}`);
@@ -223,17 +235,17 @@ class AssetManager
                 undefined,
                 err =>
                 {
-                    this._inFlight.delete(entry.id);
+                    this.inFlight.delete(entry.id);
                     reject(new Errors.AssetLoadError(`Failed to load asset "${entry.id}" from ${entry.path}: ${err && err.message ? err.message : err}`));
                 }
             );
         });
 
-        this._inFlight.set(entry.id, promise);
+        this.inFlight.set(entry.id, promise);
         return promise;
     }
 
-    _containsSkinnedMesh(root)
+    containsSkinnedMesh(root)
     {
         let found = false;
         root.traverse(node =>
@@ -243,7 +255,7 @@ class AssetManager
         return found;
     }
 
-    _cloneAsset(bundle)
+    cloneAsset(bundle)
     {
         return bundle.hasSkinnedMesh ? SkeletonUtils.clone(bundle.root) : bundle.root.clone(true);
     }

@@ -7,27 +7,27 @@
  * the producer, never commands. Each subclass documents its event vocabulary
  * next to its definition.
  *
- * `Emitter._devSink` is a write-only instrumentation hook for the dev
+ * `Emitter.devSink` is a write-only instrumentation hook for the dev
  * console. Gameplay code cannot subscribe via this channel — it has no
  * subscribe API by design.
  */
 
 class Emitter
 {
-    static _devSink = null;
+    static devSink = null;
 
     constructor()
     {
-        this._handlers = new Map();
+        this.handlers = new Map();
     }
 
     on(event, handler)
     {
-        let set = this._handlers.get(event);
+        let set = this.handlers.get(event);
         if(!set)
         {
             set = new Set();
-            this._handlers.set(event, set);
+            this.handlers.set(event, set);
         }
         set.add(handler);
         return handler;
@@ -35,13 +35,13 @@ class Emitter
 
     off(event, handler)
     {
-        const set = this._handlers.get(event);
+        const set = this.handlers.get(event);
         if(set) { set.delete(handler); }
     }
 
     emit(event, payload)
     {
-        const set = this._handlers.get(event);
+        const set = this.handlers.get(event);
         if(set)
         {
             for(const handler of set)
@@ -57,11 +57,11 @@ class Emitter
             }
         }
 
-        if(Emitter._devSink !== null)
+        if(Emitter.devSink !== null)
         {
             try
             {
-                Emitter._devSink(this, event, payload);
+                Emitter.devSink(this, event, payload);
             }
             catch(err)
             {

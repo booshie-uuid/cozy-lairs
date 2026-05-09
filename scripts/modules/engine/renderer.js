@@ -38,10 +38,10 @@ class Renderer
         });
         this.renderer.setClearColor(CLEAR_COLOR, 1);
 
-        this.scene        = null;
+        this.scene = null;
         this.activeCamera = null;
 
-        this._resizeObserver = new ResizeObserver(entries =>
+        this.resizeObserver = new ResizeObserver(entries =>
         {
             for(const entry of entries)
             {
@@ -49,18 +49,29 @@ class Renderer
                 this.setSize(width, height);
             }
         });
-        this._resizeObserver.observe(canvasWrapper);
+        this.resizeObserver.observe(canvasWrapper);
     }
 
     setActiveCamera(camera)
     {
         this.activeCamera = camera;
-        this._syncCameraAspect();
+        this.syncCameraAspect();
     }
 
     setScene(scene)
     {
         this.scene = scene;
+    }
+
+    get stats()
+    {
+        const info = this.renderer.info;
+        return {
+            drawCalls:  info.render.calls,
+            triangles:  info.render.triangles,
+            geometries: info.memory.geometries,
+            textures:   info.memory.textures
+        };
     }
 
     setSize(width, height)
@@ -71,7 +82,7 @@ class Renderer
         this.renderer.setPixelRatio(dpr);
         this.renderer.setSize(width, height, false);
 
-        this._syncCameraAspect();
+        this.syncCameraAspect();
     }
 
     render()
@@ -82,12 +93,12 @@ class Renderer
 
     dispose()
     {
-        this._resizeObserver.disconnect();
+        this.resizeObserver.disconnect();
         this.renderer.dispose();
         this.canvas.remove();
     }
 
-    _syncCameraAspect()
+    syncCameraAspect()
     {
         if(!this.activeCamera || !this.activeCamera.isPerspectiveCamera) { return; }
 

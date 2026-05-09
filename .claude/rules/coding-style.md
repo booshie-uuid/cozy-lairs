@@ -65,9 +65,28 @@ ALWAYS validate at system boundaries:
 - Variables and functions: `camelCase` with descriptive names.
 - Booleans: prefer `is`, `has`, `should`, or `can` prefixes.
 - Classes, types, and components: `PascalCase`.
+- Class fields and methods: plain `camelCase` — do NOT prefix with `_` to signal "private intent".
 - Global Constants: `UPPER_SNAKE_CASE`.
 
 Short names are acceptable when their meaning is clear from the surrounding context (e.g. `i` for loop index, `x1` to shorten `player1.positionX` for temporary calculations). Otherwise, prefer descriptive names that convey intent. Avoid abiguous abbreviations (like `vm` for "view model") that may have multiple interpretations.
+
+The `_` prefix is decoration — it doesn't enforce anything, it just adds visual noise to every reference. The `this.` qualifier already provides scoping. If real privacy matters, escalate to a language-level mechanism (e.g. ECMAScript `#privateField`); don't reach for `_` as a halfway measure or as a habit. The same rule applies to static fields and module-level helpers (`Emitter.devSink`, not `Emitter._devSink`).
+
+```javascript
+// Avoid: pseudo-private prefix on every reference
+class Emitter
+{
+    constructor() { this._handlers = new Map(); }
+    on(event, fn) { this._handlers.set(event, fn); }
+}
+
+// Prefer: plain names; `this.` is providence enough
+class Emitter
+{
+    constructor() { this.handlers = new Map(); }
+    on(event, fn) { this.handlers.set(event, fn); }
+}
+```
 
 ---
 
@@ -95,6 +114,32 @@ The priority is code that is readable and maintainable. So apply common sense wh
 
 - **Declarations:** Separate variable initialization from the logic that consumes them, unless the logic is a direct, immediate refinement of that specific variable.
 - **Linear Flow:** Favor vertical space over horizontal density. If you have to squint or scroll horizontally to understand a line, it is too complex.
+
+### Aligned Columns
+
+Reserve column alignment (padding spaces before `=`, `:`, etc.) for cases where the lines have *the same shape* and aligning reveals a rhythm. The reader's eye scans down the column and sees the structure repeat — that's the payoff. Without same-shape repetition, alignment is decoration: it pushes the right-hand side into a far column where the eye now has to scan further to find what the operator belongs to.
+
+- **Reveals a Pattern:** 3+ consecutive lines, same call / same operator / same argument shape — alignment makes the rhythm visible at a glance.
+- **Decoration:** Heterogeneous declarations, mixed value types, or a single outlier that needs ~10 spaces of padding to "match" — drop the alignment. Single-space separation is enough.
+
+```javascript
+// Good: same-shape lerp calls, alignment reveals the rhythm
+this.theta    = THREE.MathUtils.lerp(this.theta,    this.targetTheta,    DAMPING);
+this.phi      = THREE.MathUtils.lerp(this.phi,      this.targetPhi,      DAMPING);
+this.distance = THREE.MathUtils.lerp(this.distance, this.targetDistance, DAMPING);
+
+// Avoid: heterogeneous fields padded into a column for no reason
+this.version           = VERSION;
+this.renderer          = null;
+this.cameraController  = null;
+this.canvasWrapper     = null;
+
+// Prefer: plain single-space separation
+this.version = VERSION;
+this.renderer = null;
+this.cameraController = null;
+this.canvasWrapper = null;
+```
 
 ---
 

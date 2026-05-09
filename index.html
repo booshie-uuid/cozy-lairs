@@ -26,6 +26,30 @@
              data-bind="text: cameraMode() === 'builder' ? 'Builder' : 'First Person'"></div>
     </div>
 
+    <div id="fatal-overlay" hidden>
+        <div class="fatal-overlay-inner">
+            <h1>Cozy Lairs failed to start</h1>
+            <h2 id="fatal-overlay-name">Error</h2>
+            <p  id="fatal-overlay-message"></p>
+            <details>
+                <summary>Details</summary>
+                <pre id="fatal-overlay-stack"></pre>
+            </details>
+        </div>
+    </div>
+
+    <div id="min-viewport-overlay" data-bind="visible: viewportTooSmall">
+        <div class="min-viewport-inner">
+            <h2>Cozy Lairs needs a bit more room</h2>
+            <p>Try resizing the window to at least 1024×640.</p>
+        </div>
+    </div>
+
+    <div id="toast-tray" data-bind="foreach: toasts">
+        <div class="toast"
+             data-bind="text: message, css: 'is-' + level"></div>
+    </div>
+
     <div id="loading-overlay" class="fade-target" data-bind="fadeOut: isReady">
         <div class="loading-overlay-inner">
             <h1 class="loading-overlay-title">COZY LAIRS</h1>
@@ -36,6 +60,84 @@
             </div>
             <p class="loading-overlay-percent"  data-bind="text: loadPercent() + '%'"></p>
         </div>
+    </div>
+
+    <aside id="dev-console" data-bind="css: { 'is-open': dev.isOpen }, with: dev">
+        <header class="dev-console-header">
+            <nav class="dev-console-tabs">
+                <button class="dev-console-tab"
+                        data-bind="click: selectEvents,
+                                   css: { 'is-active': activeTab() === 'events' }">Events</button>
+                <button class="dev-console-tab"
+                        data-bind="click: selectStats,
+                                   css: { 'is-active': activeTab() === 'stats' }">Stats</button>
+            </nav>
+            <button class="dev-console-close"
+                    title="Close ( ` )"
+                    data-bind="click: toggleOpen">×</button>
+        </header>
+
+        <div id="dev-quick-actions" class="dev-console-quick-actions">
+            <button class="dev-console-button"
+                    title="Switch between Builder and First-Person cameras"
+                    data-bind="click: actions.toggleCameraMode">Toggle camera</button>
+            <button class="dev-console-button"
+                    title="Pretty-print the current world snapshot to the browser console"
+                    data-bind="click: actions.dumpWorldJSON">Dump world</button>
+            <button class="dev-console-button"
+                    title="Trigger a synthetic save failure to exercise the error path"
+                    data-bind="click: actions.forceSaveFailure">Fail next save</button>
+            <button class="dev-console-button"
+                    title="Re-fetch assets/manifest.json and refresh all entity visuals"
+                    data-bind="click: actions.reloadManifest">Reload manifest</button>
+        </div>
+
+        <section class="dev-console-pane"
+                 data-bind="visible: activeTab() === 'events'">
+            <div class="dev-console-controls">
+                <input type="text" class="dev-console-filter"
+                       placeholder="Emitter regex"
+                       data-bind="textInput: emitterFilter">
+                <input type="text" class="dev-console-filter"
+                       placeholder="Event regex"
+                       data-bind="textInput: eventFilter">
+                <label class="dev-console-toggle">
+                    <input type="checkbox" data-bind="checked: showNoisy">
+                    <span>Noisy</span>
+                </label>
+                <button class="dev-console-button"
+                        data-bind="click: togglePaused, text: pauseLabel"></button>
+            </div>
+            <ul class="dev-console-events" data-bind="foreach: filteredEvents">
+                <li class="dev-console-event">
+                    <span class="dev-console-event-time"
+                          data-bind="text: $parent.formatRelativeTime(time),
+                                     attr: { title: $parent.formatAbsoluteTime(wallClock) }"></span>
+                    <span class="dev-console-event-emitter" data-bind="text: emitterClass"></span>
+                    <span class="dev-console-event-name"    data-bind="text: event"></span>
+                    <span class="dev-console-event-payload" data-bind="text: payload"></span>
+                </li>
+            </ul>
+        </section>
+
+        <section class="dev-console-pane dev-console-stats"
+                 data-bind="visible: activeTab() === 'stats'">
+            <dl class="dev-console-stats-grid">
+                <dt>FPS</dt>          <dd data-bind="text: fpsDisplay"></dd>
+                <dt>Frame ms</dt>     <dd data-bind="text: frameMsDisplay"></dd>
+                <dt>Sim ticks/s</dt>  <dd data-bind="text: simTickRateDisplay"></dd>
+                <dt>Draw calls</dt>   <dd data-bind="text: drawCalls"></dd>
+                <dt>Triangles</dt>    <dd data-bind="text: trianglesDisplay"></dd>
+                <dt>Entities</dt>     <dd data-bind="text: entityCount"></dd>
+                <dt>Asset cache</dt>  <dd data-bind="text: assetCacheSize"></dd>
+                <dt>Autosave size</dt><dd data-bind="text: autosaveSizeDisplay"></dd>
+            </dl>
+        </section>
+    </aside>
+
+    <div id="fps-chip" data-bind="visible: dev.isOpen">
+        <span data-bind="text: dev.fpsDisplay"></span>
+        <span class="fps-chip-unit">fps</span>
     </div>
 
     <script type="module" src="./scripts/app.js"></script>

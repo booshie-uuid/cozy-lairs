@@ -48,6 +48,14 @@ Wrap the bootstrap call in an explicit DOM-ready check even when the script tag 
 
 Spell out `viewModel` (instances) and `AppViewModel` (class). The abbreviation collides with "virtual machine" and is unhelpful here.
 
+### Naming — no `_` prefix on class members
+
+Class fields and methods are plain camelCase — no `_` prefix to indicate "private intent". The members aren't actually private; the `_` is decoration that adds visual noise without enforcing anything. The `this.` qualifier already provides scoping. If real privacy ever matters, escalate to `#field` syntax — don't reach for `_`. Same rule applies to module-level helpers and static fields (`Emitter.devSink`, not `Emitter._devSink`).
+
+### Vertical alignment of `=` is for revealing patterns, not decoration
+
+Pad spaces before `=` / `{` only when 3+ consecutive lines have the same shape and aligning shows the rhythm. The four `THREE.MathUtils.lerp(this.X, this.targetX, DAMPING)` calls in `BuilderCamera.frameUpdate` are a good example — same call, same shape, alignment reveals the structure at a glance. Heterogeneous field initialisations and constants of different "families" don't get padding — the eye has to scan further to find what the `=` belongs to, which defeats the point.
+
 ### KO custom binding handlers live in `bindings.js`
 
 All `ko.bindingHandlers.*` registrations live in `scripts/modules/ui/bindings.js`. Other UI modules import `bindings.js` for its side effect once, before `ko.applyBindings`. KO is loaded as a UMD via classic `<script>` and accessed in modules with `const ko = window.ko;` aliased at the top of the file.
@@ -60,7 +68,7 @@ Engine errors live in `scripts/modules/engine/errors.js`. The `engine/index.js` 
 
 Cross-module notification uses the `Emitter` base class (`engine/emitter.js`). Subscribers attach directly to the producer (`world.on("entityAdded", ...)`); there is no global event bus. **Events are past-tense facts** (`entityAdded`, `saved`, `gridChanged`); commands ("place this wall") are method calls, never events. If a real cross-cutting fan-out problem appears, escalate to a topic-scoped mini-emitter (`WorldEvents`, `BuildEvents`) — never a generic global bus.
 
-The `Emitter._devSink` static is a one-way mirror used by the dev console for instrumentation. It is NOT a back-door bus — gameplay code cannot subscribe to it.
+The `Emitter.devSink` static is a one-way mirror used by the dev console for instrumentation. It is NOT a back-door bus — gameplay code cannot subscribe to it.
 
 ### Entity / Component pattern
 
@@ -78,11 +86,24 @@ Components that need world context (e.g. `GridPlacement` reading `world.grid.cel
 
 ### Imports — namespace for utility modules
 
-Per `.claude/rules/javascript/coding-style.md`: utility / multi-export modules use `import * as Namespace`. Currently in effect for `errors.js` and the `engine/index.js` façade. Single-class modules (Renderer, GameLoop, Input, AssetManager, etc.) keep named imports because `Renderer.Renderer` doubling adds nothing.
+Per `.claude/rules/javascript/coding-style.md`: utility / multi-export modules use `import * as Namespace`. Currently in effect for `errors.js`, `world-serializer.js`, and the `engine/index.js` façade. Single-class modules (Renderer, GameLoop, Input, AssetManager, etc.) keep named imports because `Renderer.Renderer` doubling adds nothing.
 
 ### Visual aesthetic — cute evil / cozy villain
 
-NOT terminal/IDE chrome. Don't use `//` prefixes, `>` chevrons, monospace primaries, terminal-green palettes, or other code-aesthetic motifs as visual identity. Real visual identity (palette, typography, decorative motifs) is its own dedicated design pass after the foundation lands; until then keep placeholders neutral.
+NOT terminal/IDE chrome. Don't use `//` prefixes, `>` chevrons, monospace primaries, terminal-green palettes, or other code-aesthetic motifs as visual identity. Real visual identity (palette, typography, decorative motifs) is its own dedicated design pass after the foundation lands; until then keep placeholders neutral. The dev console is the one place monospace + neutral dark are appropriate — it's a developer tool, not part of the game's identity.
+
+### Dev console
+
+Slide-in debug panel on the right edge of the viewport. Toggle with `` ` `` (backtick) or auto-open via the `?debug=1` URL param. The toggle ignores the keypress when an `INPUT` / `TEXTAREA` / `contenteditable` is focused, so typing backticks in the regex filters doesn't slam the panel shut.
+
+Two pieces of state, kept apart:
+
+- **Capture** lives on `DevConsole` (`engine/dev/dev-console.js`) — fixed-size ring buffer, payload stringification with `[ClassName]` replacer, re-entrancy guard.
+- **Display** lives on `DevConsoleViewModel` (`engine/dev/dev-console-view-model.js`) — KO observables for the events list, stats, filters, `nowMs` for relative-time formatting.
+
+A `setInterval(100ms)` flush copies the buffer snapshot into the observables only when dirty. Stats poll happens on the same timer. High-frequency events (`pointermove` by default) are dropped at capture time unless the "Noisy" checkbox is on.
+
+The capture sink installs into `Emitter.devSink`. Gameplay code cannot subscribe through that channel — it is a one-way mirror for instrumentation only.
 
 ---
 
@@ -123,4 +144,4 @@ Pinned at **r171** (`three@^0.171.0`). When re-vendoring, copy from `node_module
 
 ### Tests
 
-Vitest, configured minimally. Default environment is `node`; per-file opt-in with `// @vitest-environment jsdom` for tests that touch the DOM (Input, future SaveService, future bindings tests). Run with `npm test`.
+Vitest, configured minimally. Default environment is `node`; per-file opt-in with `// @vitest-environment jsdom` for tests that touch the DOM (`Input`, `SaveService`). Run with `npm test`. Tests mirror the module layout under `tests/`; multi-entity world fixtures live in `tests/data/` as JSON.
