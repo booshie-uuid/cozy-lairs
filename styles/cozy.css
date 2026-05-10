@@ -1,12 +1,22 @@
-/* Cozy Lairs — cozy grimoire theme overlay. */
+/* Cozy Lairs — V2 "witchy arcade" theme overlay. */
 /*
- * Loaded after main.css. Restyles only the surfaces in the V1 aesthetic
+ * Loaded after main.css. Restyles only the surfaces in the V2 aesthetic
  * scope: camera-mode chip, save-status chip, loading overlay, toast tray,
  * and the minimum-viewport overlay.
  *
  * Dev console, fatal overlay, and FPS chip deliberately stay neutral
  * (defined in main.css) — they're developer surfaces and don't share the
  * game's identity.
+ *
+ * Chrome formula — every in-scope panel uses this exact recipe:
+ *
+ *   border-radius:  12px              (or 999px for chips/pills)
+ *   border:         2px solid var(--cozy-neon-dim)
+ *   background:     var(--cozy-purple-soft)
+ *   box-shadow:
+ *       inset 0 1px 0 rgba(255, 255, 255, 0.08),    top-edge highlight
+ *       0 5px 0 var(--cozy-purple-deep),             chunky offset shadow
+ *       0 8px 18px rgba(0, 0, 0, 0.4);               soft ambient drop
  */
 
 
@@ -14,33 +24,23 @@
 /* SELF-HOSTED FONTS                                                          */
 /******************************************************************************/
 
-/*
- * Self-hosted woff2s under styles/fonts/. Paths are relative to this file.
- * `font-display: swap` renders fallback fonts immediately and swaps when the
- * webfont arrives. `unicode-range` lets the browser skip the latin-ext file
- * for ASCII-only text.
- *
- * Source: Google Fonts API (woff2 files only). License: SIL Open Font
- * License 1.1 — see styles/fonts/SOURCE.md.
- */
-
 @font-face
 {
-    font-family: "EB Garamond";
+    font-family: "Lilita One";
     font-style: normal;
-    font-weight: 400 500;
+    font-weight: 400;
     font-display: swap;
-    src: url("./fonts/eb-garamond-latin.woff2") format("woff2");
+    src: url("./fonts/lilita-one-latin.woff2") format("woff2");
     unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face
 {
-    font-family: "EB Garamond";
+    font-family: "Lilita One";
     font-style: normal;
-    font-weight: 400 500;
+    font-weight: 400;
     font-display: swap;
-    src: url("./fonts/eb-garamond-latin-ext.woff2") format("woff2");
+    src: url("./fonts/lilita-one-latin-ext.woff2") format("woff2");
     unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
@@ -85,28 +85,23 @@
 }
 
 
+/******************************************************************************/
+/* PALETTE + GLOBAL TYPOGRAPHY                                                */
+/******************************************************************************/
+
 :root
 {
-    /* Palette ─ "evil overlord's planning notebook" */
-    --cozy-aubergine:        #2a1a3a;
-    --cozy-aubergine-soft:   #3a2a4f;
-    --cozy-aubergine-deep:   #1a0d28;
-    --cozy-candle-gold:      #f0c674;
-    --cozy-candle-gold-dim:  #b08c40;
-    --cozy-parchment:        #f4ead5;
-    --cozy-parchment-dim:    #c0b08c;
-    --cozy-ember:            #bf616a;
-    --cozy-sage:             #a3be8c;
+    --cozy-purple:        #1a0e2e;
+    --cozy-purple-soft:   #2c1a47;
+    --cozy-purple-deep:   #0f0620;
+    --cozy-neon:          #5af0a0;
+    --cozy-neon-dim:      #3eaa70;
+    --cozy-text:          #f0eaff;
+    --cozy-text-dim:      #9c8db5;
+    --cozy-danger:        #ff4565;
 
-    /* Typography */
-    --cozy-font-display: "EB Garamond",         Georgia,    "Times New Roman", serif;
-    --cozy-font-body:    "Atkinson Hyperlegible", system-ui, -apple-system,    "Segoe UI", sans-serif;
-
-    /* Chrome */
-    --cozy-radius:        6px;
-    --cozy-panel-bg:      rgba(42, 26, 58, 0.88);
-    --cozy-panel-border:  1px solid var(--cozy-candle-gold-dim);
-    --cozy-panel-shadow:  0 4px 14px rgba(0, 0, 0, 0.45);
+    --cozy-font-display:  "Lilita One", "Trebuchet MS", system-ui, sans-serif;
+    --cozy-font-body:     "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 
@@ -114,32 +109,29 @@
 /* HUD CHIPS                                                                  */
 /******************************************************************************/
 
-#camera-mode-chip
+#camera-mode-chip,
+#save-status-chip
 {
-    background-color: var(--cozy-panel-bg);
-    border:           var(--cozy-panel-border);
-    color:            var(--cozy-parchment);
+    background-color: var(--cozy-purple-soft);
+    border:           2px solid var(--cozy-neon-dim);
+    color:            var(--cozy-text);
     font-family:      var(--cozy-font-body);
-    border-radius:    var(--cozy-radius);
-    padding:          0.5em 1em;
-    box-shadow:       var(--cozy-panel-shadow);
+    border-radius:    999px;
+    padding:          0.5em 1.1em;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 4px 0 var(--cozy-purple-deep),
+        0 6px 14px rgba(0, 0, 0, 0.4);
 }
 
 #save-status-chip
 {
-    position:         absolute;
-    bottom:           1rem;
-    right:            1rem;
-    padding:          0.45em 1em;
-    background-color: var(--cozy-panel-bg);
-    border:           var(--cozy-panel-border);
-    border-radius:    var(--cozy-radius);
-    color:            var(--cozy-parchment);
-    font-family:      var(--cozy-font-body);
-    font-size:        clamp(0.7rem, 1.4vmin, 0.85rem);
-    letter-spacing:   0.04em;
-    pointer-events:   none;
-    box-shadow:       var(--cozy-panel-shadow);
+    position:        absolute;
+    bottom:          1rem;
+    right:           1rem;
+    font-size:       clamp(0.7rem, 1.4vmin, 0.85rem);
+    letter-spacing:  0.04em;
+    pointer-events:  none;
 }
 
 
@@ -149,51 +141,56 @@
 
 #loading-overlay
 {
-    background-color: var(--cozy-aubergine-deep);
-    color:            var(--cozy-parchment);
-}
-
-.loading-overlay-sketch
-{
-    display: block;
-    width: clamp(56px, 12vmin, 96px);
-    height: auto;
-    margin: 0 auto clamp(0.5rem, 1.5vmin, 1rem);
-    opacity: 0.85;
+    background-color: var(--cozy-purple);
+    color:            var(--cozy-text);
 }
 
 .loading-overlay-title
 {
-    font-family: var(--cozy-font-display);
-    font-weight: 500;
-    color:       var(--cozy-candle-gold);
-    opacity:     1;
+    font-family:    var(--cozy-font-display);
+    font-weight:    400;
+    font-size:      clamp(2.2rem, 6vmin, 4rem);
+    letter-spacing: 0.04em;
+    color:          var(--cozy-neon);
+    text-shadow:
+        0 0 24px rgba(90, 240, 160, 0.45),
+        0 4px 0 var(--cozy-purple-deep);
+    opacity: 1;
+    margin: 0 0 clamp(1rem, 2.5vmin, 1.5rem);
 }
 
 .loading-overlay-status
 {
     font-family: var(--cozy-font-body);
-    color:       var(--cozy-parchment-dim);
+    color:       var(--cozy-text-dim);
     opacity:     1;
 }
 
 .loading-overlay-progress
 {
-    height:           5px;
-    background-color: rgba(244, 234, 213, 0.12);
-    border:           1px solid var(--cozy-candle-gold-dim);
-    border-radius:    3px;
+    height:           16px;
+    background-color: var(--cozy-purple-deep);
+    border:           2px solid var(--cozy-neon-dim);
+    border-radius:    999px;
+    box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.45),
+        0 4px 0 var(--cozy-purple-deep),
+        0 6px 14px rgba(0, 0, 0, 0.4);
+    overflow:         hidden;
+    padding:          0;
 }
 
 .loading-overlay-bar
 {
-    background-color: var(--cozy-candle-gold);
+    background-color: var(--cozy-neon);
+    box-shadow:       0 0 12px rgba(90, 240, 160, 0.55);
+    height:           100%;
 }
 
 .loading-overlay-percent
 {
     font-family: var(--cozy-font-body);
-    color:       var(--cozy-parchment-dim);
+    color:       var(--cozy-text-dim);
     opacity:     1;
 }
 
@@ -204,42 +201,21 @@
 
 .toast
 {
-    background-color: var(--cozy-panel-bg);
-    border:           var(--cozy-panel-border);
-    border-radius:    var(--cozy-radius);
-    color:            var(--cozy-parchment);
+    background-color: var(--cozy-purple-soft);
+    border:           2px solid var(--cozy-neon-dim);
+    color:            var(--cozy-text);
     font-family:      var(--cozy-font-body);
-    box-shadow:       0 6px 18px rgba(0, 0, 0, 0.55);
+    border-radius:    12px;
+    padding:          0.6em 0.95em;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 5px 0 var(--cozy-purple-deep),
+        0 8px 18px rgba(0, 0, 0, 0.45);
 }
 
-.toast.is-info    { border-left: 3px solid var(--cozy-candle-gold-dim); }
-.toast.is-warning { border-left: 3px solid var(--cozy-candle-gold); }
-.toast.is-error   { border-left: 3px solid var(--cozy-ember); }
-
-/* Subtle corner flourishes on toast panels — top corners only, kept small
-   so they don't crowd the message text. */
-.toast
-{
-    position: relative;
-}
-
-.toast::before,
-.toast::after
-{
-    content: "";
-    position: absolute;
-    top: 4px;
-    width: 12px;
-    height: 12px;
-    background-image: url("./icons/corner.svg");
-    background-size: contain;
-    background-repeat: no-repeat;
-    pointer-events: none;
-    opacity: 0.8;
-}
-
-.toast::before { left: 4px; }
-.toast::after  { right: 4px; transform: scaleX(-1); }
+.toast.is-info    { border-color: var(--cozy-neon-dim); }
+.toast.is-warning { border-color: var(--cozy-neon); }
+.toast.is-error   { border-color: var(--cozy-danger); }
 
 
 /******************************************************************************/
@@ -248,59 +224,35 @@
 
 #min-viewport-overlay
 {
-    background-color: var(--cozy-aubergine-deep);
-    color:            var(--cozy-parchment);
+    background-color: var(--cozy-purple);
+    color:            var(--cozy-text);
 }
 
 .min-viewport-inner
 {
-    position:      relative;
-    padding:       2.5rem 3rem;
-    border:        var(--cozy-panel-border);
-    border-radius: var(--cozy-radius);
-    background-color: rgba(42, 26, 58, 0.6);
+    padding:       2rem 2.5rem;
+    border:        2px solid var(--cozy-neon-dim);
+    border-radius: 16px;
+    background-color: var(--cozy-purple-soft);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 5px 0 var(--cozy-purple-deep),
+        0 8px 18px rgba(0, 0, 0, 0.45);
 }
-
-.min-viewport-inner::before,
-.min-viewport-inner::after,
-.min-viewport-inner > .corner-tl,
-.min-viewport-inner > .corner-br
-{
-    content: "";
-    position: absolute;
-    width: 18px;
-    height: 18px;
-    background-image: url("./icons/corner.svg");
-    background-size: contain;
-    background-repeat: no-repeat;
-    pointer-events: none;
-}
-
-.min-viewport-inner::before { top: 6px; left: 6px; }
-.min-viewport-inner::after  { top: 6px; right: 6px; transform: scaleX(-1); }
 
 .min-viewport-inner h2
 {
-    font-family: var(--cozy-font-display);
-    font-weight: 500;
-    color:       var(--cozy-candle-gold);
+    font-family:    var(--cozy-font-display);
+    font-weight:    400;
+    font-size:      clamp(1.2rem, 3vmin, 1.8rem);
+    letter-spacing: 0.03em;
+    color:          var(--cozy-neon);
+    text-shadow:    0 3px 0 var(--cozy-purple-deep);
 }
 
 .min-viewport-inner p
 {
-    color:       var(--cozy-parchment-dim);
+    color:       var(--cozy-text-dim);
     font-family: var(--cozy-font-body);
     opacity:     1;
-}
-
-/* Cozy divider — horizontal rule with a central diamond dingbat. */
-.cozy-divider
-{
-    height: 16px;
-    margin: 0.6rem auto;
-    background-image: url("./icons/divider.svg");
-    background-size: contain;
-    background-repeat: no-repeat;
-    background-position: center;
-    width: min(20rem, 80%);
 }

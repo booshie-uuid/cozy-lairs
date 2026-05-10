@@ -32,6 +32,12 @@
             "tier": "core"
         },
         {
+            "id":   "character.mannequin.medium",
+            "path": "assets/kaykit/character-animations/characters/gltf/Mannequin_Medium.glb",
+            "type": "gltf",
+            "tier": "core"
+        },
+        {
             "id":   "decor.barrel",
             "path": "assets/kaykit/dungeon-remastered/models/gltf/barrel_large.gltf",
             "type": "gltf",

@@ -3,15 +3,22 @@
 /******************************************************************************/
 
 /*
- * 8-way A* over `Grid.isWalkable`. Octile heuristic, orthogonal cost 1,
+ * 8-way A* over `Grid.isAvailable`. Octile heuristic, orthogonal cost 1,
  * diagonal cost √2. A diagonal step from (cx, cz) to (cx ± 1, cz ± 1) is
- * rejected if either of the two adjacent orthogonal cells is non-walkable —
+ * rejected if either of the two adjacent orthogonal cells is unavailable —
  * stops minions from squeezing diagonally between two blockers.
+ *
+ * `excludeOccupant` (optional, defaults to `null`) is passed through to
+ * `Grid.isAvailable` so a walker's pathfinder can route around *other*
+ * occupants while not treating its own cell as blocked. With this, plan-time
+ * paths avoid cells currently occupied by other walkers — runtime collision
+ * detection still catches the case where a cell becomes occupied between
+ * trip-plan and trip-end.
  *
  * Pure function. Returns:
  *   - `[{cx, cz}, ...]` inclusive of both endpoints when a path exists.
  *   - `[start]` (length 1) when start === end.
- *   - `null` when start or end is out-of-bounds, non-walkable, or unreachable.
+ *   - `null` when start or end is out-of-bounds, unavailable, or unreachable.
  */
 
 const SQRT2 = Math.SQRT2;
@@ -38,10 +45,14 @@ function octile(ax, az, bx, bz)
 }
 
 
-function findPath(grid, start, end)
+function findPath(grid, start, end, options = {})
 {
-    if(!grid.isWalkable(start.cx, start.cz)) { return null; }
-    if(!grid.isWalkable(end.cx,   end.cz))   { return null; }
+    const excludeOccupant = options.excludeOccupant !== undefined
+        ? options.excludeOccupant
+        : null;
+
+    if(!grid.isAvailable(start.cx, start.cz, excludeOccupant)) { return null; }
+    if(!grid.isAvailable(end.cx,   end.cz,   excludeOccupant)) { return null; }
 
     if(start.cx === end.cx && start.cz === end.cz)
     {
@@ -82,12 +93,12 @@ function findPath(grid, start, end)
             const ncx = current.cx + dcx;
             const ncz = current.cz + dcz;
 
-            if(!grid.isWalkable(ncx, ncz)) { continue; }
+            if(!grid.isAvailable(ncx, ncz, excludeOccupant)) { continue; }
 
             if(dcx !== 0 && dcz !== 0)
             {
-                const orthA = grid.isWalkable(current.cx + dcx, current.cz);
-                const orthB = grid.isWalkable(current.cx,       current.cz + dcz);
+                const orthA = grid.isAvailable(current.cx + dcx, current.cz, excludeOccupant);
+                const orthB = grid.isAvailable(current.cx,       current.cz + dcz, excludeOccupant);
                 if(!orthA && !orthB) { continue; }
             }
 

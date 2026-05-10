@@ -166,3 +166,117 @@ test("update advances the mixer with the supplied dt", () =>
 
     expect(mixer.updateCalls).toEqual([0.016, 0.033]);
 });
+
+
+/* CLIP TRACK FILTERING ********************************************************/
+
+/*
+ * `filterClipForRoot` is internal to the module — exercised here by
+ * constructing real THREE.AnimationClip + THREE.Object3D fixtures and
+ * inspecting the clip handed to `mixer.clipAction` via the stub mixer.
+ *
+ * Background: KayKit Rig_Medium clips include tracks for nodes like
+ * `handslotr` that some character meshes (Mannequin) lack. The filter
+ * strips those tracks per-mount so PropertyBinding doesn't warn.
+ */
+
+
+function makeAnimatorWithRoot(clipMap, animations, root)
+{
+    const mixer = makeStubMixer();
+    const animator = new Animator({
+        clipMap,
+        animations,
+        mixerFactory: () => mixer
+    });
+
+    const world = new World(new Grid(4, 4, 4));
+    const entity = new Entity("character.test", root);
+    entity.addComponent(animator);
+    world.addEntity(entity);
+
+    return { animator, mixer, entity };
+}
+
+
+test("filterClipForRoot — clip whose tracks all bind is passed through unchanged", () =>
+{
+    const root = new THREE.Object3D();
+    const bone = new THREE.Object3D();
+    bone.name = "bone";
+    root.add(bone);
+
+    const track = new THREE.VectorKeyframeTrack("bone.position", [0, 1], [0, 0, 0, 1, 0, 0]);
+    const clip = new THREE.AnimationClip("Walk", 1, [track]);
+
+    const { animator } = makeAnimatorWithRoot(
+        { walk: "Walk" },
+        [clip],
+        root
+    );
+
+    // Original clip identity preserved when no tracks needed filtering.
+    expect(animator.actions.walk.clip).toBe(clip);
+    expect(animator.actions.walk.clip.tracks).toHaveLength(1);
+});
+
+
+test("filterClipForRoot — clip with unbindable tracks returns a clone with only resolvable tracks", () =>
+{
+    const root = new THREE.Object3D();
+    const bone = new THREE.Object3D();
+    bone.name = "bone";
+    root.add(bone);
+    // Note: NO `handslotr` child — that track should get filtered out.
+
+    const validTrack = new THREE.VectorKeyframeTrack("bone.position", [0, 1], [0, 0, 0, 1, 0, 0]);
+    const invalidTrack = new THREE.VectorKeyframeTrack("handslotr.position", [0, 1], [0, 0, 0, 1, 0, 0]);
+    const clip = new THREE.AnimationClip("Walk", 1, [validTrack, invalidTrack]);
+
+    const { animator } = makeAnimatorWithRoot(
+        { walk: "Walk" },
+        [clip],
+        root
+    );
+
+    const usedClip = animator.actions.walk.clip;
+    expect(usedClip).not.toBe(clip);                  // new clip, not original
+    expect(usedClip.name).toBe("Walk");               // name preserved
+    expect(usedClip.duration).toBe(clip.duration);    // duration preserved
+    expect(usedClip.tracks).toHaveLength(1);          // invalid track stripped
+    expect(usedClip.tracks[0].name).toBe("bone.position");
+});
+
+
+test("filterClipForRoot — clip with no resolvable tracks yields an empty-tracks clone (no throw)", () =>
+{
+    const root = new THREE.Object3D();
+    // No named children — every track should be filtered out.
+
+    const track = new THREE.VectorKeyframeTrack("missing_bone.position", [0, 1], [0, 0, 0, 1, 0, 0]);
+    const clip = new THREE.AnimationClip("Walk", 1, [track]);
+
+    const { animator } = makeAnimatorWithRoot(
+        { walk: "Walk" },
+        [clip],
+        root
+    );
+
+    const usedClip = animator.actions.walk.clip;
+    expect(usedClip).not.toBe(clip);
+    expect(usedClip.tracks).toHaveLength(0);
+});
+
+
+test("filterClipForRoot — stub clip without a tracks array passes through unchanged (defensive)", () =>
+{
+    // The default test stubs use `{ name: "Idle" }` with no tracks — the
+    // filter's early Array.isArray guard keeps these compatible.
+    const stub = { name: "Idle" };
+    const { animator } = makeAnimatorWithRoot(
+        { idle: "Idle" },
+        [stub],
+        new THREE.Object3D()
+    );
+    expect(animator.actions.idle.clip).toBe(stub);
+});

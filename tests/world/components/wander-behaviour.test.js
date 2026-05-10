@@ -115,6 +115,36 @@ test("kickTrip calls pathfinder.findPath with current cell + target, hands resul
 });
 
 
+test("walker blocked re-schedules another trip (same handler as arrived)", () =>
+{
+    const { behaviour, walker, followPathSpy } = setup({ idleMin: 0.1, idleMax: 0.1 });
+
+    behaviour.update(0.2);
+    expect(followPathSpy).toHaveBeenCalledTimes(1);
+
+    walker.emit("blocked", { walker });
+    expect(behaviour.idleRemaining).toBeGreaterThan(0);
+
+    behaviour.update(0.2);
+    expect(followPathSpy).toHaveBeenCalledTimes(2);
+});
+
+
+test("walker displaced re-schedules another trip (same handler as arrived)", () =>
+{
+    const { behaviour, walker, followPathSpy } = setup({ idleMin: 0.1, idleMax: 0.1 });
+
+    behaviour.update(0.2);
+    expect(followPathSpy).toHaveBeenCalledTimes(1);
+
+    walker.emit("displaced", { walker });
+    expect(behaviour.idleRemaining).toBeGreaterThan(0);
+
+    behaviour.update(0.2);
+    expect(followPathSpy).toHaveBeenCalledTimes(2);
+});
+
+
 test("walker arrived re-schedules another trip", () =>
 {
     const { behaviour, walker, followPathSpy } = setup({ idleMin: 0.1, idleMax: 0.1 });
@@ -200,6 +230,30 @@ test("onRemovedFromWorld unsubscribes from walker.arrived", () =>
     // and update is no-op (walker reference cleared).
     behaviour.update(1.0);
     expect(followPathSpy).toHaveBeenCalledTimes(1);
+});
+
+
+test("self-rescue — teleports the walker off a non-walkable cell instead of pathfinding", () =>
+{
+    const { world, walker, behaviour, followPathSpy, pathfinder: pf } = setup({
+        spawnCell: { cx: 5, cz: 5 }
+    });
+    const teleportSpy = vi.spyOn(walker, "teleportTo");
+
+    // Block the walker's spawn cell after-the-fact (simulates a teleport
+    // onto decor or a placement-on-occupant edge case).
+    world.grid.setBlocked(5, 5);
+
+    behaviour.update(0.2);
+
+    // No pathfinder calls — kickTrip detected the unavailable start cell
+    // and chose to rescue instead.
+    expect(pf.findPathCalls.length).toBe(0);
+    expect(followPathSpy).not.toHaveBeenCalled();
+    expect(teleportSpy).toHaveBeenCalledTimes(1);
+    // Teleport target must be a walkable + unoccupied cell.
+    const [cx, cz] = teleportSpy.mock.calls[0];
+    expect(world.grid.isWalkable(cx, cz)).toBe(true);
 });
 
 

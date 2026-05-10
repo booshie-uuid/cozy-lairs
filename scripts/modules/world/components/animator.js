@@ -54,6 +54,7 @@ class Animator
     onAddedToWorld(_world)
     {
         this.mixer = this.mixerFactory(this.entity.object3D);
+        const root = this.entity.object3D;
 
         const available = this.animations.map(c => c.name);
         for(const [state, clipName] of Object.entries(this.clipMap))
@@ -67,7 +68,8 @@ class Animator
                 );
                 continue;
             }
-            this.actions[state] = this.mixer.clipAction(clip);
+            const usable = filterClipForRoot(clip, root);
+            this.actions[state] = this.mixer.clipAction(usable);
         }
     }
 
@@ -102,5 +104,40 @@ class Animator
         if(this.mixer) { this.mixer.update(dt); }
     }
 }
+
+
+/******************************************************************************/
+/* CLIP TRACK FILTERING                                                       */
+/******************************************************************************/
+
+/*
+ * Animation clips from KayKit's rig libraries include tracks for nodes
+ * that not every character mesh has — most notably `handslotr` /
+ * `handslotl` (weapon-attachment slots present on the Skeleton_Minion
+ * but not on the Mannequin). When `mixer.clipAction(clip)` binds those
+ * tracks, `THREE.PropertyBinding` warns ("No target node found for
+ * track: ...") on every load.
+ *
+ * To suppress the noise without touching the underlying clips (they're
+ * shared across all entities of the same rig), we make a lightweight
+ * per-mount copy of the clip with the unbindable tracks removed. Cheap
+ * — clones don't dupe the keyframe data, just the track list.
+ */
+
+function filterClipForRoot(clip, root)
+{
+    // Defensive — test stubs may pass minimal `{ name }` objects with
+    // no tracks. Real KayKit clips always have a `tracks` array.
+    if(!Array.isArray(clip.tracks)) { return clip; }
+
+    const usable = clip.tracks.filter(track =>
+    {
+        const parsed = THREE.PropertyBinding.parseTrackName(track.name);
+        return THREE.PropertyBinding.findNode(root, parsed.nodeName) !== null;
+    });
+    if(usable.length === clip.tracks.length) { return clip; }
+    return new THREE.AnimationClip(clip.name, clip.duration, usable);
+}
+
 
 export { Animator };

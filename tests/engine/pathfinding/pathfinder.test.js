@@ -207,3 +207,31 @@ test("returns null when start or end is out-of-bounds", () =>
     expect(Pathfinder.findPath(grid, { cx: -1, cz: 0 }, { cx: 3, cz: 3 })).toBeNull();
     expect(Pathfinder.findPath(grid, { cx:  0, cz: 0 }, { cx: 4, cz: 0 })).toBeNull();
 });
+
+
+test("routes around an occupied cell when no excludeOccupant is supplied", () =>
+{
+    const grid = openGrid(5, 5);
+    grid.setOccupant(2, 2, { id: "blocker" });
+
+    const path = Pathfinder.findPath(grid, { cx: 0, cz: 0 }, { cx: 4, cz: 4 });
+    expect(path).not.toBeNull();
+    expect(path.some(c => c.cx === 2 && c.cz === 2)).toBe(false);
+});
+
+
+test("excludeOccupant lets the walker route through its own cell", () =>
+{
+    const grid = openGrid(5, 5);
+    const me = { id: "me" };
+    grid.setOccupant(2, 2, me);
+
+    // Without exclusion: must route around (2, 2)
+    const without = Pathfinder.findPath(grid, { cx: 2, cz: 2 }, { cx: 4, cz: 4 });
+    expect(without).toBeNull();  // start cell unavailable
+
+    // With exclusion: start cell available; path includes (2, 2)
+    const withMe = Pathfinder.findPath(grid, { cx: 2, cz: 2 }, { cx: 4, cz: 4 }, { excludeOccupant: me });
+    expect(withMe).not.toBeNull();
+    expect(withMe[0]).toEqual({ cx: 2, cz: 2 });
+});

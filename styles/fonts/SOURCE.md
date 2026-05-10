@@ -2,13 +2,12 @@
 
 Self-hosted woff2s used by the cozy theme. `@font-face` rules live in [`../cozy.css`](../cozy.css).
 
-## EB Garamond
+## Lilita One
 
-- **Files**: `eb-garamond-latin.woff2`, `eb-garamond-latin-ext.woff2`
-- **Weights covered**: 400 (regular), 500 (medium) — the file is a variable font, so a single woff2 covers both weights via the `font-weight: 400 500` range syntax.
-- **Author**: Octavio Pardo, Georg Mayr-Duffner — based on Garamond's original 16th-century cuts.
-- **Source**: <https://fonts.google.com/specimen/EB+Garamond> (Google Fonts API, woff2 endpoint).
-- **Upstream repo**: <https://github.com/octaviopardo/EBGaramond12>
+- **Files**: `lilita-one-latin.woff2`, `lilita-one-latin-ext.woff2`
+- **Weights covered**: 400 — Lilita One ships in a single weight, no italic.
+- **Author**: Juan Montoreano.
+- **Source**: <https://fonts.google.com/specimen/Lilita+One> (Google Fonts API, woff2 endpoint).
 - **License**: SIL Open Font License 1.1.
 
 ## Atkinson Hyperlegible
@@ -26,4 +25,4 @@ Only `latin` and `latin-ext` are included. The Google Fonts API also serves `cyr
 
 ## SIL Open Font License 1.1 (excerpt)
 
-Both fonts are distributed under SIL OFL 1.1. In short: free to use, embed, modify, and redistribute, including in commercial and proprietary projects. Reserved Font Names cannot be reused for derivative works. Full license text: <https://openfontlicense.org/>.
+All bundled fonts are distributed under SIL OFL 1.1. In short: free to use, embed, modify, and redistribute, including in commercial and proprietary projects. Reserved Font Names cannot be reused for derivative works. Full license text: <https://openfontlicense.org/>.

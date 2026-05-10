@@ -118,6 +118,12 @@ class Grid
         this.blockedCells.delete(this.cellKey(cx, cz));
     }
 
+    isFloor(cx, cz)
+    {
+        if(!this.isInBounds(cx, cz)) { return false; }
+        return this.floorCells.has(this.cellKey(cx, cz));
+    }
+
     isWalkable(cx, cz)
     {
         if(!this.isInBounds(cx, cz)) { return false; }
@@ -135,6 +141,48 @@ class Grid
             cells.push({ cx: Number(cxStr), cz: Number(czStr) });
         }
         return cells;
+    }
+
+    isAvailable(cx, cz, excludeOccupant = null)
+    {
+        if(!this.isWalkable(cx, cz)) { return false; }
+        const occupant = this.occupants.get(this.cellKey(cx, cz));
+        if(occupant === undefined) { return true; }
+        return occupant === excludeOccupant;
+    }
+
+    findClosestAvailable(cx, cz, excludeOccupant = null)
+    {
+        const visited = new Set();
+        const queue = [{ cx, cz }];
+        visited.add(this.cellKey(cx, cz));
+
+        while(queue.length > 0)
+        {
+            const cell = queue.shift();
+
+            if(this.isInBounds(cell.cx, cell.cz) && this.isAvailable(cell.cx, cell.cz, excludeOccupant))
+            {
+                return cell;
+            }
+
+            for(let dz = -1; dz <= 1; dz++)
+            {
+                for(let dx = -1; dx <= 1; dx++)
+                {
+                    if(dx === 0 && dz === 0) { continue; }
+                    const ncx = cell.cx + dx;
+                    const ncz = cell.cz + dz;
+                    if(!this.isInBounds(ncx, ncz)) { continue; }
+                    const key = this.cellKey(ncx, ncz);
+                    if(visited.has(key)) { continue; }
+                    visited.add(key);
+                    queue.push({ cx: ncx, cz: ncz });
+                }
+            }
+        }
+
+        return null;
     }
 
     cellKey(cx, cz)

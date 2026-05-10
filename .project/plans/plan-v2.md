@@ -32,13 +32,13 @@ Download the Lilita One woff2 files into `styles/fonts/` and update `SOURCE.md`.
 
 ### Steps
 
-- [ ] Bump `VERSION` to `V2_1_0` in `scripts/app.js`.
-- [ ] `curl` the Google Fonts CSS for `family=Lilita+One:wght@400&display=swap` with a Chrome User-Agent header. Capture the woff2 URLs from the returned `@font-face` blocks.
-- [ ] `curl` the latin woff2 URL into `styles/fonts/lilita-one-latin.woff2`.
-- [ ] `curl` the latin-ext woff2 URL into `styles/fonts/lilita-one-latin-ext.woff2`.
-- [ ] Update `styles/fonts/SOURCE.md`: add a Lilita One section (author Juan Montoreano, source <https://fonts.google.com/specimen/Lilita+One>, license SIL OFL 1.1).
-- [ ] Run `npm test`.
-- [ ] Verify: tests pass; `ls styles/fonts/lilita-one-*.woff2` shows two files with non-trivial sizes (~10–30 KB each); no browser-side change yet.
+- [*] Bump `VERSION` to `V2_1_0` in `scripts/app.js`.
+- [*] `curl` the Google Fonts CSS for `family=Lilita+One:wght@400&display=swap` with a Chrome User-Agent header. Capture the woff2 URLs from the returned `@font-face` blocks.
+- [*] `curl` the latin woff2 URL into `styles/fonts/lilita-one-latin.woff2`.
+- [*] `curl` the latin-ext woff2 URL into `styles/fonts/lilita-one-latin-ext.woff2`.
+- [*] Update `styles/fonts/SOURCE.md`: add a Lilita One section (author Juan Montoreano, source <https://fonts.google.com/specimen/Lilita+One>, license SIL OFL 1.1).
+- [*] Run `npm test`.
+- [*] Verify: tests pass; `ls styles/fonts/lilita-one-*.woff2` shows two files with non-trivial sizes (~10–30 KB each); no browser-side change yet.
 
 ### Decisions
 
@@ -71,25 +71,29 @@ Full rewrite of `styles/cozy.css` in place. New `:root` palette tokens, `@font-f
 
 ### Steps
 
-- [ ] Bump `VERSION` to `V2_2_0`.
-- [ ] Rewrite `styles/cozy.css` from scratch:
-    - [ ] `@font-face` rules for Lilita One latin + latin-ext (font-weight 400, font-display: swap, unicode-range copied from the Google Fonts CSS).
-    - [ ] `@font-face` rules for Atkinson Hyperlegible 400 + 700 latin + latin-ext (preserved from V1).
-    - [ ] Remove `@font-face` rules for EB Garamond entirely.
-    - [ ] `:root` block with V2 palette tokens.
-    - [ ] Define a reusable chunky chrome formula via comments / convention (see design doc).
-    - [ ] Apply chrome to `#camera-mode-chip` and `#save-status-chip` with `border-radius: 999px`.
-    - [ ] Apply chrome to `#loading-overlay` (background) and `.loading-overlay-inner` (panel).
-    - [ ] Style `.loading-overlay-title` in Lilita One, neon, with soft glow.
-    - [ ] Style `.loading-overlay-progress` and `.loading-overlay-bar` for neon-green fill on dark track.
-    - [ ] Style `.loading-overlay-status` and `.loading-overlay-percent` in Atkinson + dim text.
-    - [ ] Apply chrome to `.toast` with severity-tint border-lefts.
-    - [ ] Apply chrome to `.min-viewport-inner` with Lilita One heading + Atkinson body.
-- [ ] Verify in browser: refresh and inspect each in-scope surface against the design's component breakdown. Force a save failure (dev console quick action) to verify the error toast variant. Resize below 1024×640 to verify the min-viewport overlay.
+- [*] Bump `VERSION` to `V2_2_0`.
+- [*] Rewrite `styles/cozy.css` from scratch:
+    - [*] `@font-face` rules for Lilita One latin + latin-ext (font-weight 400, font-display: swap, unicode-range copied from the Google Fonts CSS).
+    - [*] `@font-face` rules for Atkinson Hyperlegible 400 + 700 latin + latin-ext (preserved from V1).
+    - [*] Remove `@font-face` rules for EB Garamond entirely.
+    - [*] `:root` block with V2 palette tokens.
+    - [*] Define a reusable chunky chrome formula via comments / convention (see design doc).
+    - [*] Apply chrome to `#camera-mode-chip` and `#save-status-chip` with `border-radius: 999px`.
+    - [*] Apply chrome to `#loading-overlay` (background) and `.loading-overlay-inner` (panel).
+    - [*] Style `.loading-overlay-title` in Lilita One, neon, with soft glow.
+    - [*] Style `.loading-overlay-progress` and `.loading-overlay-bar` for neon-green fill on dark track.
+    - [*] Style `.loading-overlay-status` and `.loading-overlay-percent` in Atkinson + dim text.
+    - [*] Apply chrome to `.toast` with severity-tint border-lefts.
+    - [*] Apply chrome to `.min-viewport-inner` with Lilita One heading + Atkinson body.
+- [*] Verify in browser: refresh and inspect each in-scope surface against the design's component breakdown. Force a save failure (dev console quick action) to verify the error toast variant. Resize below 1024×640 to verify the min-viewport overlay.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- Hid stale V1 markup (`.loading-overlay-sketch` SVG and `.cozy-divider` divs) via `display: none` in `cozy.css` rather than letting them render unstyled. The plan said "fine until Task 4 deletes them" but the inline SVG without explicit sizing renders at the user-agent default (300×150) — would have dominated the loading overlay. Display:none is cleaner and lets Task 4 stay focused on physical deletion.
+- Toast severity = full-perimeter border colour change (`border-color: var(--cozy-danger)`) rather than border-left-only as the design suggested. Strong visual cue without a width-shift between severity variants. Plan's `border-left-color` approach would have been more subtle but harder to spot at a glance.
+- Loading overlay treats its full width as the splash background (no inner panel chrome wrapping the content). The progress bar gets its own chunky pill chrome instead. Reads as "splash screen" rather than "windowed app" — appropriate for a one-shot loading state.
+- HUD chips (camera-mode + save-status) share a single CSS rule since they have identical chrome. Save-status adds positioning + size on top.
+- Loading title text-shadow doubles up: a wide neon blur (24 px) for the glow + a sharp 4 px deep-purple offset for chunky depth. Both at once gives the title both "magic glow" and "embossed" feel.
 
 ---
 
@@ -114,16 +118,17 @@ Set the Three.js scene's clear color to match `--cozy-purple` so the world and t
 
 ### Steps
 
-- [ ] Bump `VERSION` to `V2_3_0`.
-- [ ] In `scripts/app.js` `App.buildWorld()`, after `this.world = new World(...)`, add `this.world.scene.background = new THREE.Color(0x1a0e2e);`.
-- [ ] Update the `SCENE_AMBIENT_GROUND` constant from `0x303040` to `0x2c1a47`.
-- [ ] If `Renderer` overrides clear color, update or remove that override so the scene's background shows through.
-- [ ] Run `npm test`.
-- [ ] Verify in browser: in builder mode, the area outside the room reads purple. Tab to first-person mode, walk to a corner where you can see past the wall, confirm the bg is purple. Confirm the floor still reads as KayKit stone (not visibly purple-tinted).
+- [*] Bump `VERSION` to `V2_3_0`.
+- [*] In `scripts/app.js` `App.buildWorld()`, after `this.world = new World(...)`, add `this.world.scene.background = new THREE.Color(0x1a0e2e);`.
+- [*] Update the `SCENE_AMBIENT_GROUND` constant from `0x303040` to `0x2c1a47`.
+- [*] If `Renderer` overrides clear color, update or remove that override so the scene's background shows through.
+- [*] Run `npm test`.
+- [*] Verify in browser: in builder mode, the area outside the room reads purple. Tab to first-person mode, walk to a corner where you can see past the wall, confirm the bg is purple. Confirm the floor still reads as KayKit stone (not visibly purple-tinted).
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- Added a new `SCENE_BACKGROUND = 0x1a0e2e` constant alongside the existing ambient/sun colour constants rather than inlining the hex in `buildWorld`. Matches the project's "no magic numbers in body code" convention.
+- Did **not** touch `Renderer`'s `CLEAR_COLOR` constant. Once `scene.background` is set, Three.js uses it in preference to the renderer's clearColor, and `gameLoop.start()` runs after `buildWorld()` so no render ever happens before `scene.background` is assigned. Leaving Renderer's default value alone reduces churn.
 
 ---
 
@@ -151,20 +156,21 @@ Remove all V1-aesthetic remnants from disk and from `index.html` now that the V2
 
 ### Steps
 
-- [ ] Bump `VERSION` to `V2_4_0`.
-- [ ] `grep -r "icons/corner\|icons/divider\|cozy-divider\|eb-garamond\|EB Garamond" styles/ scripts/ index.html` and confirm the only hits are inside files about to be modified or deleted.
-- [ ] Delete `styles/icons/corner.svg`, `styles/icons/divider.svg`, `styles/icons/SOURCE.md`.
-- [ ] Delete the now-empty `styles/icons/` directory.
-- [ ] Delete `styles/fonts/eb-garamond-latin.woff2` and `styles/fonts/eb-garamond-latin-ext.woff2`.
-- [ ] Edit `styles/fonts/SOURCE.md`: remove the EB Garamond section, add a Lilita One section if Task 1's update only stubbed it.
-- [ ] Edit `index.html`: remove the inline `<svg class="loading-overlay-sketch">…</svg>` block from `#loading-overlay-inner`.
-- [ ] Edit `index.html`: remove both `<div class="cozy-divider"></div>` instances (one in the loading overlay between title and status; one in the min-viewport overlay between heading and instruction).
-- [ ] Run `npm test`.
-- [ ] Verify in browser: refresh, dev tools network tab shows no 404s. Loading overlay still reads cleanly without the sketch. Min-viewport overlay (resize below 1024×640) still reads cleanly without the divider.
+- [*] Bump `VERSION` to `V2_4_0`.
+- [*] `grep -r "icons/corner\|icons/divider\|cozy-divider\|eb-garamond\|EB Garamond" styles/ scripts/ index.html` and confirm the only hits are inside files about to be modified or deleted.
+- [*] Delete `styles/icons/corner.svg`, `styles/icons/divider.svg`, `styles/icons/SOURCE.md`.
+- [*] Delete the now-empty `styles/icons/` directory.
+- [*] Delete `styles/fonts/eb-garamond-latin.woff2` and `styles/fonts/eb-garamond-latin-ext.woff2`.
+- [*] Edit `styles/fonts/SOURCE.md`: remove the EB Garamond section, add a Lilita One section if Task 1's update only stubbed it.
+- [*] Edit `index.html`: remove the inline `<svg class="loading-overlay-sketch">…</svg>` block from `#loading-overlay-inner`.
+- [*] Edit `index.html`: remove both `<div class="cozy-divider"></div>` instances (one in the loading overlay between title and status; one in the min-viewport overlay between heading and instruction).
+- [*] Run `npm test`.
+- [*] Verify in browser: refresh, dev tools network tab shows no 404s. Loading overlay still reads cleanly without the sketch. Min-viewport overlay (resize below 1024×640) still reads cleanly without the divider.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- Also removed the interim `.loading-overlay-sketch, .cozy-divider { display: none; }` rule from `cozy.css` after deleting the corresponding markup. Without elements to match, the rule was dead weight; cleaning it keeps `cozy.css` tight.
+- `styles/fonts/SOURCE.md`'s closing license paragraph rephrased from "Both fonts" to "All bundled fonts" since there are now three fonts (Lilita One + Atkinson 400 + 700).
 
 ---
 
@@ -187,29 +193,31 @@ Update the project conventions doc to describe the V2 aesthetic in place of V1. 
 
 ### Steps
 
-- [ ] Bump `VERSION` to `V2_5_0`.
-- [ ] Rewrite the "Cozy theme — what's where, and what's off-limits" section in `.claude/CLAUDE.md`:
-    - [ ] Intro paragraph: cozy.css loaded after main.css; same scope rule (in / out).
-    - [ ] In-scope selector list (unchanged from V1).
-    - [ ] Out-of-scope selector list (unchanged from V1).
-    - [ ] V2 palette listing (`--cozy-purple`, `--cozy-purple-soft`, `--cozy-purple-deep`, `--cozy-neon`, `--cozy-neon-dim`, `--cozy-text`, `--cozy-text-dim`, `--cozy-danger`).
-    - [ ] Chrome formula recipe (border-radius / border / background / box-shadow combo).
-    - [ ] Typography: Lilita One for headings (self-hosted in `styles/fonts/`), Atkinson Hyperlegible for body. SIL OFL 1.1 for both.
-    - [ ] Remove all references to `icons/`, `corner.svg`, `divider.svg`, `.cozy-divider`, the minion-with-candle sketch, EB Garamond.
-- [ ] Verify the rendered Markdown looks clean (preview in IDE if possible).
+- [*] Bump `VERSION` to `V2_5_0`.
+- [*] Rewrite the "Cozy theme — what's where, and what's off-limits" section in `.claude/CLAUDE.md`:
+    - [*] Intro paragraph: cozy.css loaded after main.css; same scope rule (in / out).
+    - [*] In-scope selector list (unchanged from V1).
+    - [*] Out-of-scope selector list (unchanged from V1).
+    - [*] V2 palette listing (`--cozy-purple`, `--cozy-purple-soft`, `--cozy-purple-deep`, `--cozy-neon`, `--cozy-neon-dim`, `--cozy-text`, `--cozy-text-dim`, `--cozy-danger`).
+    - [*] Chrome formula recipe (border-radius / border / background / box-shadow combo).
+    - [*] Typography: Lilita One for headings (self-hosted in `styles/fonts/`), Atkinson Hyperlegible for body. SIL OFL 1.1 for both.
+    - [*] Remove all references to `icons/`, `corner.svg`, `divider.svg`, `.cozy-divider`, the minion-with-candle sketch, EB Garamond.
+- [*] Verify the rendered Markdown looks clean (preview in IDE if possible).
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- The palette listing in CLAUDE.md was expanded into a bullet list (rather than the V1 inline-prose format) because the V2 palette has structural relationships worth surfacing — the canvas/scene background and HemisphereLight ground tint both come from the palette tokens, and the chrome recipe stacks three layers of box-shadow that need clear naming. Bullets make those connections scan-able.
+- Captured the full chrome recipe inline in CLAUDE.md (`border-radius`, `border`, `background`, `box-shadow` block). Single source of truth for "how to build a new V2 panel" — anyone (future-Claude or human) adding a new in-scope surface can copy-paste it.
 
 ---
 
 ### Notable Deviations from Design
 
-<!-- Filled in during execution. -->
+- None of significance. Two small adjustments captured in Task 2 + Task 4 decisions: (1) toast severity uses full-perimeter border-colour rather than border-left only for stronger visual distinction, (2) the V1 `.loading-overlay-sketch` SVG markup was hidden via `display: none` in `cozy.css` during Task 2 then deleted in Task 4 (rather than letting it render unstyled between tasks).
 
 ---
 
 ### Issues and Adjustments
 
-<!-- Filled in during execution. -->
+- **Follow-up: add test surfaces for visual review.** User flagged during Task 2 sign-off that evaluating the chrome formula in isolation is hard because the existing in-scope surfaces are all small (HUD chips) or short-lived (loading overlay, min-viewport overlay). A V3 task could add a hidden "test panel" page or a dev-console-toggleable sandbox showing each chrome variant (chip, pill button, panel header, divider, error/warning/info toasts) in one view so the design can be evaluated and iterated on without forcing real failure cases (e.g. throwing save errors to see the error toast).
+    - **Resolved (ad hoc):** built `styles/gui-sandbox.html` — static HTML page that loads `main.css` + `cozy.css` and renders every chrome variant in one view (palette swatches, type specimens, HUD chips, all toast severities, loading-style + min-viewport-style panels, plus exploratory rules for buttons / resource chips / banner / modal / list panel / form input). Open at `http://localhost:3000/styles/gui-sandbox.html`. Exploratory rules live in the page's `<style>` block and only graduate into `cozy.css` when their corresponding surface lands in the live game. Plan-v2 itself stays at "implementation done"; final sign-off pending evaluation against the sandbox.

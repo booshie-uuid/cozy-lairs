@@ -71,6 +71,12 @@ class GridPlacement
         if(this.blocks)   { world.grid.clearBlocked(this.cx, this.cz); }
     }
 
+    moveTo(cx, cz)
+    {
+        this.cx = cx;
+        this.cz = cz;
+    }
+
     toJSON()
     {
         const json = { cx: this.cx, cz: this.cz, rotationStep: this.rotationStep };

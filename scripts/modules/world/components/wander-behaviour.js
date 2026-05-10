@@ -48,6 +48,10 @@ class WanderBehaviour
         this.world = null;
         this.walker = null;
         this.arrivedHandler = null;
+        // Latch so the "stuck on non-walkable, no rescue" warning fires
+        // once per episode, not on every idle expiry. Cleared once we
+        // successfully kick a trip again.
+        this.rescueWarned = false;
     }
 
     attach(entity)
@@ -67,7 +71,9 @@ class WanderBehaviour
         }
 
         this.arrivedHandler = () => this.scheduleNextTrip();
-        this.walker.on("arrived", this.arrivedHandler);
+        this.walker.on("arrived",   this.arrivedHandler);
+        this.walker.on("blocked",   this.arrivedHandler);
+        this.walker.on("displaced", this.arrivedHandler);
         this.scheduleNextTrip();
     }
 
@@ -75,7 +81,9 @@ class WanderBehaviour
     {
         if(this.walker && this.arrivedHandler)
         {
-            this.walker.off("arrived", this.arrivedHandler);
+            this.walker.off("arrived",   this.arrivedHandler);
+            this.walker.off("blocked",   this.arrivedHandler);
+            this.walker.off("displaced", this.arrivedHandler);
         }
         this.arrivedHandler = null;
         this.walker = null;
@@ -107,13 +115,51 @@ class WanderBehaviour
     kickTrip()
     {
         const currentCell = this.currentCell();
+        const grid = this.world.grid;
+
+        // Self-rescue: if we somehow ended up on a non-walkable cell (e.g.
+        // teleported onto decor by a dev-console call, or displaced by a
+        // future bug), pathfinder would refuse to plan a route from here.
+        // Find the closest available cell and teleport. The displaced
+        // event triggers another scheduleNextTrip so wandering resumes.
+        if(!grid.isAvailable(currentCell.cx, currentCell.cz, this.entity))
+        {
+            const free = grid.findClosestAvailable(currentCell.cx, currentCell.cz, this.entity);
+            if(free)
+            {
+                this.rescueWarned = false;
+                this.walker.teleportTo(free.cx, free.cz);
+                return;
+            }
+            // No free cell anywhere on the grid — degenerate state. Idle
+            // and try again later in case grid state changes (chaos
+            // teleport may free a cell). Warn once so the silent-loop
+            // failure mode is visible in the dev console.
+            if(!this.rescueWarned)
+            {
+                console.warn(
+                    `[WanderBehaviour] ${this.entity.kind} stuck on non-walkable (${currentCell.cx}, ${currentCell.cz}) ` +
+                    `— no free cell available, will retry next idle.`
+                );
+                this.rescueWarned = true;
+            }
+            this.scheduleNextTrip();
+            return;
+        }
+
+        this.rescueWarned = false;
 
         for(let i = 0; i < this.retryLimit; i++)
         {
             const target = this.pickTarget(currentCell);
             if(target === null) { break; }
 
-            const path = this.pathfinder.findPath(this.world.grid, currentCell, target);
+            const path = this.pathfinder.findPath(
+                grid,
+                currentCell,
+                target,
+                { excludeOccupant: this.entity }
+            );
             if(path !== null)
             {
                 this.walker.followPath(path);
@@ -132,8 +178,15 @@ class WanderBehaviour
 
     pickTarget(currentCell)
     {
-        const candidates = this.world.grid.walkableCells().filter(c =>
+        const grid = this.world.grid;
+        const candidates = grid.walkableCells().filter(c =>
         {
+            // Exclude cells currently occupied by another walker — picking
+            // one would force pathfinder to fail (target unavailable),
+            // burning a retry slot. The walker's own cell is also excluded
+            // by the distance filter below.
+            const occupant = grid.getOccupant(c.cx, c.cz);
+            if(occupant && occupant !== this.entity) { return false; }
             const dx = Math.abs(c.cx - currentCell.cx);
             const dz = Math.abs(c.cz - currentCell.cz);
             return Math.max(dx, dz) >= this.minTargetDistance;

@@ -119,13 +119,13 @@ The world's compass orientation is encoded in `buildEmptyRoom`: walls placed at 
 
 ### Cozy theme — what's where, and what's off-limits
 
-The cozy-grimoire visual identity lives in `styles/cozy.css`, loaded **after** `main.css` in `index.html`. `main.css` keeps the V0 neutral dark theme; `cozy.css` only restyles the surfaces in the V1 aesthetic scope. The split lets dev surfaces stay neutral by default — important for instrumentation legibility.
+The "witchy arcade" visual identity lives in `styles/cozy.css`, loaded **after** `main.css` in `index.html`. `main.css` keeps the V0 neutral dark theme; `cozy.css` only restyles the surfaces in the V2 aesthetic scope. The split lets dev surfaces stay neutral by default — important for instrumentation legibility.
 
 In scope (restyled by `cozy.css`):
 
 - `#camera-mode-chip`, `#save-status-chip` (HUD chips)
-- `#loading-overlay` and its descendants (incl. the inline minion-with-candle SVG sketch in `index.html`)
-- `#toast-tray` and `.toast` variants
+- `#loading-overlay` and its descendants
+- `#toast-tray` and `.toast` variants (`.is-info`, `.is-warning`, `.is-error`)
 - `#min-viewport-overlay` and its descendants
 
 Out of scope (stays neutral, do **not** restyle in `cozy.css`):
@@ -134,13 +134,34 @@ Out of scope (stays neutral, do **not** restyle in `cozy.css`):
 - `#fatal-overlay` and its descendants
 - `#fps-chip`
 
-Palette (CSS custom properties in `:root`): `--cozy-aubergine` `#2a1a3a`, `--cozy-candle-gold` `#f0c674`, `--cozy-parchment` `#f4ead5`, `--cozy-ember` `#bf616a`, `--cozy-sage` `#a3be8c`, plus `-soft` / `-deep` / `-dim` siblings. Reach for these instead of inlining hex codes.
+Palette (CSS custom properties in `:root`):
 
-Typography: heading = `EB Garamond` (with `Georgia` / `Times New Roman` fallbacks), body = `Atkinson Hyperlegible` (with system-ui fallbacks). Self-hosted woff2s under `styles/fonts/` (six files: EB Garamond's variable woff2 covers 400 + 500 via `font-weight: 400 500`; Atkinson Hyperlegible ships separate 400 and 700 files; each font has a `latin` + `latin-ext` subset pair gated by `unicode-range`). `@font-face` rules with `font-display: swap` live at the top of `cozy.css`. Source / license note in `styles/fonts/SOURCE.md`. Both fonts are SIL OFL 1.1.
+- `--cozy-purple` `#1a0e2e` — page bg + Three.js scene background (set in `app.js`'s `SCENE_BACKGROUND` const, so the world and the chrome share one hue).
+- `--cozy-purple-soft` `#2c1a47` — panel surface; also used as the HemisphereLight ground tint (`SCENE_AMBIENT_GROUND`) for ambient cohesion.
+- `--cozy-purple-deep` `#0f0620` — chunky drop-shadow colour.
+- `--cozy-neon` `#5af0a0`, `--cozy-neon-dim` `#3eaa70` — accent / progress / "Saved" status borders.
+- `--cozy-text` `#f0eaff`, `--cozy-text-dim` `#9c8db5` — primary and muted text.
+- `--cozy-danger` `#ff4565` — error border / save-failed state.
 
-Decorative SVGs live in `styles/icons/` (`corner.svg`, `divider.svg`) plus the inline minion-with-candle sketch in the loading overlay's HTML so it animates with the fade. Source / license note in `styles/icons/SOURCE.md`. The corner ornament is hardcoded gold; if multiple themes ever need different tints, switch to a `mask-image` + `background-color` approach.
+Reach for these instead of inlining hex codes.
 
-The `.cozy-divider` class is reusable — drop a `<div class="cozy-divider"></div>` between sections that want the central-diamond rule.
+Chrome formula — every in-scope panel uses this exact recipe:
+
+```css
+border-radius:    12px;    /* 999px for chips/pills */
+border:           2px solid var(--cozy-neon-dim);
+background:       var(--cozy-purple-soft);
+box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),    /* top-edge highlight */
+    0 5px 0 var(--cozy-purple-deep),             /* chunky offset shadow */
+    0 8px 18px rgba(0, 0, 0, 0.4);               /* soft ambient drop */
+```
+
+Active / highlighted state swaps `--cozy-neon-dim` for `--cozy-neon` on the border. Toast severity uses full-perimeter `border-color` (info = neon-dim, warning = neon, error = danger). That's the entire interaction vocabulary V2 offers — anything more elaborate (banner ribbons, gradient buttons) is explicitly out of scope until a future redesign.
+
+Typography: heading = `Lilita One` (chunky rounded display, with `Trebuchet MS` / system-ui fallbacks), body = `Atkinson Hyperlegible` (with system-ui fallbacks). Self-hosted woff2s under `styles/fonts/` (six files: Lilita One 400 latin + latin-ext; Atkinson Hyperlegible 400 and 700, each latin + latin-ext). `@font-face` rules with `font-display: swap` live at the top of `cozy.css`. Source / license note in `styles/fonts/SOURCE.md`. All fonts are SIL OFL 1.1.
+
+No decorative SVG ornaments — V2 carries the personality through chrome alone. If a future theme needs ornamental SVGs, source them from a CC0/CC-BY library (Game-icons.net is fine) and document under a `styles/icons/SOURCE.md` per-asset table.
 
 ### KayKit characters and animations are separate
 

@@ -8,6 +8,7 @@ import { SaveService }       from "./modules/engine/save-service.js";
 import { DevConsole }        from "./modules/engine/dev/dev-console.js";
 import { BuilderCamera }     from "./modules/engine/cameras/builder-camera.js";
 import { FirstPersonCamera } from "./modules/engine/cameras/first-person-camera.js";
+import { PLAYER_MARKER }     from "./modules/engine/player-marker.js";
 
 import { World }  from "./modules/world/world.js";
 import { Grid }   from "./modules/world/grid.js";
@@ -17,9 +18,11 @@ import { Walker }           from "./modules/world/components/walker.js";
 import { Animator }         from "./modules/world/components/animator.js";
 import { Renderable }       from "./modules/world/components/renderable.js";
 import { WanderBehaviour }  from "./modules/world/components/wander-behaviour.js";
+import { GridPlacement }    from "./modules/world/components/grid-placement.js";
 
 import { buildEmptyRoom }    from "./modules/world/builders/empty-room.js";
 import * as DecorBuilder     from "./modules/world/builders/decor.js";
+import { ChaosController }   from "./modules/world/chaos-controller.js";
 import * as WorldSerializer  from "./modules/world/world-serializer.js";
 
 import { AppViewModel } from "./modules/ui/app-view-model.js";
@@ -28,7 +31,7 @@ import "./modules/ui/bindings.js";
 
 const ko = window.ko;
 
-const VERSION = "V1_9_0";
+const VERSION = "V3_8_0";
 
 const ROOM = { x0: 1, z0: 1, width: 8, depth: 10 };
 const GRID_WIDTH = 10;
@@ -40,7 +43,16 @@ const SAVE_KEY = "KeyS";
 const DEV_TOGGLE_KEY = "Backquote";
 
 const MINION_SPEED = 1.6;
-const MINION_SPAWN_CELL = { cx: 2, cz: 2 };
+const MINION_COUNT = 4;
+const MINION_SPAWN_MIN_SEPARATION = 2;
+
+const PLAYER_KIND = "character.mannequin.medium";
+const PLAYER_SPAWN_CELL = { cx: 2, cz: 2 };
+// Approximate footprint radii for collision. Player can enter a cell
+// containing decor as long as the two circles don't overlap.
+const PLAYER_RADIUS = 0.5;
+const DECOR_RADIUS  = 0.7;
+
 const MANIFEST_PATH = "assets/manifest.json";
 
 // KayKit Rig_Medium clip names. The rig ships A/B (and sometimes C) variants
@@ -55,11 +67,15 @@ const DECOR_LAYOUT =
     { kind: "decor.crate",  cx: 4, cz: 4 },
     { kind: "decor.crate",  cx: 5, cz: 4 },
     { kind: "decor.crate",  cx: 5, cz: 5 },
-    { kind: "decor.crate",  cx: 6, cz: 5 }
+    { kind: "decor.crate",  cx: 6, cz: 5 },
+    { kind: "decor.barrel", cx: 2, cz: 3, chaos: true },
+    { kind: "decor.barrel", cx: 7, cz: 6, chaos: true },
+    { kind: "decor.barrel", cx: 3, cz: 8, chaos: true }
 ];
 
+const SCENE_BACKGROUND = 0x1a0e2e;
 const SCENE_AMBIENT_SKY = 0xffffff;
-const SCENE_AMBIENT_GROUND = 0x303040;
+const SCENE_AMBIENT_GROUND = 0x2c1a47;
 const SCENE_AMBIENT_INTENSITY = 1.2;
 
 const SCENE_SUN_COLOR = 0xffffff;
@@ -69,6 +85,9 @@ const SCENE_SUN_POSITION = { x: 4, y: 8, z: 4 };
 const GRID_HELPER_MAJOR_COLOUR = 0x445566;
 const GRID_HELPER_MINOR_COLOUR = 0x2a3340;
 const GRID_HELPER_Y_OFFSET = 0.001;
+
+const DIAG_GRID_COLOUR = 0xff3030;
+const DIAG_GRID_Y_OFFSET = 0.05;
 
 
 /******************************************************************************/
@@ -99,6 +118,16 @@ class App
         this.globalErrorHandler = null;
         this.unhandledRejectionHandler = null;
         this.isShutDown = false;
+        this.minions = [];
+        this.player = null;
+        this.chaosBarrels = [];
+        this.chaosController = null;
+        this.diagGrid = null;
+
+        // Component class refs exposed for dev-console use. Modules don't
+        // leak into global scope, so without this the dev console can't
+        // call entity.getComponent(Walker) etc. directly.
+        this.types = { Walker, Animator, WanderBehaviour };
     }
 
     async start()
@@ -184,6 +213,7 @@ class App
         if(this.cameraController) { this.cameraController.deactivate(); }
         if(this.saveService)      { this.saveService.dispose(); }
         if(this.devConsole)       { this.devConsole.uninstall(); }
+        if(this.chaosController)  { this.chaosController.dispose(); }
 
         if(this.input && this.tabHandler)
         {
@@ -227,6 +257,7 @@ class App
     buildWorld()
     {
         this.world = new World(new Grid(GRID_WIDTH, GRID_DEPTH, GRID_CELL_SIZE));
+        this.world.scene.background = new THREE.Color(SCENE_BACKGROUND);
         this.renderer.setScene(this.world.scene);
 
         const ambient = new THREE.HemisphereLight(
@@ -250,26 +281,80 @@ class App
         helper.position.set(worldWidth / 2, GRID_HELPER_Y_OFFSET, worldDepth / 2);
         this.world.scene.add(helper);
 
+        // Diagnostic grid: bright-red cell boundaries, slightly above the
+        // floor for visibility. Hidden by default — toggle via the dev
+        // console "Toggle grid" quick action.
+        this.diagGrid = new THREE.GridHelper(helperSize, helperDivisions, DIAG_GRID_COLOUR, DIAG_GRID_COLOUR);
+        this.diagGrid.position.set(worldWidth / 2, DIAG_GRID_Y_OFFSET, worldDepth / 2);
+        this.diagGrid.visible = false;
+        this.world.scene.add(this.diagGrid);
+
         buildEmptyRoom(this.world, this.assets, ROOM);
         this.placeDecor();
-        this.spawnMinion();
+        this.spawnPlayer();
+        this.spawnMinions();
+
+        if(this.chaosBarrels.length > 0 && this.minions.length > 0)
+        {
+            const walkers = this.minions.map(m => m.getComponent(Walker));
+            this.chaosController = new ChaosController({
+                world:        this.world,
+                walkers,
+                chaosBarrels: this.chaosBarrels
+            });
+        }
+    }
+
+    spawnPlayer()
+    {
+        // Player avatar: a Mannequin model (visually distinct from the
+        // wandering minions) that stays still wherever the player last
+        // left them. No Walker, no WanderBehaviour — position is driven
+        // by FirstPersonCamera while in FP mode. PLAYER_MARKER occupies
+        // the grid cell so other walkers route around the player and
+        // decor placement-on-player triggers `world.playerDisplaceHandler`.
+        // Mannequin shares Rig_Medium with the skeleton minion, so the
+        // same MINION_CLIPS map drives idle / walk animations.
+        const animations =
+        [
+            ...this.assets.getAnimations(PLAYER_KIND),
+            ...this.assets.getAnimations("animations.rig-medium.general"),
+            ...this.assets.getAnimations("animations.rig-medium.movement")
+        ];
+
+        const player = Entity.fromKind(PLAYER_KIND, this.assets);
+        player.addComponent(new Animator({ clipMap: MINION_CLIPS, animations }));
+
+        const spawn = this.world.grid.cellToWorld(PLAYER_SPAWN_CELL.cx, PLAYER_SPAWN_CELL.cz);
+        player.object3D.position.set(spawn.x, 0, spawn.z);
+
+        this.world.addEntity(player);
+        player.getComponent(Animator).crossfade("idle");
+
+        // Register player presence in the grid via the marker, regardless
+        // of camera mode. Other walkers route around this cell; decor
+        // placement on this cell triggers playerDisplaceHandler.
+        this.world.grid.setOccupant(PLAYER_SPAWN_CELL.cx, PLAYER_SPAWN_CELL.cz, PLAYER_MARKER);
+
+        this.player = player;
     }
 
     placeDecor()
     {
-        for(const { kind, cx, cz } of DECOR_LAYOUT)
+        for(const entry of DECOR_LAYOUT)
         {
-            if(kind === "decor.barrel")     { DecorBuilder.addBarrel(this.world, this.assets, cx, cz); }
-            else if(kind === "decor.crate") { DecorBuilder.addCrate(this.world, this.assets, cx, cz); }
+            const { kind, cx, cz, chaos } = entry;
+            let entity = null;
+            if(kind === "decor.barrel")     { entity = DecorBuilder.addBarrel(this.world, this.assets, cx, cz); }
+            else if(kind === "decor.crate") { entity = DecorBuilder.addCrate(this.world, this.assets, cx, cz); }
             else { console.warn(`[App] Unknown decor kind: ${kind}`); }
+
+            if(entity && chaos) { this.chaosBarrels.push(entity); }
         }
     }
 
-    spawnMinion()
+    spawnMinions()
     {
-        const minion = Entity.fromKind("character.skeleton.minion", this.assets);
-        minion.addComponent(new Walker({ speed: MINION_SPEED }));
-
         // KayKit ships character meshes and clip libraries separately — both
         // bind to the shared "Rig_Medium" skeleton, so the cloned character's
         // bone names will resolve against any clip from the rig libraries.
@@ -279,15 +364,61 @@ class App
             ...this.assets.getAnimations("animations.rig-medium.general"),
             ...this.assets.getAnimations("animations.rig-medium.movement")
         ];
-        minion.addComponent(new Animator({ clipMap: MINION_CLIPS, animations }));
 
+        const cells = this.pickMinionSpawnCells(MINION_COUNT);
+        for(const cell of cells)
+        {
+            this.spawnMinion(cell, animations);
+        }
+    }
+
+    spawnMinion(spawnCell, animations)
+    {
+        const minion = Entity.fromKind("character.skeleton.minion", this.assets);
+        minion.addComponent(new Walker({ speed: MINION_SPEED }));
+        minion.addComponent(new Animator({ clipMap: MINION_CLIPS, animations }));
         minion.addComponent(new WanderBehaviour());
 
-        const spawn = this.world.grid.cellToWorld(MINION_SPAWN_CELL.cx, MINION_SPAWN_CELL.cz);
+        const spawn = this.world.grid.cellToWorld(spawnCell.cx, spawnCell.cz);
         minion.object3D.position.set(spawn.x, 0, spawn.z);
 
         this.world.addEntity(minion);
         minion.getComponent(Animator).crossfade("idle");
+        this.minions.push(minion);
+    }
+
+    pickMinionSpawnCells(count)
+    {
+        const grid = this.world.grid;
+        const candidates = grid.walkableCells().filter(c =>
+            grid.getOccupant(c.cx, c.cz) === null
+        );
+        // Shuffle in place so spawns aren't always in the same order.
+        for(let i = candidates.length - 1; i > 0; i--)
+        {
+            const j = Math.floor(Math.random() * (i + 1));
+            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        }
+
+        const picked = [];
+        for(const cell of candidates)
+        {
+            if(picked.length >= count) { break; }
+            const tooClose = picked.some(p =>
+            {
+                const dx = Math.abs(p.cx - cell.cx);
+                const dz = Math.abs(p.cz - cell.cz);
+                return Math.max(dx, dz) < MINION_SPAWN_MIN_SEPARATION;
+            });
+            if(tooClose) { continue; }
+            picked.push(cell);
+        }
+
+        if(picked.length < count)
+        {
+            console.warn(`[App] Only found ${picked.length} suitable spawn cells of ${count} requested.`);
+        }
+        return picked;
     }
 
     buildCameraControllers()
@@ -305,11 +436,99 @@ class App
             initialDistance: 30
         });
 
+        const playerStart = this.player
+            ? this.player.object3D.position.clone()
+            : centre.clone();
+
         this.cameraControllers.firstPerson = new FirstPersonCamera(this.input,
         {
-            lockTarget:      this.canvasWrapper,
-            initialPosition: centre.clone()
+            lockTarget: this.canvasWrapper,
+            initialPosition: playerStart,
+            grid: this.world.grid,
+            playerEntity: this.player,
+            resolveCollision: (cx, cz, dx, dz) => this.resolvePlayerCollision(cx, cz, dx, dz)
         });
+
+        // Decor placement (or chaos teleport) that lands on the player's
+        // FP cell needs to displace the player. World holds the callback
+        // so decor.js doesn't have to import the camera directly.
+        this.world.setPlayerDisplaceHandler(cell => this.cameraControllers.firstPerson.teleportPlayer(cell));
+    }
+
+    resolvePlayerCollision(currentX, currentZ, desiredX, desiredZ)
+    {
+        // Hybrid model:
+        //  - Walls / non-floor cells: per-axis bbox check. Player's
+        //    bounding box (PLAYER_RADIUS in each direction) can't
+        //    overlap any non-floor cell. Per-axis check enables sliding
+        //    along axis-aligned walls.
+        //  - Decor: circle depenetration. If the player's circle would
+        //    overlap a decor circle, push the player tangentially out
+        //    so they slide around the obstacle instead of stopping dead.
+        //  - Other walkers: ignored (walking through minions is fine).
+        //
+        // After decor depenetration, re-check walls — if the push moved
+        // the player's bbox into a wall, revert to the wall-clamped
+        // position. Player will appear to "stick" near a decor item
+        // hugging a wall, but won't ever clip through walls.
+
+        let x = desiredX;
+        if(this.bboxHitsNonFloor(x, currentZ)) { x = currentX; }
+        let z = desiredZ;
+        if(this.bboxHitsNonFloor(x, z)) { z = currentZ; }
+
+        const wallSafeX = x;
+        const wallSafeZ = z;
+
+        const minDist = PLAYER_RADIUS + DECOR_RADIUS;
+        const minDistSq = minDist * minDist;
+        for(const entity of this.world.entities)
+        {
+            const placement = entity.getComponent(GridPlacement);
+            if(!placement || !placement.blocks) { continue; }
+            const decorX = entity.object3D.position.x;
+            const decorZ = entity.object3D.position.z;
+            const dx = x - decorX;
+            const dz = z - decorZ;
+            const distSq = dx * dx + dz * dz;
+            if(distSq >= minDistSq) { continue; }
+            if(distSq < 0.0001)
+            {
+                // Player position essentially equals decor centre — push
+                // along +X arbitrarily.
+                x = decorX + minDist;
+            }
+            else
+            {
+                const dist = Math.sqrt(distSq);
+                x = decorX + (dx / dist) * minDist;
+                z = decorZ + (dz / dist) * minDist;
+            }
+        }
+
+        if(this.bboxHitsNonFloor(x, z))
+        {
+            // Decor push violated wall buffer — fall back to wall-safe
+            // position (no decor slide this frame).
+            return { x: wallSafeX, z: wallSafeZ };
+        }
+        return { x, z };
+    }
+
+    bboxHitsNonFloor(x, z)
+    {
+        const grid = this.world.grid;
+        const r = PLAYER_RADIUS;
+        const c0 = grid.worldToCell(x - r, z - r);
+        const c1 = grid.worldToCell(x + r, z + r);
+        for(let cx = c0.cx; cx <= c1.cx; cx++)
+        {
+            for(let cz = c0.cz; cz <= c1.cz; cz++)
+            {
+                if(!grid.isFloor(cx, cz)) { return true; }
+            }
+        }
+        return false;
     }
 
     wireCameraToggle()
@@ -381,10 +600,11 @@ class App
 
         this.viewModel.dev.actions =
         {
-            toggleCameraMode: () => this.toggleCameraMode(),
-            dumpWorldJSON:    () => this.dumpWorldJSON(),
-            forceSaveFailure: () => this.forceSaveFailure(),
-            reloadManifest:   () => this.reloadManifest()
+            toggleCameraMode:     () => this.toggleCameraMode(),
+            toggleDiagnosticGrid: () => this.toggleDiagnosticGrid(),
+            dumpWorldJSON:        () => this.dumpWorldJSON(),
+            forceSaveFailure:     () => this.forceSaveFailure(),
+            reloadManifest:       () => this.reloadManifest()
         };
 
         this.devConsole.install();
@@ -475,10 +695,45 @@ class App
         this.setCameraMode(next);
     }
 
+    toggleDiagnosticGrid()
+    {
+        if(this.diagGrid) { this.diagGrid.visible = !this.diagGrid.visible; }
+    }
+
     dumpWorldJSON()
     {
         const snapshot = WorldSerializer.toJSON(this.world);
         console.log(JSON.stringify(snapshot, null, 2));
+    }
+
+    diagnoseWalkers()
+    {
+        const grid = this.world.grid;
+        console.log("=== Walker diagnostics ===");
+        for(let i = 0; i < this.minions.length; i++)
+        {
+            const minion = this.minions[i];
+            const walker = minion.getComponent(Walker);
+            const pos = minion.object3D.position;
+            const physical = grid.worldToCell(pos.x, pos.z);
+            const physicalOccupant = grid.getOccupant(physical.cx, physical.cz);
+            const ownTag = physicalOccupant === minion ? "self"
+                          : physicalOccupant ? `OTHER(${physicalOccupant.kind})`
+                          : "<empty>";
+            const reg = walker.currentCell
+                ? `(${walker.currentCell.cx}, ${walker.currentCell.cz})`
+                : "<null>";
+            const drift = walker.currentCell
+                && (physical.cx !== walker.currentCell.cx || physical.cz !== walker.currentCell.cz)
+                ? " ** DRIFT **" : "";
+            console.log(
+                `  #${i} pos=(${pos.x.toFixed(2)}, ${pos.z.toFixed(2)}) ` +
+                `physical=(${physical.cx}, ${physical.cz}) ` +
+                `registered=${reg} ` +
+                `completed=${walker.completed} ` +
+                `physicalCellOccupant=${ownTag}${drift}`
+            );
+        }
     }
 
     forceSaveFailure()
