@@ -1,5 +1,6 @@
 import { DevConsoleViewModel } from "../engine/dev/dev-console-view-model.js";
 import { ToastQueue }          from "./toast-queue.js";
+import { AuthoringPanel }      from "./authoring-panel.js";
 
 
 const ko = window.ko;
@@ -33,6 +34,9 @@ class AppViewModel
 
         this.cameraMode = ko.observable("builder");
         this.saveStatus = ko.observable("saved");
+        this.catalogueIcons = ko.observable(new Map());
+        this.authoringPanel = ko.observable(null);
+        this.controlsDismissed = ko.observable(false);
 
         this.dev = new DevConsoleViewModel();
 
@@ -56,16 +60,33 @@ class AppViewModel
         this.loadPercent = ko.pureComputed(() =>
         {
             const { loaded, total } = this.loadProgress();
-            
+
             if(total <= 0) { return 0; }
-            
+
             return Math.round((loaded / total) * 100);
         });
+
+        this.controlsVisible = ko.pureComputed(() =>
+            this.isReady() && !this.controlsDismissed());
+    }
+
+    dismissControls()
+    {
+        this.controlsDismissed(true);
     }
 
     toast(message, level = "info")
     {
         return this.toastQueue.push(message, level);
+    }
+
+    installAuthoringPanel(assets)
+    {
+        this.authoringPanel(new AuthoringPanel({
+            assets,
+            catalogueIcons: this.catalogueIcons,
+            cameraMode:     this.cameraMode
+        }));
     }
 }
 

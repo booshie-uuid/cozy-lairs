@@ -20,10 +20,17 @@ import { Renderable }       from "./modules/world/components/renderable.js";
 import { WanderBehaviour }  from "./modules/world/components/wander-behaviour.js";
 import { GridPlacement }    from "./modules/world/components/grid-placement.js";
 
-import { buildEmptyRoom }    from "./modules/world/builders/empty-room.js";
-import * as DecorBuilder     from "./modules/world/builders/decor.js";
-import { ChaosController }   from "./modules/world/chaos-controller.js";
+import { WorldEditor }       from "./modules/world/world-editor.js";
+import { WallTracer }        from "./modules/world/wall-tracer.js";
 import * as WorldSerializer  from "./modules/world/world-serializer.js";
+
+import { IconRenderer }         from "./modules/builder/icon-renderer.js";
+import { BuilderInputAdapter }  from "./modules/builder/builder-input-adapter.js";
+
+import { FloorPaintTool, FloorEraseTool }                  from "./modules/builder/tools/floor-tools.js";
+import { DecorPlaceTool, DecorEraseTool, WallDecorPlaceTool } from "./modules/builder/tools/decor-tools.js";
+import { MinionSpawnTool, MinionEraseTool, NoopTool }      from "./modules/builder/tools/minion-tools.js";
+import { BlockPlaceTool, BlockEraseTool }                  from "./modules/builder/tools/block-tools.js";
 
 import { AppViewModel } from "./modules/ui/app-view-model.js";
 import "./modules/ui/bindings.js";
@@ -31,20 +38,17 @@ import "./modules/ui/bindings.js";
 
 const ko = window.ko;
 
-const VERSION = "V3_8_0";
+const VERSION = "V4_10_0";
 
-const ROOM = { x0: 1, z0: 1, width: 8, depth: 10 };
 const GRID_WIDTH = 10;
 const GRID_DEPTH = 12;
 const GRID_CELL_SIZE = 4;
 
+const STARTER_ROOM = { x0: 2, z0: 2, width: 6, depth: 6 };
+
 const TOGGLE_CAMERA_KEY = "Tab";
 const SAVE_KEY = "KeyS";
 const DEV_TOGGLE_KEY = "Backquote";
-
-const MINION_SPEED = 1.6;
-const MINION_COUNT = 4;
-const MINION_SPAWN_MIN_SEPARATION = 2;
 
 const PLAYER_KIND = "character.mannequin.medium";
 const PLAYER_SPAWN_CELL = { cx: 2, cz: 2 };
@@ -58,20 +62,7 @@ const MANIFEST_PATH = "assets/manifest.json";
 // KayKit Rig_Medium clip names. The rig ships A/B (and sometimes C) variants
 // for many states — picking one variant per state. Full naming convention
 // captured in CLAUDE.md → "KayKit characters and animations are separate".
-const MINION_CLIPS = { idle: "Idle_A", walk: "Walking_A" };
-
-const DECOR_LAYOUT =
-[
-    { kind: "decor.barrel", cx: 4, cz: 9 },
-    { kind: "decor.barrel", cx: 6, cz: 9 },
-    { kind: "decor.crate",  cx: 4, cz: 4 },
-    { kind: "decor.crate",  cx: 5, cz: 4 },
-    { kind: "decor.crate",  cx: 5, cz: 5 },
-    { kind: "decor.crate",  cx: 6, cz: 5 },
-    { kind: "decor.barrel", cx: 2, cz: 3, chaos: true },
-    { kind: "decor.barrel", cx: 7, cz: 6, chaos: true },
-    { kind: "decor.barrel", cx: 3, cz: 8, chaos: true }
-];
+const PLAYER_CLIPS = { idle: "Idle_A", walk: "Walking_A" };
 
 const SCENE_BACKGROUND = 0x1a0e2e;
 const SCENE_AMBIENT_SKY = 0xffffff;
@@ -82,12 +73,34 @@ const SCENE_SUN_COLOR = 0xffffff;
 const SCENE_SUN_INTENSITY = 1.0;
 const SCENE_SUN_POSITION = { x: 4, y: 8, z: 4 };
 
-const GRID_HELPER_MAJOR_COLOUR = 0x445566;
-const GRID_HELPER_MINOR_COLOUR = 0x2a3340;
+const GRID_HELPER_COLOUR = 0x445566;
 const GRID_HELPER_Y_OFFSET = 0.001;
 
 const DIAG_GRID_COLOUR = 0xff3030;
 const DIAG_GRID_Y_OFFSET = 0.05;
+
+
+function buildRectGrid(grid, colour)
+{
+    const S = grid.cellSize;
+    const W = grid.width  * S;
+    const D = grid.depth  * S;
+    const points = [];
+    for(let i = 0; i <= grid.width; i++)
+    {
+        const x = i * S;
+        points.push(x, 0, 0, x, 0, D);
+    }
+    for(let i = 0; i <= grid.depth; i++)
+    {
+        const z = i * S;
+        points.push(0, 0, z, W, 0, z);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+    const material = new THREE.LineBasicMaterial({ color: colour });
+    return new THREE.LineSegments(geometry, material);
+}
 
 
 /******************************************************************************/
@@ -118,10 +131,11 @@ class App
         this.globalErrorHandler = null;
         this.unhandledRejectionHandler = null;
         this.isShutDown = false;
-        this.minions = [];
         this.player = null;
-        this.chaosBarrels = [];
-        this.chaosController = null;
+        this.worldEditor = null;
+        this.wallTracer = null;
+        this.iconRenderer = null;
+        this.builderInputAdapter = null;
         this.diagGrid = null;
 
         // Component class refs exposed for dev-console use. Modules don't
@@ -171,6 +185,18 @@ class App
         this.viewModel.loadStatus("Loading core assets");
         await this.assets.preloadCore();
 
+        this.viewModel.loadStatus("Rendering catalogue icons");
+        this.iconRenderer = new IconRenderer();
+        this.viewModel.catalogueIcons(this.iconRenderer.renderCatalogue(this.assets));
+
+        this.viewModel.installAuthoringPanel(this.assets);
+        this.viewModel.authoringPanel().selectedToolId.subscribe(id =>
+        {
+            this.setTool(id);
+            const builder = this.cameraControllers.builder;
+            if(builder) { builder.setPanEnabled(id === null); }
+        });
+
         this.buildWorld();
         this.buildCameraControllers();
         this.buildLoop();
@@ -202,6 +228,24 @@ class App
         this.cameraController.activate();
         this.renderer.setActiveCamera(this.cameraController.camera);
         this.viewModel.cameraMode(mode);
+
+        if(this.builderInputAdapter)
+        {
+            if(mode === "builder")
+            {
+                this.builderInputAdapter.setCamera(this.cameraController.camera);
+                this.builderInputAdapter.install();
+            }
+            else
+            {
+                // Clearing the panel's selected tool both fires the
+                // ghost-teardown path via the subscribe and keeps the
+                // active-tile highlight in sync with reality.
+                const panel = this.viewModel.authoringPanel();
+                if(panel) { panel.selectedToolId(null); }
+                this.builderInputAdapter.uninstall();
+            }
+        }
     }
 
     shutdown()
@@ -213,7 +257,8 @@ class App
         if(this.cameraController) { this.cameraController.deactivate(); }
         if(this.saveService)      { this.saveService.dispose(); }
         if(this.devConsole)       { this.devConsole.uninstall(); }
-        if(this.chaosController)  { this.chaosController.dispose(); }
+        if(this.wallTracer)       { this.wallTracer.dispose(); }
+        if(this.iconRenderer)     { this.iconRenderer.dispose(); }
 
         if(this.input && this.tabHandler)
         {
@@ -272,37 +317,93 @@ class App
         this.world.scene.add(sun);
 
         const grid = this.world.grid;
-        const worldWidth  = grid.width * grid.cellSize;
-        const worldDepth  = grid.depth * grid.cellSize;
-        const helperSize      = Math.max(worldWidth, worldDepth);
-        const helperDivisions = Math.max(grid.width, grid.depth);
 
-        const helper = new THREE.GridHelper(helperSize, helperDivisions, GRID_HELPER_MAJOR_COLOUR, GRID_HELPER_MINOR_COLOUR);
-        helper.position.set(worldWidth / 2, GRID_HELPER_Y_OFFSET, worldDepth / 2);
+        const helper = buildRectGrid(grid, GRID_HELPER_COLOUR);
+        helper.position.y = GRID_HELPER_Y_OFFSET;
         this.world.scene.add(helper);
 
-        // Diagnostic grid: bright-red cell boundaries, slightly above the
-        // floor for visibility. Hidden by default — toggle via the dev
-        // console "Toggle grid" quick action.
-        this.diagGrid = new THREE.GridHelper(helperSize, helperDivisions, DIAG_GRID_COLOUR, DIAG_GRID_COLOUR);
-        this.diagGrid.position.set(worldWidth / 2, DIAG_GRID_Y_OFFSET, worldDepth / 2);
+        this.diagGrid = buildRectGrid(grid, DIAG_GRID_COLOUR);
+        this.diagGrid.position.y = DIAG_GRID_Y_OFFSET;
         this.diagGrid.visible = false;
         this.world.scene.add(this.diagGrid);
 
-        buildEmptyRoom(this.world, this.assets, ROOM);
-        this.placeDecor();
-        this.spawnPlayer();
-        this.spawnMinions();
+        this.worldEditor = new WorldEditor({
+            world:     this.world,
+            assets:    this.assets,
+            viewModel: this.viewModel
+        });
+        this.wallTracer = new WallTracer({ world: this.world, assets: this.assets });
 
-        if(this.chaosBarrels.length > 0 && this.minions.length > 0)
+        this.seedStarterRoom();
+    }
+
+    setTool(toolId)
+    {
+        if(!this.builderInputAdapter) { return; }
+        const tool = this.buildToolFromId(toolId);
+        this.builderInputAdapter.setTool(tool);
+    }
+
+    buildToolFromId(toolId)
+    {
+        if(!toolId) { return new NoopTool(); }
+        // Tool IDs follow `tab:slug[:kind]` — split safely on the first
+        // two colons so kinds with dots (e.g. "decor.barrel") stay intact.
+        const firstColon = toolId.indexOf(":");
+        const tab = toolId.slice(0, firstColon);
+        const rest = toolId.slice(firstColon + 1);
+
+        switch(tab)
         {
-            const walkers = this.minions.map(m => m.getComponent(Walker));
-            this.chaosController = new ChaosController({
-                world:        this.world,
-                walkers,
-                chaosBarrels: this.chaosBarrels
-            });
+            case "build":
+            {
+                if(rest === "paint")       { return new FloorPaintTool(); }
+                if(rest === "erase")       { return new FloorEraseTool(); }
+                if(rest === "block:erase") { return new BlockEraseTool(); }
+
+                const [slug, ...kindParts] = rest.split(":");
+                const kind = kindParts.join(":");
+                if(slug === "block" && kindParts[0] === "place")
+                {
+                    return new BlockPlaceTool({ kind: kindParts.slice(1).join(":") });
+                }
+                break;
+            }
+            case "decor":
+            {
+                const [slug, ...kindParts] = rest.split(":");
+                const kind = kindParts.join(":");
+                if(slug === "erase") { return new DecorEraseTool(); }
+                if(slug === "place" && kind) { return new DecorPlaceTool({ kind }); }
+                if(slug === "wall" && kindParts[0] === "place")
+                {
+                    return new WallDecorPlaceTool({ kind: kindParts.slice(1).join(":") });
+                }
+                break;
+            }
+            case "minion":
+            {
+                const [slug, ...kindParts] = rest.split(":");
+                const kind = kindParts.join(":");
+                if(slug === "erase") { return new MinionEraseTool(); }
+                if(slug === "spawn" && kind) { return new MinionSpawnTool({ kind }); }
+                break;
+            }
         }
+        console.warn(`[App] Unknown tool id: ${toolId}`);
+        return new NoopTool();
+    }
+
+    seedStarterRoom()
+    {
+        for(let dx = 0; dx < STARTER_ROOM.width; dx++)
+        {
+            for(let dz = 0; dz < STARTER_ROOM.depth; dz++)
+            {
+                this.worldEditor.paintFloor(STARTER_ROOM.x0 + dx, STARTER_ROOM.z0 + dz);
+            }
+        }
+        this.spawnPlayer();
     }
 
     spawnPlayer()
@@ -313,8 +414,8 @@ class App
         // by FirstPersonCamera while in FP mode. PLAYER_MARKER occupies
         // the grid cell so other walkers route around the player and
         // decor placement-on-player triggers `world.playerDisplaceHandler`.
-        // Mannequin shares Rig_Medium with the skeleton minion, so the
-        // same MINION_CLIPS map drives idle / walk animations.
+        // Mannequin shares Rig_Medium with the skeleton minion, so the same
+        // clip-name map drives idle / walk animations.
         const animations =
         [
             ...this.assets.getAnimations(PLAYER_KIND),
@@ -323,7 +424,7 @@ class App
         ];
 
         const player = Entity.fromKind(PLAYER_KIND, this.assets);
-        player.addComponent(new Animator({ clipMap: MINION_CLIPS, animations }));
+        player.addComponent(new Animator({ clipMap: PLAYER_CLIPS, animations }));
 
         const spawn = this.world.grid.cellToWorld(PLAYER_SPAWN_CELL.cx, PLAYER_SPAWN_CELL.cz);
         player.object3D.position.set(spawn.x, 0, spawn.z);
@@ -339,101 +440,24 @@ class App
         this.player = player;
     }
 
-    placeDecor()
-    {
-        for(const entry of DECOR_LAYOUT)
-        {
-            const { kind, cx, cz, chaos } = entry;
-            let entity = null;
-            if(kind === "decor.barrel")     { entity = DecorBuilder.addBarrel(this.world, this.assets, cx, cz); }
-            else if(kind === "decor.crate") { entity = DecorBuilder.addCrate(this.world, this.assets, cx, cz); }
-            else { console.warn(`[App] Unknown decor kind: ${kind}`); }
-
-            if(entity && chaos) { this.chaosBarrels.push(entity); }
-        }
-    }
-
-    spawnMinions()
-    {
-        // KayKit ships character meshes and clip libraries separately — both
-        // bind to the shared "Rig_Medium" skeleton, so the cloned character's
-        // bone names will resolve against any clip from the rig libraries.
-        const animations =
-        [
-            ...this.assets.getAnimations("character.skeleton.minion"),
-            ...this.assets.getAnimations("animations.rig-medium.general"),
-            ...this.assets.getAnimations("animations.rig-medium.movement")
-        ];
-
-        const cells = this.pickMinionSpawnCells(MINION_COUNT);
-        for(const cell of cells)
-        {
-            this.spawnMinion(cell, animations);
-        }
-    }
-
-    spawnMinion(spawnCell, animations)
-    {
-        const minion = Entity.fromKind("character.skeleton.minion", this.assets);
-        minion.addComponent(new Walker({ speed: MINION_SPEED }));
-        minion.addComponent(new Animator({ clipMap: MINION_CLIPS, animations }));
-        minion.addComponent(new WanderBehaviour());
-
-        const spawn = this.world.grid.cellToWorld(spawnCell.cx, spawnCell.cz);
-        minion.object3D.position.set(spawn.x, 0, spawn.z);
-
-        this.world.addEntity(minion);
-        minion.getComponent(Animator).crossfade("idle");
-        this.minions.push(minion);
-    }
-
-    pickMinionSpawnCells(count)
-    {
-        const grid = this.world.grid;
-        const candidates = grid.walkableCells().filter(c =>
-            grid.getOccupant(c.cx, c.cz) === null
-        );
-        // Shuffle in place so spawns aren't always in the same order.
-        for(let i = candidates.length - 1; i > 0; i--)
-        {
-            const j = Math.floor(Math.random() * (i + 1));
-            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
-        }
-
-        const picked = [];
-        for(const cell of candidates)
-        {
-            if(picked.length >= count) { break; }
-            const tooClose = picked.some(p =>
-            {
-                const dx = Math.abs(p.cx - cell.cx);
-                const dz = Math.abs(p.cz - cell.cz);
-                return Math.max(dx, dz) < MINION_SPAWN_MIN_SEPARATION;
-            });
-            if(tooClose) { continue; }
-            picked.push(cell);
-        }
-
-        if(picked.length < count)
-        {
-            console.warn(`[App] Only found ${picked.length} suitable spawn cells of ${count} requested.`);
-        }
-        return picked;
-    }
-
     buildCameraControllers()
     {
         const S = this.world.grid.cellSize;
-        const centre = new THREE.Vector3(
-            (ROOM.x0 + ROOM.width / 2) * S,
+        // Frame the whole grid (not just the starter room) — otherwise the
+        // outer rows of the build surface fall outside the initial frustum
+        // and the user can't click them without panning.
+        const gridCentre = new THREE.Vector3(
+            this.world.grid.width * S / 2,
             0,
-            (ROOM.z0 + ROOM.depth / 2) * S
+            this.world.grid.depth * S / 2
         );
 
         this.cameraControllers.builder = new BuilderCamera(this.input,
         {
-            initialFocus:    centre,
-            initialDistance: 30
+            initialFocus:    gridCentre,
+            initialDistance: 45,
+            initialPhi:      Math.PI * 0.25,
+            maxDistance:     80
         });
 
         const playerStart = this.player
@@ -449,10 +473,25 @@ class App
             resolveCollision: (cx, cz, dx, dz) => this.resolvePlayerCollision(cx, cz, dx, dz)
         });
 
-        // Decor placement (or chaos teleport) that lands on the player's
-        // FP cell needs to displace the player. World holds the callback
-        // so decor.js doesn't have to import the camera directly.
         this.world.setPlayerDisplaceHandler(cell => this.cameraControllers.firstPerson.teleportPlayer(cell));
+
+        this.builderInputAdapter = new BuilderInputAdapter({
+            input:              this.input,
+            scene:              this.world.scene,
+            grid:               this.world.grid,
+            canvas:             this.renderer.canvas,
+            getWallEntities:    () => [
+                ...this.wallTracer.getWallEntities(),
+                ...this.wallTracer.getCornerEntities()
+            ],
+            editor:             this.worldEditor,
+            isTextInputFocused: () => this.isTextInputFocused(),
+            onCancel:           () =>
+            {
+                const panel = this.viewModel.authoringPanel();
+                if(panel) { panel.selectedToolId(null); }
+            }
+        });
     }
 
     resolvePlayerCollision(currentX, currentZ, desiredX, desiredZ)
@@ -709,10 +748,11 @@ class App
     diagnoseWalkers()
     {
         const grid = this.world.grid;
+        const minions = [...this.world.entities].filter(e => e.getComponent(Walker));
         console.log("=== Walker diagnostics ===");
-        for(let i = 0; i < this.minions.length; i++)
+        for(let i = 0; i < minions.length; i++)
         {
-            const minion = this.minions[i];
+            const minion = minions[i];
             const walker = minion.getComponent(Walker);
             const pos = minion.object3D.position;
             const physical = grid.worldToCell(pos.x, pos.z);

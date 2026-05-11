@@ -24,10 +24,6 @@ class World extends Emitter
         this.grid = grid;
         this.scene = new THREE.Scene();
         this.entities = new Set();
-        // Optional callback invoked by decor placement / chaos teleport when
-        // an operation lands on the player marker. Receives `{cx, cz}` of the
-        // closest available cell — host wires this to the FP camera's
-        // teleportPlayer method via `setPlayerDisplaceHandler`.
         this.playerDisplaceHandler = null;
     }
 

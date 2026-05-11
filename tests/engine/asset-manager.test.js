@@ -388,6 +388,138 @@ test("reload re-fetches the manifest and re-loads core assets", async () =>
 });
 
 
+/******************************************************************************/
+/* CATALOGUE FIELDS                                                           */
+/******************************************************************************/
+
+test("loadManifest preserves kind, displayName, and meta on annotated entries", async () =>
+{
+    installMockFetch({
+        version: 1,
+        assets: [
+            {
+                id: "decor.barrel", path: "b.gltf", type: "gltf", tier: "core",
+                kind: "decor.floor", displayName: "Barrel",
+                meta: { cost: 5, requiresUnlock: false }
+            }
+        ]
+    });
+
+    const manager = new AssetManager("/manifest.json");
+    await manager.loadManifest();
+
+    expect(manager.getKind("decor.barrel")).toBe("decor.floor");
+    expect(manager.getDisplayName("decor.barrel")).toBe("Barrel");
+    expect(manager.getMeta("decor.barrel")).toEqual({ cost: 5, requiresUnlock: false });
+});
+
+
+test("loadManifest defaults kind/displayName to null and meta to {} on unannotated entries", async () =>
+{
+    installMockFetch({
+        version: 1,
+        assets: [
+            { id: "wall.straight", path: "w.gltf", type: "gltf", tier: "core" }
+        ]
+    });
+
+    const manager = new AssetManager("/manifest.json");
+    await manager.loadManifest();
+
+    expect(manager.getKind("wall.straight")).toBe(null);
+    expect(manager.getDisplayName("wall.straight")).toBe(null);
+    expect(manager.getMeta("wall.straight")).toEqual({});
+});
+
+
+test("getMeta round-trips an arbitrary nested object verbatim", async () =>
+{
+    const nested = { tags: ["dungeon", "stone"], cost: { gold: 10, wood: 2 }, requiresUnlock: true };
+    installMockFetch({
+        version: 1,
+        assets: [
+            {
+                id: "decor.special", path: "s.gltf", type: "gltf", tier: "core",
+                kind: "decor.floor", displayName: "Special", meta: nested
+            }
+        ]
+    });
+
+    const manager = new AssetManager("/manifest.json");
+    await manager.loadManifest();
+
+    expect(manager.getMeta("decor.special")).toEqual(nested);
+});
+
+
+test("listByKind returns only entries matching the requested kind", async () =>
+{
+    installMockFetch({
+        version: 1,
+        assets: [
+            { id: "decor.barrel", path: "a.gltf", type: "gltf", tier: "core", kind: "decor.floor", displayName: "Barrel" },
+            { id: "decor.crate",  path: "b.gltf", type: "gltf", tier: "core", kind: "decor.floor", displayName: "Crate" },
+            { id: "decor.banner", path: "c.gltf", type: "gltf", tier: "world", kind: "decor.wall", displayName: "Banner" },
+            { id: "char.minion",  path: "d.gltf", type: "gltf", tier: "core", kind: "character", displayName: "Minion" },
+            { id: "wall.basic",   path: "e.gltf", type: "gltf", tier: "core" }
+        ]
+    });
+
+    const manager = new AssetManager("/manifest.json");
+    await manager.loadManifest();
+
+    expect(manager.listByKind("decor.floor")).toEqual([
+        { id: "decor.barrel", displayName: "Barrel" },
+        { id: "decor.crate",  displayName: "Crate" }
+    ]);
+    expect(manager.listByKind("decor.wall")).toEqual([
+        { id: "decor.banner", displayName: "Banner" }
+    ]);
+    expect(manager.listByKind("character")).toEqual([
+        { id: "char.minion", displayName: "Minion" }
+    ]);
+    expect(manager.listByKind("decor.nope")).toEqual([]);
+});
+
+
+test("getKind / getDisplayName / getMeta throw AssetLoadError for unknown id", async () =>
+{
+    installMockFetch({
+        version: 1,
+        assets: [{ id: "known", path: "k.gltf", type: "gltf", tier: "core" }]
+    });
+
+    const manager = new AssetManager("/manifest.json");
+    await manager.loadManifest();
+
+    expect(() => manager.getKind("ghost")).toThrow(Errors.AssetLoadError);
+    expect(() => manager.getDisplayName("ghost")).toThrow(Errors.AssetLoadError);
+    expect(() => manager.getMeta("ghost")).toThrow(Errors.AssetLoadError);
+});
+
+
+test("listAllIds returns every manifest id in declaration order", async () =>
+{
+    installMockFetch({
+        version: 1,
+        assets: [
+            { id: "one",   path: "1.gltf", type: "gltf", tier: "core" },
+            { id: "two",   path: "2.gltf", type: "gltf", tier: "core" },
+            { id: "three", path: "3.gltf", type: "gltf", tier: "world" }
+        ]
+    });
+
+    const manager = new AssetManager("/manifest.json");
+    await manager.loadManifest();
+
+    expect(manager.listAllIds()).toEqual(["one", "two", "three"]);
+});
+
+
+/******************************************************************************/
+/* RELOAD                                                                     */
+/******************************************************************************/
+
 test("reload picks up manifest entries added since the last load", async () =>
 {
     installMockFetch({

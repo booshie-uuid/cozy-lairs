@@ -162,7 +162,8 @@ class Input extends Emitter
             dx:      event.movementX || 0,
             dy:      event.movementY || 0,
             button:  event.button,
-            buttons: event.buttons
+            buttons: event.buttons,
+            target:  event.target
         });
     }
 
@@ -173,7 +174,8 @@ class Input extends Emitter
             x:       event.clientX,
             y:       event.clientY,
             button:  event.button,
-            buttons: event.buttons
+            buttons: event.buttons,
+            target:  event.target
         });
     }
 
@@ -184,7 +186,8 @@ class Input extends Emitter
             x:       event.clientX,
             y:       event.clientY,
             button:  event.button,
-            buttons: event.buttons
+            buttons: event.buttons,
+            target:  event.target
         });
     }
 

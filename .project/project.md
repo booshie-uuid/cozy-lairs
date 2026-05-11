@@ -1,8 +1,8 @@
 # COZY LAIRS
 
-- **Current Version**: V3.8.0
-- **Current Design**: [design-v3.md](./designs/design-v3.md)
-- **Current Plan**: [plan-v3.md](./plans/plan-v3.md)
+- **Current Version**: V4.10.0
+- **Current Design**: [design-v4.md](./designs/design-v4.md)
+- **Current Plan**: [plan-v3.md](./plans/plan-v4.md)
 
 ## Version Numbering
 

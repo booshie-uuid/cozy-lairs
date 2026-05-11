@@ -56,8 +56,21 @@ class Renderable
             console.warn(`[Renderable] Could not load asset "${this.kind}":`, err && err.message ? err.message : err);
             mesh = this.buildPlaceholder();
         }
+
+        const meta = this.readMeta();
+        if(typeof meta.scale === "number")   { mesh.scale.setScalar(meta.scale); }
+        if(typeof meta.yOffset === "number") { mesh.position.y = meta.yOffset; }
+        if(typeof meta.zOffset === "number") { mesh.position.z = meta.zOffset; }
+
         this.entity.object3D.add(mesh);
         this.mesh = mesh;
+    }
+
+    readMeta()
+    {
+        if(typeof this.assets.getMeta !== "function") { return {}; }
+        try { return this.assets.getMeta(this.kind) || {}; }
+        catch(_err) { return {}; }
     }
 
     toJSON()

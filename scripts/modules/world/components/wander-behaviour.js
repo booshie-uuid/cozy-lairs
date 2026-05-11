@@ -132,9 +132,8 @@ class WanderBehaviour
                 return;
             }
             // No free cell anywhere on the grid — degenerate state. Idle
-            // and try again later in case grid state changes (chaos
-            // teleport may free a cell). Warn once so the silent-loop
-            // failure mode is visible in the dev console.
+            // and try again later. Warn once so the silent-loop failure
+            // mode is visible in the dev console.
             if(!this.rescueWarned)
             {
                 console.warn(

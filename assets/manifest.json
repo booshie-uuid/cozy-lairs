@@ -26,10 +26,12 @@
             "tier": "core"
         },
         {
-            "id":   "character.skeleton.minion",
-            "path": "assets/kaykit/skeletons/characters/gltf/Skeleton_Minion.glb",
-            "type": "gltf",
-            "tier": "core"
+            "id":          "character.skeleton.minion",
+            "path":        "assets/kaykit/skeletons/characters/gltf/Skeleton_Minion.glb",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "character",
+            "displayName": "Skeleton Minion"
         },
         {
             "id":   "character.mannequin.medium",
@@ -38,16 +40,63 @@
             "tier": "core"
         },
         {
-            "id":   "decor.barrel",
-            "path": "assets/kaykit/dungeon-remastered/models/gltf/barrel_large.gltf",
-            "type": "gltf",
-            "tier": "core"
+            "id":          "decor.barrel",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/barrel_large.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Barrel"
         },
         {
-            "id":   "decor.crate",
-            "path": "assets/kaykit/dungeon-remastered/models/gltf/crates_stacked.gltf",
-            "type": "gltf",
-            "tier": "core"
+            "id":          "decor.crate",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/crates_stacked.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Crate"
+        },
+        {
+            "id":          "decor.banner.blue",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/banner_blue.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.wall",
+            "displayName": "Blue Banner"
+        },
+        {
+            "id":          "decor.banner.green",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/banner_green.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.wall",
+            "displayName": "Green Banner"
+        },
+        {
+            "id":          "decor.torch.mounted",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/torch_mounted.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.wall",
+            "displayName": "Wall Torch",
+            "meta":        { "yOffset": 2, "zOffset": 0.25 }
+        },
+        {
+            "id":          "block.gravel",
+            "path":        "assets/kaykit/block-bits/assets/gltf/gravel.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "terrain.block",
+            "displayName": "Gravel",
+            "meta":        { "scale": 1.98, "yOffset": 1.90 }
+        },
+        {
+            "id":          "block.dirt",
+            "path":        "assets/kaykit/block-bits/assets/gltf/dirt.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "terrain.block",
+            "displayName": "Dirt",
+            "meta":        { "scale": 1.98, "yOffset": 1.90 }
         },
         {
             "id":   "animations.rig-medium.general",

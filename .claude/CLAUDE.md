@@ -32,6 +32,18 @@ Inside `scripts/app.js`, the `VERSION` constant uses the format `V{plan}_{task}_
 
 Markdown is rendered — wrapping is the renderer's job. Don't hard-wrap paragraphs at ~80 columns. Code blocks and tables are exempt.
 
+### Design / plan acceptance ritual
+
+The `brainstorm` and `create-plan` skills both write to `new-design.md` / `new-plan.md` (skill convention). The user signals acceptance by **renaming** to `design-vN.md` / `plan-vN.md` and updating `.project/project.md` to point at the renamed file. Don't pre-empt this — leave the `new-X.md` filename in place after generating; the rename is the user's explicit "I've reviewed it" signal.
+
+### Code-review remediation does NOT bump VERSION
+
+`VERSION` bumps only on plan-task completion (per the rule above). A code-review remediation pass that fixes findings without advancing a plan task leaves `VERSION` alone. Same for any other out-of-band cleanup. If the user wants a release-component bump for the remediation, they'll ask explicitly.
+
+### Long-term intent lives in user memory, not code
+
+Future-version intentions the user has stated (cost system, tech-tree, minion-driven construction, dual catalogue surface, free Y-rotation, move-player tool) are captured in `~/.claude/projects/.../memory/project_v4_future_intent.md`. Cross-reference there when an architectural choice would otherwise box out a stated future direction. Don't restate the contents in CLAUDE.md — the memory file is canonical.
+
 ---
 
 ## Coding conventions
@@ -91,6 +103,49 @@ Per `.claude/rules/javascript/coding-style.md`: utility / multi-export modules u
 ### Visual aesthetic — cute evil / cozy villain
 
 NOT terminal/IDE chrome. Don't use `//` prefixes, `>` chevrons, monospace primaries, terminal-green palettes, or other code-aesthetic motifs as visual identity. Real visual identity (palette, typography, decorative motifs) is its own dedicated design pass after the foundation lands; until then keep placeholders neutral. The dev console is the one place monospace + neutral dark are appropriate — it's a developer tool, not part of the game's identity.
+
+### V4 authoring grammar
+
+In Builder camera mode, the right-edge `AuthoringPanel` (`scripts/modules/ui/authoring-panel.js`) is bound to a tabbed `<aside id="authoring-panel">`. Three tabs: Build (paint/erase floor, erase block + terrain.block catalogue), Decor (erase decor + decor.floor/decor.wall catalogue), Minions (erase minion + character catalogue).
+
+Dispatch flow:
+
+```
+Panel tile click  →  panel.selectedToolId(toolId)
+                   →  App.setTool(toolId)  →  App.buildToolFromId  →  Tool subclass
+                   →  BuilderInputAdapter.setTool(tool)
+                   →  tool.activate(editor, scene) adds ghost to scene
+
+Pointer move      →  Input emits pointermove(x, y, target, ...)
+                   →  BuilderInputAdapter.onPointerMove  (skips if target ≠ canvas)
+                   →  screenToCell or screenToWallEdge
+                   →  tool.onCellHover / tool.onWallEdgeHover  →  tint ghost via editor.canX
+
+Pointer down      →  BuilderInputAdapter.onPointerDown  (skips if target ≠ canvas)
+                   →  tool.onCellClick("left")  →  editor.placeX / paintFloor / etc.
+
+Right-click       →  Click-vs-drag distinguished by movement threshold (4px).
+                   →  Click: setTool(NoopTool) + onCancel callback clears panel.selectedToolId.
+                   →  Drag: BuilderCamera handles orbit; tool stays armed.
+
+Q/E               →  tool.rotate("ccw" | "cw")  →  rotationStep += ±1 (mod 4)
+```
+
+Tool IDs use `tab:slug[:kind]` format (e.g. `build:paint`, `decor:place:decor.barrel`, `build:block:place:block.gravel`). Each tool sets `this.targetType` to `"cell"` / `"wallEdge"` / `"none"`; the adapter dispatches accordingly.
+
+`WorldEditor` is the only writer of authored content. Every mutation method returns `true`/`false`; predicate methods (`canX`) mirror the gates so ghost tinting is consistent with the actual outcome. Active-attempt refusals emit a toast; hover refusals just tint red.
+
+While a tool is active, `BuilderCamera.setPanEnabled(false)` disables left-click pan so the click doesn't double as a camera drag. WASD-pan and right-click orbit still work.
+
+`Input` passes `event.target` through pointer events. `BuilderCamera` and `BuilderInputAdapter` both ignore events whose `target` isn't the canvas — clicks on the panel chrome don't engage the camera or the tool dispatcher.
+
+### Builder camera multi-button safety
+
+`BuilderCamera` tracks the held drag button via `event.buttons` bitmask, not just by matching `event.button` on pointerup. If a pointerup is missed (pointer capture, pointercancel, browser oddities), the next pointermove/pointerup self-heals when the bitmask shows the drag button is no longer held.
+
+### V4+ long-term intent
+
+Future-version intentions live in `~/.claude/projects/.../memory/project_v4_future_intent.md`: cost system, tech-tree, minion-driven construction (rooms dug out of `terrain.block` cells), dual catalogue surface (panel + bottom toolbar), free Y-rotation, move-player tool. V4 architecture accommodates them without requiring schema migrations — particularly the `meta` bag and the `WorldEditor` mutation surface.
 
 ### Dev console
 
@@ -184,12 +239,27 @@ Manifest schema:
 {
   "version": 1,
   "assets": [
-    { "id": "...", "path": "...", "type": "gltf", "tier": "core" | "world" }
+    {
+      "id":          "...",
+      "path":        "...",
+      "type":        "gltf",
+      "tier":        "core" | "world",
+
+      "kind":        "decor.floor" | "decor.wall" | "character" | "terrain.block" | null,
+      "displayName": "...",
+      "meta":        { "scale": 2, "yOffset": 1.9, "...": "..." }
+    }
   ]
 }
 ```
 
-Tier `core` is preloaded on boot; `world` is lazy-loaded on first use.
+Tier `core` is preloaded on boot; `world` is lazy-loaded on first use. Annotated entries (those with a non-null `kind`) appear in the AuthoringPanel catalogue and are rendered as thumbnails by `IconRenderer` at boot. `displayName` is the tile label. `meta` is preserved verbatim by `AssetManager` and exposed via `assets.getMeta(id)` — V4 reads two keys from it via `Renderable.reattach`:
+
+- `meta.scale` — uniform scalar applied to the mounted mesh's local scale. Used when KayKit's native cube size (e.g. block-bits is `2m`) doesn't match the grid cell (`4m`).
+- `meta.yOffset` — added to the mounted mesh's local Y. Used when a GLTF's origin is at mid-height rather than the floor.
+- `meta.zOffset` — added to the mounted mesh's local Z. For wall decor placed via `EdgePlacement`, local +Z is the room-facing direction (rotation handles all 4 sides), so this acts as "depth out from the wall". Used when the asset's origin is at the wall's centre line rather than its room-side face.
+
+Future versions will read additional `meta` fields (cost, requiresUnlock, category) without a schema migration.
 
 ### Three.js vendoring (libs/three/)
 

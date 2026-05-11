@@ -54,6 +54,51 @@
              data-bind="text: message, css: 'is-' + level"></div>
     </div>
 
+    <div id="controls-overlay" data-bind="visible: controlsVisible">
+        <div class="controls-overlay-backdrop"></div>
+        <div class="controls-overlay-modal">
+            <h2 class="controls-overlay-title">Welcome to Cozy Lairs</h2>
+            <dl class="controls-overlay-list">
+                <dt>Tab</dt>
+                <dd>Switch between Build mode and Explore mode</dd>
+
+                <dt>Left Click</dt>
+                <dd>
+                    <div>Place / paint with the selected tool (Build)</div>
+                    <div>Drag to pan the camera (Build, no tool)</div>
+                </dd>
+
+                <dt>Right Click</dt>
+                <dd>
+                    <div>Cancel the selected tool (Build)</div>
+                    <div>Mouse look (Explore)</div>
+                </dd>
+
+                <dt>Escape</dt>
+                <dd>Cancel the selected tool</dd>
+
+                <dt>Right Drag</dt>
+                <dd>Orbit the camera (Build)</dd>
+
+                <dt>WASD</dt>
+                <dd>
+                    <div>Pan the camera (Build)</div>
+                    <div>Walk (Explore)</div>
+                </dd>
+
+                <dt>Wheel</dt>
+                <dd>Zoom the camera</dd>
+
+                <dt>Q / E</dt>
+                <dd>Rotate decor while placing</dd>
+
+                <dt>Ctrl + S</dt>
+                <dd>Save your lair</dd>
+            </dl>
+            <button class="controls-overlay-ok" data-bind="click: dismissControls">OK</button>
+        </div>
+    </div>
+
     <div id="loading-overlay" class="fade-target" data-bind="fadeOut: isReady">
         <div class="loading-overlay-inner">
             <h1 class="loading-overlay-title">COZY LAIRS</h1>
@@ -65,6 +110,87 @@
             <p class="loading-overlay-percent"  data-bind="text: loadPercent() + '%'"></p>
         </div>
     </div>
+
+    <aside id="authoring-panel"
+           data-bind="visible: authoringPanel() && authoringPanel().isVisible(),
+                      with: authoringPanel">
+        <nav class="authoring-panel-tabs" data-bind="foreach: tabs">
+            <button class="authoring-panel-tab"
+                    data-bind="text: label,
+                               click: function() { $parent.selectTab(id); },
+                               css: { 'is-active': $parent.activeTab() === id }"></button>
+        </nav>
+
+        <section class="authoring-panel-content"
+                 data-bind="visible: activeTab() === 'build'">
+            <div class="authoring-panel-tools" data-bind="foreach: buildTools">
+                <button class="tool-tile"
+                        data-bind="text: label,
+                                   click: function() { $parent.selectTool(id); },
+                                   css: { 'is-active': $parent.isToolSelected(id) }"></button>
+            </div>
+            <div class="authoring-panel-catalogue" data-bind="foreach: blockTiles">
+                <button class="catalogue-tile"
+                        data-bind="click: function() { $parent.selectTool(id); },
+                                   css: { 'is-active': $parent.isToolSelected(id) }">
+                    <img class="catalogue-tile-icon"
+                         data-bind="attr: { src: iconURL, alt: displayName },
+                                    visible: iconURL">
+                    <span class="catalogue-tile-label" data-bind="text: displayName"></span>
+                </button>
+            </div>
+        </section>
+
+        <section class="authoring-panel-content"
+                 data-bind="visible: activeTab() === 'decor'">
+            <div class="authoring-panel-tools" data-bind="foreach: decorTools">
+                <button class="tool-tile"
+                        data-bind="text: label,
+                                   click: function() { $parent.selectTool(id); },
+                                   css: { 'is-active': $parent.isToolSelected(id) }"></button>
+            </div>
+            <div class="authoring-panel-catalogue" data-bind="foreach: decorTiles">
+                <button class="catalogue-tile"
+                        data-bind="click: function() { $parent.selectTool(id); },
+                                   css: { 'is-active': $parent.isToolSelected(id) }">
+                    <img class="catalogue-tile-icon"
+                         data-bind="attr: { src: iconURL, alt: displayName },
+                                    visible: iconURL">
+                    <span class="catalogue-tile-label" data-bind="text: displayName"></span>
+                </button>
+            </div>
+            <div class="authoring-panel-catalogue" data-bind="foreach: wallDecorTiles">
+                <button class="catalogue-tile"
+                        data-bind="click: function() { $parent.selectTool(id); },
+                                   css: { 'is-active': $parent.isToolSelected(id) }">
+                    <img class="catalogue-tile-icon"
+                         data-bind="attr: { src: iconURL, alt: displayName },
+                                    visible: iconURL">
+                    <span class="catalogue-tile-label" data-bind="text: displayName"></span>
+                </button>
+            </div>
+        </section>
+
+        <section class="authoring-panel-content"
+                 data-bind="visible: activeTab() === 'minions'">
+            <div class="authoring-panel-tools" data-bind="foreach: minionTools">
+                <button class="tool-tile"
+                        data-bind="text: label,
+                                   click: function() { $parent.selectTool(id); },
+                                   css: { 'is-active': $parent.isToolSelected(id) }"></button>
+            </div>
+            <div class="authoring-panel-catalogue" data-bind="foreach: minionTiles">
+                <button class="catalogue-tile"
+                        data-bind="click: function() { $parent.selectTool(id); },
+                                   css: { 'is-active': $parent.isToolSelected(id) }">
+                    <img class="catalogue-tile-icon"
+                         data-bind="attr: { src: iconURL, alt: displayName },
+                                    visible: iconURL">
+                    <span class="catalogue-tile-label" data-bind="text: displayName"></span>
+                </button>
+            </div>
+        </section>
+    </aside>
 
     <aside id="dev-console" data-bind="css: { 'is-open': dev.isOpen }, with: dev">
         <header class="dev-console-header">

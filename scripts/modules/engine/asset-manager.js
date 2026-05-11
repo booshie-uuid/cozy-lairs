@@ -73,8 +73,17 @@ class AssetManager
         this.index.clear();
         for(const entry of json.assets)
         {
-            this.index.set(entry.id, entry);
+            this.index.set(entry.id, this.normaliseEntry(entry));
         }
+    }
+
+    normaliseEntry(entry)
+    {
+        const kind        = typeof entry.kind        === "string" ? entry.kind        : null;
+        const displayName = typeof entry.displayName === "string" ? entry.displayName : null;
+        const meta        = entry.meta && typeof entry.meta === "object" ? entry.meta : {};
+
+        return { ...entry, kind, displayName, meta };
     }
 
     async preloadCore()
@@ -135,6 +144,49 @@ class AssetManager
     has(id)
     {
         return this.cache.has(id);
+    }
+
+    getKind(id)
+    {
+        return this.requireEntry(id).kind;
+    }
+
+    getDisplayName(id)
+    {
+        return this.requireEntry(id).displayName;
+    }
+
+    getMeta(id)
+    {
+        return this.requireEntry(id).meta;
+    }
+
+    listByKind(kind)
+    {
+        const result = [];
+        for(const entry of this.index.values())
+        {
+            if(entry.kind === kind)
+            {
+                result.push({ id: entry.id, displayName: entry.displayName });
+            }
+        }
+        return result;
+    }
+
+    listAllIds()
+    {
+        return [...this.index.keys()];
+    }
+
+    requireEntry(id)
+    {
+        const entry = this.index.get(id);
+        if(!entry)
+        {
+            throw new Errors.AssetLoadError(`Asset id "${id}" is not in the manifest.`);
+        }
+        return entry;
     }
 
     async reload()

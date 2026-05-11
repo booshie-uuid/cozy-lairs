@@ -256,3 +256,247 @@
     font-family: var(--cozy-font-body);
     opacity:     1;
 }
+
+
+/******************************************************************************/
+/* AUTHORING PANEL                                                            */
+/******************************************************************************/
+
+#authoring-panel
+{
+    position:        fixed;
+    top:             80px;
+    right:           20px;
+    width:           320px;
+    max-height:      70vh;
+    display:         flex;
+    flex-direction:  column;
+    border-radius:   12px;
+    border:          2px solid var(--cozy-neon-dim);
+    background:      var(--cozy-purple-soft);
+    color:           var(--cozy-text);
+    font-family:     var(--cozy-font-body);
+    overflow:        hidden;
+    z-index:         60;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 5px 0 var(--cozy-purple-deep),
+        0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.authoring-panel-tabs
+{
+    display:         flex;
+    border-bottom:   2px solid var(--cozy-neon-dim);
+    background:      var(--cozy-purple);
+}
+
+.authoring-panel-tab
+{
+    flex:            1;
+    padding:         10px 8px;
+    background:      transparent;
+    color:           var(--cozy-text-dim);
+    font-family:     var(--cozy-font-display);
+    font-size:       0.95rem;
+    letter-spacing:  0.05em;
+    text-transform:  uppercase;
+    border:          none;
+    border-right:    1px solid var(--cozy-neon-dim);
+    cursor:          pointer;
+    transition:      color 120ms ease, background 120ms ease;
+}
+
+.authoring-panel-tab:last-child { border-right: none; }
+
+.authoring-panel-tab:hover { color: var(--cozy-text); }
+
+.authoring-panel-tab.is-active
+{
+    color:      var(--cozy-neon);
+    background: var(--cozy-purple-soft);
+}
+
+.authoring-panel-content
+{
+    padding:    14px;
+    overflow-y: auto;
+}
+
+.authoring-panel-tools
+{
+    display:       flex;
+    flex-wrap:     wrap;
+    gap:           8px;
+    margin-bottom: 14px;
+}
+
+.tool-tile
+{
+    padding:        8px 12px;
+    border-radius:  8px;
+    border:         2px solid var(--cozy-neon-dim);
+    background:     var(--cozy-purple);
+    color:          var(--cozy-text);
+    font-family:    var(--cozy-font-body);
+    font-size:      0.85rem;
+    cursor:         pointer;
+    transition:     border-color 120ms ease, background 120ms ease;
+}
+
+.tool-tile:hover { background: var(--cozy-purple-deep); }
+
+.tool-tile.is-active
+{
+    border-color: var(--cozy-neon);
+    color:        var(--cozy-neon);
+}
+
+.authoring-panel-catalogue
+{
+    display:        grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:            8px;
+}
+
+.catalogue-tile
+{
+    display:        flex;
+    flex-direction: column;
+    align-items:    center;
+    gap:            4px;
+    padding:        8px 6px;
+    border-radius:  8px;
+    border:         2px solid var(--cozy-neon-dim);
+    background:     var(--cozy-purple);
+    color:          var(--cozy-text);
+    font-family:    var(--cozy-font-body);
+    font-size:      0.75rem;
+    cursor:         pointer;
+    transition:     border-color 120ms ease, background 120ms ease;
+}
+
+.catalogue-tile:hover { background: var(--cozy-purple-deep); }
+
+.catalogue-tile.is-active
+{
+    border-color: var(--cozy-neon);
+    color:        var(--cozy-neon);
+}
+
+.catalogue-tile-icon
+{
+    width:  64px;
+    height: 64px;
+    image-rendering: pixelated;
+}
+
+.catalogue-tile-label
+{
+    line-height:   1.1;
+    text-align:    center;
+    word-break:    break-word;
+}
+
+
+/******************************************************************************/
+/* CONTROLS OVERLAY                                                           */
+/******************************************************************************/
+
+#controls-overlay
+{
+    position:         fixed;
+    inset:            0;
+    z-index:          100;
+    display:          flex;
+    align-items:      center;
+    justify-content:  center;
+}
+
+.controls-overlay-backdrop
+{
+    position:         absolute;
+    inset:            0;
+    background-color: rgba(15, 6, 32, 0.7);
+}
+
+.controls-overlay-modal
+{
+    position:        relative;
+    max-width:       520px;
+    padding:         2rem 2.5rem 1.75rem;
+    border-radius:   12px;
+    border:          2px solid var(--cozy-neon-dim);
+    background:      var(--cozy-purple-soft);
+    color:           var(--cozy-text);
+    font-family:     var(--cozy-font-body);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 5px 0 var(--cozy-purple-deep),
+        0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.controls-overlay-title
+{
+    margin:         0 0 1.25rem 0;
+    font-family:    var(--cozy-font-display);
+    font-weight:    400;
+    font-size:      clamp(1.4rem, 3vmin, 2rem);
+    letter-spacing: 0.03em;
+    color:          var(--cozy-neon);
+    text-shadow:    0 3px 0 var(--cozy-purple-deep);
+    text-align:     center;
+}
+
+.controls-overlay-list
+{
+    display:               grid;
+    grid-template-columns: max-content 1fr;
+    column-gap:            1.25rem;
+    row-gap:               0.5rem;
+    margin:                0 0 1.5rem 0;
+}
+
+.controls-overlay-list dt
+{
+    color:          var(--cozy-neon);
+    font-weight:    700;
+    font-size:      0.95rem;
+    white-space:    nowrap;
+    align-self:     start;
+}
+
+.controls-overlay-list dd
+{
+    margin:      0;
+    color:       var(--cozy-text);
+    font-size:   0.95rem;
+    line-height: 1.35;
+}
+
+.controls-overlay-list dd > div + div
+{
+    margin-top: 0.2rem;
+}
+
+.controls-overlay-ok
+{
+    display:        block;
+    margin:         0 auto;
+    padding:        0.6rem 2.5rem;
+    border-radius:  10px;
+    border:         2px solid var(--cozy-neon);
+    background:     var(--cozy-purple);
+    color:          var(--cozy-neon);
+    font-family:    var(--cozy-font-display);
+    font-size:      1.05rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor:         pointer;
+    transition:     background 120ms ease;
+}
+
+.controls-overlay-ok:hover
+{
+    background: var(--cozy-purple-deep);
+}

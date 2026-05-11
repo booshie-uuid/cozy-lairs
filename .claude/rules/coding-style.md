@@ -95,7 +95,63 @@ class Emitter
 ### Structure & Spacing
 
 - **Vertical Air:** Use Allman-style braces (opening brace on a new line) or equivalent layouts for structures and control statements to clearly delineate block boundaries.
-- **Logical Paragraphs:** Group related statements (affinity grouping) in to logical paragraphs seperated by a blank line. Treat code like prose: when the "topic" of the logic shifts, start a new paragraph.
+- **Logical Paragraphs:** Group related statements (affinity grouping) into logical paragraphs separated by a blank line. Treat code like prose: when the "topic" of the logic shifts, start a new paragraph.
+
+**Paragraph breaks are determined by ROLE, not by syntax.** A run of consecutive `let`/`const` statements is not automatically one paragraph if the variables play different roles. Common role-shifts that should always force a break:
+
+- Reading inputs / context  →  initialising mutable state
+- Initialising defaults  →  branching/computing
+- Computation  →  applying to outputs (writes to `this.*`, return value, side effects)
+- One self-contained "phase" of the function  →  the next phase
+
+```javascript
+// Avoid: roles run together because the syntax looks similar
+positionGhostAtEdge(floorEdge)
+{
+    const grid = this.editor.world.grid;
+    const S = grid.cellSize;
+    const half = S / 2;
+    let x = floorEdge.cx * S + half;
+    let z = floorEdge.cz * S + half;
+    let rotY = 0;
+    switch(floorEdge.side)
+    {
+        case "south": z = floorEdge.cz * S;       rotY = 0;            break;
+        case "north": z = (floorEdge.cz + 1) * S; rotY = Math.PI;      break;
+        case "west":  x = floorEdge.cx * S;       rotY = Math.PI / 2;  break;
+        case "east":  x = (floorEdge.cx + 1) * S; rotY = -Math.PI / 2; break;
+    }
+    this.ghostMesh.position.set(x, 0, z);
+    this.ghostMesh.rotation.y = rotY;
+    this.ghostMesh.visible = true;
+}
+
+// Prefer: one paragraph per role
+positionGhostAtEdge(floorEdge)
+{
+    const grid = this.editor.world.grid;
+    const S = grid.cellSize;
+    const half = S / 2;
+
+    let x = floorEdge.cx * S + half;
+    let z = floorEdge.cz * S + half;
+    let rotY = 0;
+
+    switch(floorEdge.side)
+    {
+        case "south": z = floorEdge.cz * S;       rotY = 0;            break;
+        case "north": z = (floorEdge.cz + 1) * S; rotY = Math.PI;      break;
+        case "west":  x = floorEdge.cx * S;       rotY = Math.PI / 2;  break;
+        case "east":  x = (floorEdge.cx + 1) * S; rotY = -Math.PI / 2; break;
+    }
+
+    this.ghostMesh.position.set(x, 0, z);
+    this.ghostMesh.rotation.y = rotY;
+    this.ghostMesh.visible = true;
+}
+```
+
+Before finalising any function body of more than ~4 statements, walk it once as prose and identify the role-shifts. Each shift gets a blank line.
 
 ### The "Sensible" Line Rule
 
@@ -145,39 +201,67 @@ this.canvasWrapper = null;
 
 ## Comments
 
-Comments exist to add information that isn't obvious from the code itself. The code shows *what*, comments should explain *why* (a constraint, a quirk, a non-obvious decision). But you should only feel the need to explain *why* if it is not obvious from the code.
+A comment exists to surface a fact about the code that a reader cannot recover by reading the code itself — a quirk, an edge case, an API limitation, an invariant, a pointer to where the algorithm comes from. It is **not** a place to record the developer's reasoning about choices or architecture; that lives in the plan's Decisions register, the design document, the PR description, or git log.
 
-A comment is only worth keeping if removing it would leave a future reader with a question they can't answer by reading the code alone. Any comment that can be removed without confuse anyone should be deleted.
+The test: if you removed the comment, would a future reader be left with a question the code cannot answer on its own? If yes, keep it. If no, delete it.
 
 ### Worthwhile Comments
 
-- Concise inline comments.
-- Non-obvious design decisions (why X over Y).
-- Contracts the code can't enforce on its own.
-- External context (a 3rd party event firing twice, a race condition, a load order dependency).
+Things the code genuinely cannot express:
 
-### Worthless Comments
+- **Non-obvious edge cases:** "Empty list short-circuits at the call site, so this branch only fires for length >= 1."
+- **API quirks / 3rd-party gotchas:** "jsdom returns null without the optional `canvas` npm package."
+- **Hidden invariants enforced upstream:** "Caller guarantees `cx` is in-bounds — no defensive check."
+- **References for complex math or algorithms:** `// Rodrigues rotation formula — en.wikipedia.org/wiki/Rodrigues%27_rotation_formula` so a reader can look it up.
+- **Workarounds for upstream bugs:** "GLTFLoader emits two `load` events on cached responses — guard with `if(this.loaded) return`."
+- **Load-order / race-condition notes:** "Must run after `world.addEntity` so the entity's components are attached."
 
-- Lengthy exposition.
-- Restating the function signature ("Returns the value of X").
-- Narrating obvious code ("Loops over each item").
-- Lead-in sentences that summarise the very next line.
-- Pointers to "the recent X change" which rot fast and are already covered by the commit history.
+### Worthless Comments — Includes "Design Reasoning"
+
+Comments are NOT for explaining *why the code was written this way*. Those answers belong in the plan, design, or commit history. In particular:
+
+- **Rationale narratives** ("We chose X over Y because Z"). Decision-register territory.
+- **Module / class headers** that explain what the module does. The class name and method signatures already say what; a multi-paragraph preamble is duplication.
+- **Restating the function signature** ("Returns the value of X").
+- **Narrating obvious code** ("Loops over each item").
+- **Lead-in sentences** that summarise the very next line.
+- **Lengthy exposition** of any kind.
+- **Pointers to "the recent X change"** which rot fast and are already covered by commit history.
+- **Justifying field defaults** ("This is null because we set it later in `start()`"). The set site is the right place if anything.
 
 ```javascript
-// Avoid: restates what the table name and contents already convey
-// All texture asset paths used by the addon. Centralised so a future
-// skin override is a one-line change.
-const UI_TEXTURES = { ... }
+// Avoid: explains the developer's rationale, not the code
+// We chose a Map here instead of a plain object so we can use entity
+// constructors as keys without coercion to strings.
+this.components = new Map();
 
-// Prefer: drop the comment entirely
-const UI_TEXTURES = { ... }
+// Prefer: drop the comment. The code is self-evident.
+this.components = new Map();
 
-// Good: external context that isn't visible from the code
-// blizzard returns an empty `cstr` for single-step achievements; the
+
+// Avoid: module-header narrative, restates what the class name says
+/*
+ * Asset manager. Loads the manifest, preloads core-tier assets at boot,
+ * and resolves entity kinds to scenes on demand. ...
+ */
+class AssetManager { ... }
+
+// Prefer: drop the comment block; the class name + method signatures speak.
+class AssetManager { ... }
+
+
+// Good: surfaces a real quirk that the code can't reveal
+// Blizzard returns an empty `cstr` for single-step achievements; the
 // achievement-level `description` field is the human-readable label.
 function getAchievementHeader(achievementId) { ... }
+
+
+// Good: pointer to algorithm reference
+// Rodrigues rotation formula — rotates a vector around an axis by an angle.
+function rotateAround(vector, axis, angle) { ... }
 ```
+
+If you find yourself wanting to write a paragraph: stop. Either it belongs in the plan / design document, or the code itself needs to be rewritten so the comment isn't needed.
 
 
 ### Structural Comments

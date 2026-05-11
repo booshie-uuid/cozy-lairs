@@ -50,13 +50,15 @@ class BuilderCamera extends CameraController
         this.focus = focus.clone();
         this.targetFocus = focus.clone();
 
-        this.theta = Math.PI * 0.25;
-        this.phi = Math.PI * 0.32;
+        this.theta = options.initialTheta !== undefined ? options.initialTheta : Math.PI * 0.25;
+        this.phi   = options.initialPhi   !== undefined ? options.initialPhi   : Math.PI * 0.32;
         this.distance = distance;
 
         this.targetTheta = this.theta;
         this.targetPhi = this.phi;
         this.targetDistance = this.distance;
+
+        this.panEnabled = true;
 
         this.draggingButton = -1;
 
@@ -133,11 +135,12 @@ class BuilderCamera extends CameraController
     onPointerDown(event)
     {
         if(this.draggingButton !== -1) { return; }
+        if(event.target && event.target.tagName !== "CANVAS") { return; }
         if(event.button === ORBIT_BUTTON)
         {
             this.draggingButton = ORBIT_BUTTON;
         }
-        else if(event.button === PAN_BUTTON)
+        else if(event.button === PAN_BUTTON && this.panEnabled)
         {
             if(this.raycastFloor(event.x, event.y, this.dragAnchor))
             {
@@ -146,8 +149,19 @@ class BuilderCamera extends CameraController
         }
     }
 
+    setPanEnabled(enabled)
+    {
+        this.panEnabled = enabled;
+    }
+
     onPointerMove(event)
     {
+        if(this.draggingButton !== -1 && !this.isDragButtonHeld(event.buttons))
+        {
+            this.draggingButton = -1;
+            return;
+        }
+
         if(this.draggingButton === ORBIT_BUTTON)
         {
             this.targetTheta -= event.dx * ORBIT_SPEED;
@@ -177,7 +191,19 @@ class BuilderCamera extends CameraController
         if(event.button === this.draggingButton)
         {
             this.draggingButton = -1;
+            return;
         }
+        if(this.draggingButton !== -1 && !this.isDragButtonHeld(event.buttons))
+        {
+            this.draggingButton = -1;
+        }
+    }
+
+    isDragButtonHeld(buttons)
+    {
+        if(this.draggingButton === PAN_BUTTON)   { return (buttons & 1) !== 0; }
+        if(this.draggingButton === ORBIT_BUTTON) { return (buttons & 2) !== 0; }
+        return false;
     }
 
     onWheel(event)
