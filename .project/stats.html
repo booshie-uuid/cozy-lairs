@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Cozy Lairs — Project Stats</title>
+    <style>
+        :root
+        {
+            --bg:       #0d1117;
+            --surface:  #161b22;
+            --border:   #2a323d;
+            --text:     #e6edf3;
+            --text-dim: #8b96a3;
+            --accent:   #58a6ff;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; }
+
+        html, body
+        {
+            margin: 0;
+            padding: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        main
+        {
+            max-width: 920px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem 4rem;
+        }
+
+        header
+        {
+            margin-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 1rem;
+        }
+
+        h1
+        {
+            margin: 0 0 0.25rem 0;
+            font-size: 1.6rem;
+            font-weight: 600;
+        }
+
+        h2
+        {
+            margin: 2rem 0 1rem 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        .meta
+        {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .bar
+        {
+            display: flex;
+            height: 28px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            margin-bottom: 1rem;
+            background: var(--surface);
+        }
+
+        .bar > span
+        {
+            display: block;
+            height: 100%;
+        }
+
+        table
+        {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        th, td
+        {
+            padding: 0.6rem 0.9rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        thead th
+        {
+            background: rgba(255, 255, 255, 0.03);
+            font-weight: 600;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        tfoot td
+        {
+            font-weight: 600;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: none;
+        }
+
+        tbody tr:last-child td { border-bottom: none; }
+
+        .num
+        {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+            font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+        }
+
+        .swatch
+        {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            margin-right: 0.5rem;
+            border-radius: 3px;
+            vertical-align: middle;
+        }
+
+        .error
+        {
+            background: #2d1416;
+            border: 1px solid #5c2027;
+            color: #f8a8a8;
+            padding: 1rem 1.2rem;
+            border-radius: 6px;
+        }
+
+        code
+        {
+            font-family: ui-monospace, "Cascadia Mono", "Consolas", monospace;
+            background: var(--surface);
+            padding: 0.1rem 0.35rem;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <header>
+            <h1>Cozy Lairs — Project Stats</h1>
+            <div class="meta" id="generated">Loading…</div>
+        </header>
+        <div id="content"></div>
+    </main>
+
+    <script>
+        const PALETTE = [
+            "#58a6ff", "#f0a45a", "#5af0a0", "#e8748c",
+            "#c474e8", "#42c1b8", "#e6c84a", "#a0a0a0"
+        ];
+
+        function fmt(n)
+        {
+            return n.toLocaleString();
+        }
+
+        function buildBar(entries, valueKey)
+        {
+            const total = entries.reduce((sum, [, v]) => sum + v[valueKey], 0);
+            const bar = document.createElement("div");
+            bar.className = "bar";
+            entries.forEach(([label, v], i) =>
+            {
+                const seg = document.createElement("span");
+                const pct = total > 0 ? (v[valueKey] / total) * 100 : 0;
+                seg.style.width = `${pct.toFixed(3)}%`;
+                seg.style.background = PALETTE[i % PALETTE.length];
+                seg.title = `${label}: ${fmt(v[valueKey])} (${pct.toFixed(1)}%)`;
+                bar.appendChild(seg);
+            });
+            return bar;
+        }
+
+        function buildTable(headers, rows, footerRow)
+        {
+            const table = document.createElement("table");
+            const thead = document.createElement("thead");
+            const headTr = document.createElement("tr");
+            headers.forEach((h, i) =>
+            {
+                const th = document.createElement("th");
+                th.textContent = h;
+                if(i > 0) { th.classList.add("num"); }
+                headTr.appendChild(th);
+            });
+            thead.appendChild(headTr);
+            table.appendChild(thead);
+
+            const tbody = document.createElement("tbody");
+            rows.forEach(row =>
+            {
+                const tr = document.createElement("tr");
+                row.forEach((cell, i) =>
+                {
+                    const td = document.createElement("td");
+                    if(i === 0 && typeof cell === "object")
+                    {
+                        const sw = document.createElement("span");
+                        sw.className = "swatch";
+                        sw.style.background = cell.colour;
+                        td.appendChild(sw);
+                        td.appendChild(document.createTextNode(cell.label));
+                    }
+                    else
+                    {
+                        td.textContent = cell;
+                        if(i > 0) { td.classList.add("num"); }
+                    }
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+
+            if(footerRow)
+            {
+                const tfoot = document.createElement("tfoot");
+                const tr = document.createElement("tr");
+                footerRow.forEach((cell, i) =>
+                {
+                    const td = document.createElement("td");
+                    td.textContent = cell;
+                    if(i > 0) { td.classList.add("num"); }
+                    tr.appendChild(td);
+                });
+                tfoot.appendChild(tr);
+                table.appendChild(tfoot);
+            }
+
+            return table;
+        }
+
+        function renderSection(title, entries, valueKey, headers, rowBuilder, totalBuilder)
+        {
+            const content = document.getElementById("content");
+
+            const h2 = document.createElement("h2");
+            h2.textContent = title;
+            content.appendChild(h2);
+
+            if(entries.length === 0)
+            {
+                const p = document.createElement("p");
+                p.className = "meta";
+                p.textContent = "(no data)";
+                content.appendChild(p);
+                return;
+            }
+
+            content.appendChild(buildBar(entries, valueKey));
+
+            const total = entries.reduce((sum, [, v]) => sum + v[valueKey], 0);
+            const rows = entries.map(([label, v], i) =>
+                rowBuilder(label, v, total, PALETTE[i % PALETTE.length]));
+            const footer = totalBuilder(entries, total);
+            content.appendChild(buildTable(headers, rows, footer));
+        }
+
+        function pctOf(n, total)
+        {
+            return total > 0 ? `${((n / total) * 100).toFixed(1)}%` : "0.0%";
+        }
+
+        function render(data)
+        {
+            document.getElementById("generated").textContent =
+                `Generated: ${new Date(data.generatedAt).toLocaleString()}`;
+
+            const codeEntries = Object.entries(data.code).sort((a, b) => b[1].eloc - a[1].eloc);
+            renderSection(
+                "Code (Effective Lines)",
+                codeEntries,
+                "eloc",
+                ["Language", "Files", "ELOC", "%", "Comment Words"],
+                (label, v, total, colour) =>
+                [
+                    { label, colour },
+                    fmt(v.files),
+                    fmt(v.eloc),
+                    pctOf(v.eloc, total),
+                    fmt(v.commentWords)
+                ],
+                (entries, total) =>
+                [
+                    "Total",
+                    fmt(entries.reduce((s, [, v]) => s + v.files, 0)),
+                    fmt(total),
+                    "100.0%",
+                    fmt(entries.reduce((s, [, v]) => s + v.commentWords, 0))
+                ]
+            );
+
+            const docEntries = Object.entries(data.documentation).sort((a, b) => b[1].words - a[1].words);
+            renderSection(
+                "Documentation (Words)",
+                docEntries,
+                "words",
+                ["Category", "Files", "Words", "%"],
+                (label, v, total, colour) =>
+                [
+                    { label, colour },
+                    fmt(v.files),
+                    fmt(v.words),
+                    pctOf(v.words, total)
+                ],
+                (entries, total) =>
+                [
+                    "Total",
+                    fmt(entries.reduce((s, [, v]) => s + v.files, 0)),
+                    fmt(total),
+                    "100.0%"
+                ]
+            );
+        }
+
+        async function load()
+        {
+            try
+            {
+                const res = await fetch("./stats.json", { cache: "no-store" });
+                if(!res.ok) { throw new Error(`HTTP ${res.status}`); }
+                const data = await res.json();
+                render(data);
+            }
+            catch(err)
+            {
+                const content = document.getElementById("content");
+                document.getElementById("generated").textContent = "";
+                content.innerHTML = `
+                    <div class="error">
+                        <strong>Couldn't load stats.json.</strong>
+                        <p>If you opened this file directly via <code>file://</code>, your browser is probably blocking the fetch. Serve the project root over HTTP and reload, e.g.:</p>
+                        <p><code>python -m http.server</code> &nbsp;or&nbsp; <code>npx http-server</code></p>
+                        <p>Then open <code>http://localhost:8000/.project/stats.html</code>.</p>
+                        <p class="meta">Error: ${err.message}</p>
+                    </div>`;
+            }
+        }
+
+        load();
+    </script>
+</body>
+</html>

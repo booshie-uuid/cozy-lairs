@@ -1,0 +1,38 @@
+{
+  "generatedAt": "2026-05-12T12:46:48.818Z",
+  "code": {
+    "javascript": {
+      "files": 72,
+      "eloc": 10145,
+      "commentWords": 6470
+    },
+    "html": {
+      "files": 2,
+      "eloc": 666,
+      "commentWords": 0
+    },
+    "css": {
+      "files": 2,
+      "eloc": 852,
+      "commentWords": 191
+    }
+  },
+  "documentation": {
+    "other": {
+      "files": 5,
+      "words": 1385
+    },
+    "designs": {
+      "files": 5,
+      "words": 9943
+    },
+    "plans": {
+      "files": 5,
+      "words": 37490
+    },
+    "reviews": {
+      "files": 2,
+      "words": 6219
+    }
+  }
+}
