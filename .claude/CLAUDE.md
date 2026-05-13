@@ -2,7 +2,8 @@
 
 Cross-task learnings and explicit user preferences. Refine, reorganise, or
 delete entries as needed — the goal is keeping this useful, not preserving
-every word.
+every word. Aim to keep file less than 300 lines without losing critical
+information.
 
 ---
 
