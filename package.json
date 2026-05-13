@@ -10,10 +10,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "three": "^0.171.0"
+    "three": "0.171.0"
   },
   "devDependencies": {
-    "vitest": "^2.1.8",
-    "jsdom": "^25.0.1"
+    "vitest": "2.1.8",
+    "jsdom": "25.0.1"
   }
 }
