@@ -1,6 +1,8 @@
 # Design V5 — Catalogue Lean Expansion, Compact Saves, Load-from-File
 Date: 2026-05-13
 
+> **Addendum:** [design-v5-surfaces.md](./design-v5-surfaces.md) extends V5 with surface-placement support (mark some decor as surfaces, others as surface-placeable). Added mid-execution after Task 10 (six decors) revealed that the table + candle + bottles trio cried out for stacking. Read alongside this document.
+
 ## Summary
 
 V5 layers a set of small-to-medium improvements on the V4 Build Mode MVP:

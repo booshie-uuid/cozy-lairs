@@ -38,20 +38,42 @@ import "./modules/ui/bindings.js";
 
 const ko = window.ko;
 
-const VERSION = "V4_10_0";
+const VERSION = "V5_13_0";
 
-const GRID_WIDTH = 10;
-const GRID_DEPTH = 12;
+const GRID_WIDTH = 20;
+const GRID_DEPTH = 20;
 const GRID_CELL_SIZE = 4;
 
-const STARTER_ROOM = { x0: 2, z0: 2, width: 6, depth: 6 };
+const STARTER_ROOM = { x0: 7, z0: 7, width: 6, depth: 6 };
 
 const TOGGLE_CAMERA_KEY = "Tab";
 const SAVE_KEY = "KeyS";
+const LOAD_KEY = "KeyO";
 const DEV_TOGGLE_KEY = "Backquote";
 
 const PLAYER_KIND = "character.mannequin.medium";
-const PLAYER_SPAWN_CELL = { cx: 2, cz: 2 };
+const PLAYER_SPAWN_CELL = { cx: 7, cz: 7 };
+
+// Kinds we never persist: the player avatar (no stateful component to
+// round-trip cleanly; always re-spawned on load) and the WallTracer's
+// derived walls + corners (regenerated from floor topology on load).
+//
+// IMPORTANT — if WallTracer ever gains additional auto-traced kinds (e.g.
+// a new wall style, decorative cornices, or any other derived geometry),
+// each new kind MUST be added here. Persisting tracer-produced entities
+// causes a load-time duplication bug: fromJSONv2 fires entityAdded for
+// each floor; the tracer reacts by building its set of walls / corners;
+// the snapshot's own walls / corners are then added on top, leaving two
+// complete sets. Wall index entries collapse correctly (array push); the
+// corner map overwrites and orphans one of each pair. See plan-v5
+// "Issues and Adjustments" for the full history.
+const SAVE_SKIP_KINDS =
+[
+    PLAYER_KIND,
+    "wall.stone.straight",
+    "wall.stone.half",
+    "wall.stone.corner"
+];
 // Approximate footprint radii for collision. Player can enter a cell
 // containing decor as long as the two circles don't overlap.
 const PLAYER_RADIUS = 0.5;
@@ -168,6 +190,28 @@ class App
         this.input.preventDefaultFor(TOGGLE_CAMERA_KEY);
 
         this.viewModel = new AppViewModel({ version: this.version });
+
+        // Late-bound: SaveService doesn't exist until wireSaveService runs,
+        // but the Save / Load / Reset button bindings are evaluated by
+        // ko.applyBindings below — so the callables must already exist.
+        this.viewModel.loadFile = () =>
+        {
+            if(this.saveService) { this.saveService.openFile(); }
+        };
+        this.viewModel.saveLair = () =>
+        {
+            if(this.saveService) { this.saveService.save(); }
+        };
+        this.viewModel.resetLair = () =>
+        {
+            this.viewModel.confirmModal.show({
+                title:       "Reset lair?",
+                message:     "Reset to a fresh starter room? Your current work will be lost.",
+                actionLabel: "Reset",
+                onConfirm:   () => this.resetLair()
+            });
+        };
+
         ko.applyBindings(this.viewModel);
 
         this.wireViewportTracking();
@@ -198,10 +242,22 @@ class App
         });
 
         this.buildWorld();
+        this.wireSaveService();
+        this.wireConfirmModal();
+
+        const restoredSnapshot = this.saveService.loadFromAutosave();
+        if(restoredSnapshot)
+        {
+            this.applyAutosaveSnapshot(restoredSnapshot);
+        }
+        else
+        {
+            this.buildFreshWorld();
+        }
+
         this.buildCameraControllers();
         this.buildLoop();
         this.wireCameraToggle();
-        this.wireSaveService();
         this.wireDevConsole();
         this.setCameraMode("builder");
 
@@ -333,8 +389,59 @@ class App
             viewModel: this.viewModel
         });
         this.wallTracer = new WallTracer({ world: this.world, assets: this.assets });
+    }
 
-        this.seedStarterRoom();
+    buildFreshWorld()
+    {
+        for(let dx = 0; dx < STARTER_ROOM.width; dx++)
+        {
+            for(let dz = 0; dz < STARTER_ROOM.depth; dz++)
+            {
+                this.worldEditor.paintFloor(STARTER_ROOM.x0 + dx, STARTER_ROOM.z0 + dz);
+            }
+        }
+        this.spawnPlayer();
+    }
+
+    resetLair()
+    {
+        // Order matters: clear autosave first so a crash mid-rebuild leaves
+        // a clean slate; clearing the file handle so the next Ctrl+S
+        // re-prompts (the previous handle pointed at unrelated content).
+        this.saveService.clearAutosave();
+        this.saveService.clearFileHandle();
+        this.world.clear();
+        this.buildFreshWorld();
+    }
+
+    applyAutosaveSnapshot(snapshot)
+    {
+        // Skip the same kinds at load that getSnapshot skips on save: the
+        // player avatar and the tracer's derived walls + corners. Legacy
+        // snapshots from before the skip-list landed may still carry them
+        // — filter on load so a stale autosave still hydrates cleanly.
+        const result = WorldSerializer.fromJSONv2(this.world, snapshot, this.assets, { skipKinds: SAVE_SKIP_KINDS });
+        if(result.warnings.length > 0)
+        {
+            this.viewModel.toast(
+                `Autosave restored with ${result.warnings.length} warning(s).`,
+                "warning"
+            );
+        }
+
+        // Minions round-trip Walker + Transform but not Animator /
+        // WanderBehaviour (neither has toJSON). Reattach those so
+        // the resurrected minions resume idling + wandering instead
+        // of marching along their stale path.
+        for(const entity of Array.from(this.world.entities))
+        {
+            if(this.worldEditor.isMinionEntity(entity))
+            {
+                this.worldEditor.rehydrateMinion(entity);
+            }
+        }
+
+        this.spawnPlayer();
     }
 
     setTool(toolId)
@@ -392,18 +499,6 @@ class App
         }
         console.warn(`[App] Unknown tool id: ${toolId}`);
         return new NoopTool();
-    }
-
-    seedStarterRoom()
-    {
-        for(let dx = 0; dx < STARTER_ROOM.width; dx++)
-        {
-            for(let dz = 0; dz < STARTER_ROOM.depth; dz++)
-            {
-                this.worldEditor.paintFloor(STARTER_ROOM.x0 + dx, STARTER_ROOM.z0 + dz);
-            }
-        }
-        this.spawnPlayer();
     }
 
     spawnPlayer()
@@ -586,12 +681,12 @@ class App
     wireSaveService()
     {
         this.saveService = new SaveService({
-            getSnapshot: () => WorldSerializer.toJSON(this.world)
+            getSnapshot: () => WorldSerializer.toJSON(this.world, { skipKinds: SAVE_SKIP_KINDS })
         });
 
         this.saveService.on("saved", payload =>
         {
-            this.viewModel.saveStatus(`Saved (${payload.size.toLocaleString()} bytes)`);
+            this.viewModel.flashSaveStatus(`Saved (${payload.size.toLocaleString()} bytes)`);
         });
 
         this.saveService.on("saveFailed", err =>
@@ -601,13 +696,29 @@ class App
             const cause = err && err.cause;
             const cancelled = cause && cause.name === "AbortError";
             const message = cancelled ? "Save cancelled" : `Save failed: ${err.message}`;
-            this.viewModel.saveStatus(message);
+            this.viewModel.flashSaveStatus(message);
             this.viewModel.toast(message, cancelled ? "info" : "error");
         });
 
         this.saveService.on("autosaved", payload =>
         {
-            this.viewModel.saveStatus(`Autosaved (${payload.size.toLocaleString()} bytes)`);
+            this.viewModel.flashSaveStatus(`Autosaved (${payload.size.toLocaleString()} bytes)`);
+        });
+
+        this.saveService.on("loadRequested", payload =>
+        {
+            this.viewModel.confirmModal.show({
+                title:       "Replace lair?",
+                message:     `Replace the current lair with "${payload.fileName}"? Your current work will be lost.`,
+                actionLabel: "Replace",
+                onConfirm:   () => this.applyLoadedSnapshot(payload.snapshot, payload.fileName)
+            });
+        });
+
+        this.saveService.on("loadFailed", err =>
+        {
+            const message = err && err.message ? err.message : "Couldn't load the file.";
+            this.viewModel.toast(message, "error");
         });
 
         this.input.preventDefaultFor(SAVE_KEY);
@@ -620,7 +731,69 @@ class App
         };
         this.input.on("keydown", this.saveHandler);
 
+        this.input.preventDefaultFor(LOAD_KEY);
+        this.loadHandler = event =>
+        {
+            if(event.code === LOAD_KEY && event.ctrl && !event.repeat)
+            {
+                this.saveService.openFile();
+            }
+        };
+        this.input.on("keydown", this.loadHandler);
+
         this.saveService.startAutosave();
+    }
+
+    applyLoadedSnapshot(snapshot, fileName)
+    {
+        let result;
+        try
+        {
+            result = WorldSerializer.fromJSONv2(this.world, snapshot, this.assets, { skipKinds: SAVE_SKIP_KINDS });
+        }
+        catch(err)
+        {
+            const message = err && err.message ? err.message : String(err);
+            this.viewModel.toast(`Load failed: ${message}`, "error");
+            return;
+        }
+
+        // Same minion-rehydration pass as auto-resume.
+        for(const entity of Array.from(this.world.entities))
+        {
+            if(this.worldEditor.isMinionEntity(entity))
+            {
+                this.worldEditor.rehydrateMinion(entity);
+            }
+        }
+        this.spawnPlayer();
+
+        // Drop the previous save's FSA handle — silently writing the
+        // freshly-loaded lair back to whatever file the user last saved
+        // is confusing. Next Ctrl+S re-prompts the picker.
+        this.saveService.clearFileHandle();
+
+        const skipped = result.skipped || 0;
+        const summary = skipped > 0
+            ? `Loaded ${result.loaded} entities from "${fileName}" (${skipped} skipped).`
+            : `Loaded ${result.loaded} entities from "${fileName}".`;
+        this.viewModel.toast(summary, skipped > 0 ? "warning" : "info");
+    }
+
+    wireConfirmModal()
+    {
+        // Escape cancels an open confirm modal. BuilderInputAdapter also
+        // listens for Escape to cancel the active tool, but that's a no-op
+        // when no tool is active (the typical state when a modal is up),
+        // so the two handlers cohabit without interference.
+        this.confirmModalEscapeHandler = event =>
+        {
+            if(event.code !== "Escape" || event.repeat)         { return; }
+            if(this.isTextInputFocused())                       { return; }
+            if(!this.viewModel.confirmModal.visible())          { return; }
+            this.viewModel.confirmModal.cancel();
+        };
+        this.input.on("keydown", this.confirmModalEscapeHandler);
     }
 
     wireDevConsole()

@@ -1,8 +1,19 @@
 // @vitest-environment jsdom
-import { test, expect, vi, beforeEach, afterEach } from "vitest";
+import { test, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 
-import { SaveService } from "../../scripts/modules/engine/save-service.js";
-import * as Errors     from "../../scripts/modules/engine/errors.js";
+import lzString from "lz-string";
+
+beforeAll(() => { window.LZString = lzString; });
+
+import { SaveService }    from "../../scripts/modules/engine/save-service.js";
+import * as Errors        from "../../scripts/modules/engine/errors.js";
+import * as SaveCodec     from "../../scripts/modules/world/save-codec.js";
+
+
+function v2Snapshot(entities = [])
+{
+    return { v: 2, kinds: [], components: [], entities };
+}
 
 
 function makeMockHandle()
@@ -80,7 +91,7 @@ test("first save with FSA support shows the picker, retains the handle, and emit
     const { handle, writable } = makeMockHandle();
     window.showSaveFilePicker  = vi.fn(async () => handle);
 
-    const snapshot = { version: 1, entities: [] };
+    const snapshot = v2Snapshot();
     const service  = new SaveService({ getSnapshot: () => snapshot, storage: makeMemoryStorage() });
 
     const events = [];
@@ -91,7 +102,12 @@ test("first save with FSA support shows the picker, retains the handle, and emit
 
     expect(window.showSaveFilePicker).toHaveBeenCalledTimes(1);
     expect(handle.createWritable).toHaveBeenCalledTimes(1);
-    expect(writable.write).toHaveBeenCalledWith(JSON.stringify(snapshot));
+
+    const written = writable.write.mock.calls[0][0];
+    const decoded = SaveCodec.decodeForFile(written);
+    expect(decoded.error).toBeNull();
+    expect(decoded.snapshot).toEqual(snapshot);
+
     expect(writable.close).toHaveBeenCalled();
     expect(service.hasFileHandle).toBe(true);
     expect(events.length).toBe(1);
@@ -105,7 +121,7 @@ test("second save with retained handle does not re-prompt the picker", async () 
     const { handle } = makeMockHandle();
     window.showSaveFilePicker = vi.fn(async () => handle);
 
-    const service = new SaveService({ getSnapshot: () => ({ a: 1 }), storage: makeMemoryStorage() });
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
 
     await service.save();
     await service.save();
@@ -124,7 +140,7 @@ test("picker cancellation (AbortError) emits `saveFailed`, not `saved`", async (
         throw err;
     });
 
-    const service = new SaveService({ getSnapshot: () => ({}), storage: makeMemoryStorage() });
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
 
     let saved = 0;
     let failed = null;
@@ -155,7 +171,7 @@ test("save falls back to a download anchor when showSaveFilePicker is unavailabl
 
     try
     {
-        const service = new SaveService({ getSnapshot: () => ({ entities: [] }), storage: makeMemoryStorage() });
+        const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
         const events  = [];
         service.on("saved", p => events.push(p));
 
@@ -178,26 +194,31 @@ test("save falls back to a download anchor when showSaveFilePicker is unavailabl
 
 /* AUTOSAVE *******************************************************************/
 
-test("autosave writes the snapshot to localStorage at every interval", () =>
+test("autosave writes a UTF-16 LZ-encoded v2 snapshot to localStorage", () =>
 {
     vi.useFakeTimers();
 
-    const storage = makeMemoryStorage();
-    const service = new SaveService({
-        getSnapshot:        () => ({ version: 1, entities: [{ kind: "x", components: {} }] }),
+    const storage  = makeMemoryStorage();
+    const snapshot = v2Snapshot([[0, []]]);
+    const service  = new SaveService({
+        getSnapshot:        () => snapshot,
         autosaveIntervalMs: 1000,
         storage
     });
 
     service.startAutosave();
-
     vi.advanceTimersByTime(1000);
-    expect(storage.getItem("cozy-lairs.autosave")).toBe(JSON.stringify({ version: 1, entities: [{ kind: "x", components: {} }] }));
+
+    const encoded = storage.getItem("cozy-lairs.autosave");
+    expect(typeof encoded).toBe("string");
+    expect(encoded.length).toBeGreaterThan(0);
+
+    const decoded = SaveCodec.decodeForStorage(encoded);
+    expect(decoded.error).toBeNull();
+    expect(decoded.snapshot).toEqual(snapshot);
+
     expect(service.lastAutosaveSize).toBeGreaterThan(0);
     expect(service.lastAutosaveAt).toBeGreaterThan(0);
-
-    vi.advanceTimersByTime(1000);
-    expect(storage.getItem("cozy-lairs.autosave")).toBeTruthy();
 
     service.dispose();
 });
@@ -208,7 +229,7 @@ test("autosave catches QuotaExceededError and emits saveFailed without crashing 
     vi.useFakeTimers();
 
     const service = new SaveService({
-        getSnapshot:        () => ({ version: 1, entities: [] }),
+        getSnapshot:        () => v2Snapshot(),
         autosaveIntervalMs: 500,
         storage:            makeQuotaStorage()
     });
@@ -235,7 +256,7 @@ test("dispose stops the autosave timer", () =>
     const storage = makeMemoryStorage();
     let calls = 0;
     const service = new SaveService({
-        getSnapshot:        () => ({ tick: calls++ }),
+        getSnapshot:        () => v2Snapshot([[0, [], calls++]]),
         autosaveIntervalMs: 500,
         storage
     });
@@ -252,21 +273,218 @@ test("dispose stops the autosave timer", () =>
 });
 
 
-test("loadFromAutosave returns the parsed snapshot, or null when missing/invalid", () =>
+/* LOAD FROM AUTOSAVE *********************************************************/
+
+test("loadFromAutosave returns null when the slot is empty", () =>
+{
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
+
+    expect(service.loadFromAutosave()).toBe(null);
+});
+
+
+test("loadFromAutosave returns the snapshot when the slot holds a v2 LZ blob", () =>
+{
+    const storage  = makeMemoryStorage();
+    const snapshot = v2Snapshot([[0, [[0, { cx: 1, cz: 2, rotationStep: 0 }]]]]);
+    storage.setItem("cozy-lairs.autosave", SaveCodec.encodeForStorage(snapshot));
+
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage });
+
+    expect(service.loadFromAutosave()).toEqual(snapshot);
+});
+
+
+test("loadFromAutosave clears legacy v1 raw-JSON autosaves and returns null", () =>
 {
     const storage = makeMemoryStorage();
-    const service = new SaveService({ getSnapshot: () => ({}), storage });
+    storage.setItem("cozy-lairs.autosave", JSON.stringify({ version: 1, entities: [] }));
+
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage });
 
     expect(service.loadFromAutosave()).toBe(null);
+    expect(storage.getItem("cozy-lairs.autosave")).toBe(null);
+});
 
-    const snapshot = { version: 1, entities: [] };
-    storage.setItem("cozy-lairs.autosave", JSON.stringify(snapshot));
-    expect(service.loadFromAutosave()).toEqual(snapshot);
 
-    storage.setItem("cozy-lairs.autosave", "{ not valid json");
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+test("loadFromAutosave clears unreadable autosave strings and returns null", () =>
+{
+    const storage = makeMemoryStorage();
+    storage.setItem("cozy-lairs.autosave", "not a real lz blob at all");
+
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage });
+
     expect(service.loadFromAutosave()).toBe(null);
-    warnSpy.mockRestore();
+    expect(storage.getItem("cozy-lairs.autosave")).toBe(null);
+});
+
+
+/* CLEAR AUTOSAVE *************************************************************/
+
+test("clearAutosave removes the storage key", () =>
+{
+    const storage = makeMemoryStorage();
+    storage.setItem("cozy-lairs.autosave", "anything");
+
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage });
+    service.clearAutosave();
+
+    expect(storage.getItem("cozy-lairs.autosave")).toBe(null);
+});
+
+
+/* CLEAR FILE HANDLE **********************************************************/
+
+test("clearFileHandle drops the cached FSA handle so the next save re-prompts", async () =>
+{
+    const { handle } = makeMockHandle();
+    window.showSaveFilePicker = vi.fn(async () => handle);
+
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
+
+    await service.save();
+    expect(service.hasFileHandle).toBe(true);
+    expect(window.showSaveFilePicker).toHaveBeenCalledTimes(1);
+
+    service.clearFileHandle();
+    expect(service.hasFileHandle).toBe(false);
+
+    await service.save();
+    expect(window.showSaveFilePicker).toHaveBeenCalledTimes(2);
+});
+
+
+/* OPEN FILE — FSA PATH *******************************************************/
+
+function makeMockOpenHandle(text)
+{
+    const file = { name: "lair.json", text: vi.fn(async () => text) };
+    return { getFile: vi.fn(async () => file), _file: file };
+}
+
+
+test("openFile via FSA: decodes the file and emits loadRequested with the snapshot", async () =>
+{
+    const snapshot = v2Snapshot([[0, []]]);
+    const text     = SaveCodec.encodeForFile(snapshot);
+    const handle   = makeMockOpenHandle(text);
+
+    window.showOpenFilePicker = vi.fn(async () => [handle]);
+
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
+
+    let received = null;
+    service.on("loadRequested", payload => { received = payload; });
+
+    await service.openFile();
+
+    expect(window.showOpenFilePicker).toHaveBeenCalledTimes(1);
+    expect(handle.getFile).toHaveBeenCalledTimes(1);
+    expect(received).not.toBeNull();
+    expect(received.snapshot).toEqual(snapshot);
+    expect(received.fileName).toBe("lair.json");
+});
+
+
+test("openFile via FSA: AbortError (user cancel) is silent — no events emitted", async () =>
+{
+    window.showOpenFilePicker = vi.fn(async () =>
+    {
+        const err = new Error("user cancelled");
+        err.name  = "AbortError";
+        throw err;
+    });
+
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
+
+    let requested = 0;
+    let failed = 0;
+    service.on("loadRequested", () => { requested += 1; });
+    service.on("loadFailed",    () => { failed    += 1; });
+
+    await service.openFile();
+
+    expect(requested).toBe(0);
+    expect(failed).toBe(0);
+});
+
+
+test("openFile via FSA: malformed file emits loadFailed with the codec's error message", async () =>
+{
+    const handle = makeMockOpenHandle("not a Cozy Lairs save");
+    window.showOpenFilePicker = vi.fn(async () => [handle]);
+
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
+
+    let failed = null;
+    service.on("loadFailed", err => { failed = err; });
+
+    await service.openFile();
+
+    expect(failed).toBeInstanceOf(Errors.SaveError);
+    expect(failed.message).toMatch(/isn't a Cozy Lairs save/);
+});
+
+
+test("openFile via FSA: v1-style file content emits loadFailed with the 'too old' message", async () =>
+{
+    const v1FileText = JSON.stringify({ version: 1, entities: [] });
+    const handle     = makeMockOpenHandle(v1FileText);
+    window.showOpenFilePicker = vi.fn(async () => [handle]);
+
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
+
+    let failed = null;
+    service.on("loadFailed", err => { failed = err; });
+
+    await service.openFile();
+
+    expect(failed.message).toMatch(/Save format too old/);
+});
+
+
+/* OPEN FILE — INPUT FALLBACK *************************************************/
+
+test("openFile creates a transient <input type=\"file\"> and clicks it when FSA is unavailable", async () =>
+{
+    delete window.showOpenFilePicker;
+
+    const originalCreate = document.createElement.bind(document);
+    let lastInput = null;
+    let clicked = false;
+
+    document.createElement = function(tag)
+    {
+        const el = originalCreate(tag);
+        if(tag === "input")
+        {
+            lastInput = el;
+            el.click = () => { clicked = true; };
+        }
+        return el;
+    };
+
+    try
+    {
+        const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
+        const promise = service.openFile();
+
+        expect(lastInput).not.toBeNull();
+        expect(lastInput.type).toBe("file");
+        expect(lastInput.accept).toMatch(/json/);
+        expect(clicked).toBe(true);
+
+        // Resolve the lingering promise by faking a "no file selected" cancel —
+        // a real cancel never fires a change event; we simulate it by dispatching
+        // change with no files so the listener runs and resolves the await.
+        Object.defineProperty(lastInput, "files", { value: [], configurable: true });
+        lastInput.dispatchEvent(new Event("change"));
+        await promise;
+    }
+    finally
+    {
+        document.createElement = originalCreate;
+    }
 });
 
 
@@ -286,7 +504,7 @@ test("forceFailNextSave: next save emits saveFailed with a synthetic SaveError",
     const { handle } = makeMockHandle();
     window.showSaveFilePicker = vi.fn(async () => handle);
 
-    const service = new SaveService({ getSnapshot: () => ({}), storage: makeMemoryStorage() });
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
 
     let saved = 0;
     let failed = null;
@@ -308,7 +526,7 @@ test("forceFailNextSave only affects the very next save call", async () =>
     const { handle } = makeMockHandle();
     window.showSaveFilePicker = vi.fn(async () => handle);
 
-    const service = new SaveService({ getSnapshot: () => ({}), storage: makeMemoryStorage() });
+    const service = new SaveService({ getSnapshot: () => v2Snapshot(), storage: makeMemoryStorage() });
 
     const events = [];
     service.on("saved",      () => events.push("saved"));

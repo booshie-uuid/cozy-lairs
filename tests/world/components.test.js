@@ -271,3 +271,47 @@ test("GridPlacement.moveTo updates cx / cz; toJSON reflects the new cell", () =>
     expect(placement.blocks).toBe(true);
     expect(placement.toJSON()).toEqual({ cx: 7, cz: 9, rotationStep: 1, blocks: true });
 });
+
+
+test("GridPlacement.surfaceY defaults to 0 when omitted from options", () =>
+{
+    const placement = new GridPlacement(0, 0, 0);
+    expect(placement.surfaceY).toBe(0);
+});
+
+
+test("GridPlacement.surfaceY accepts a finite number via options", () =>
+{
+    const placement = new GridPlacement(0, 0, 0, { surfaceY: 0.85 });
+    expect(placement.surfaceY).toBe(0.85);
+});
+
+
+test("GridPlacement constructor rejects non-finite surfaceY values", () =>
+{
+    expect(() => new GridPlacement(0, 0, 0, { surfaceY: "high" })).toThrow();
+    expect(() => new GridPlacement(0, 0, 0, { surfaceY: NaN     })).toThrow();
+    expect(() => new GridPlacement(0, 0, 0, { surfaceY: Infinity })).toThrow();
+});
+
+
+test("GridPlacement applies surfaceY to object3D.position.y on add", () =>
+{
+    const world  = new World(new Grid(4, 4, 4));
+    const entity = new Entity("decor.candle.triple", new THREE.Object3D());
+    entity.addComponent(new GridPlacement(2, 3, 0, { surfaceY: 0.85 }));
+
+    world.addEntity(entity);
+
+    expect(entity.object3D.position.y).toBeCloseTo(0.85);
+});
+
+
+test("GridPlacement.toJSON omits surfaceY when 0; includes it when non-zero", () =>
+{
+    const flat = new GridPlacement(3, 5, 0);
+    expect(flat.toJSON().surfaceY).toBeUndefined();
+
+    const lifted = new GridPlacement(3, 5, 0, { surfaceY: 0.85 });
+    expect(lifted.toJSON()).toEqual({ cx: 3, cz: 5, rotationStep: 0, surfaceY: 0.85 });
+});

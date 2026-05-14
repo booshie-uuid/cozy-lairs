@@ -74,11 +74,11 @@ class Tool
 
     /* HELPERS ****************************************************************/
 
-    positionGhostAtCell(cx, cz)
+    positionGhostAtCell(cx, cz, yOffset = 0)
     {
         if(!this.ghostMesh || !this.editor) { return; }
         const w = this.editor.world.grid.cellToWorld(cx, cz);
-        this.ghostMesh.position.set(w.x, GHOST_Y, w.z);
+        this.ghostMesh.position.set(w.x, GHOST_Y + yOffset, w.z);
         this.ghostMesh.visible = true;
     }
 

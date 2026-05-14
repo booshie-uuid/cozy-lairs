@@ -132,6 +132,55 @@
     font-size:       clamp(0.7rem, 1.4vmin, 0.85rem);
     letter-spacing:  0.04em;
     pointer-events:  none;
+
+    /* Hidden by default; flashSaveStatus toggles `.is-visible` for a few
+       seconds on each save / autosave / failure event so the chip pops in
+       to draw attention rather than sitting persistently. */
+    opacity:         0;
+    transform:       translateY(0.4rem) scale(0.96);
+    transition:      opacity 200ms ease, transform 200ms ease;
+}
+
+#save-status-chip.is-visible
+{
+    opacity:   1;
+    transform: translateY(0) scale(1);
+}
+
+#hud-actions
+{
+    position:       absolute;
+    bottom:         3.25rem;
+    right:          1rem;
+    display:        flex;
+    gap:            0.5rem;
+    pointer-events: auto;
+}
+
+#hud-actions button
+{
+    padding:        0.45rem 1.25rem;
+    border-radius:  10px;
+    border:         2px solid var(--cozy-neon-dim);
+    background:     var(--cozy-purple-soft);
+    color:          var(--cozy-text-dim);
+    font-family:    var(--cozy-font-display);
+    font-size:      0.9rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor:         pointer;
+    transition:     background 120ms ease, color 120ms ease, border-color 120ms ease;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 4px 0 var(--cozy-purple-deep),
+        0 6px 14px rgba(0, 0, 0, 0.4);
+}
+
+#hud-actions button:hover
+{
+    border-color: var(--cozy-neon);
+    color:        var(--cozy-neon);
+    background:   var(--cozy-purple-deep);
 }
 
 
@@ -497,6 +546,106 @@
 }
 
 .controls-overlay-ok:hover
+{
+    background: var(--cozy-purple-deep);
+}
+
+
+/******************************************************************************/
+/* CONFIRM MODAL                                                              */
+/******************************************************************************/
+
+#confirm-modal
+{
+    position:        fixed;
+    inset:           0;
+    z-index:         400;
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+}
+
+.confirm-modal-backdrop
+{
+    position:         absolute;
+    inset:            0;
+    background-color: rgba(15, 6, 32, 0.7);
+}
+
+.confirm-modal-box
+{
+    position:      relative;
+    min-width:     320px;
+    max-width:     440px;
+    padding:       1.75rem 2rem 1.5rem;
+    border-radius: 12px;
+    border:        2px solid var(--cozy-neon-dim);
+    background:    var(--cozy-purple-soft);
+    color:         var(--cozy-text);
+    font-family:   var(--cozy-font-body);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 5px 0 var(--cozy-purple-deep),
+        0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.confirm-modal-title
+{
+    margin:         0 0 0.75rem 0;
+    font-family:    var(--cozy-font-display);
+    font-weight:    400;
+    font-size:      1.5rem;
+    letter-spacing: 0.03em;
+    color:          var(--cozy-neon);
+    text-shadow:    0 3px 0 var(--cozy-purple-deep);
+    text-align:     center;
+}
+
+.confirm-modal-message
+{
+    margin:      0 0 1.5rem 0;
+    color:       var(--cozy-text);
+    font-size:   0.95rem;
+    line-height: 1.4;
+    text-align:  center;
+}
+
+.confirm-modal-buttons
+{
+    display:         flex;
+    justify-content: center;
+    gap:             0.75rem;
+}
+
+.confirm-modal-cancel,
+.confirm-modal-action
+{
+    padding:        0.55rem 1.75rem;
+    border-radius:  10px;
+    border:         2px solid var(--cozy-neon-dim);
+    background:     var(--cozy-purple);
+    color:          var(--cozy-text-dim);
+    font-family:    var(--cozy-font-display);
+    font-size:      1rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor:         pointer;
+    transition:     background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.confirm-modal-cancel:hover
+{
+    background: var(--cozy-purple-deep);
+    color:      var(--cozy-text);
+}
+
+.confirm-modal-action
+{
+    border-color: var(--cozy-neon);
+    color:        var(--cozy-neon);
+}
+
+.confirm-modal-action:hover
 {
     background: var(--cozy-purple-deep);
 }

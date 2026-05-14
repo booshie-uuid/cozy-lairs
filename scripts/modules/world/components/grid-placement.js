@@ -16,6 +16,11 @@ import * as Errors from "../../engine/errors.js";
  * Both default false. A floor tile is `{ walkable: true }`; a barrel is
  * `{ blocks: true }`; a typical decoration that lives on top of a floor is
  * `{ blocks: true }` (the floor entity already supplies the walkable mark).
+ *
+ * `surfaceY` lifts the entity off the cell floor — used when a decor is
+ * placed on top of a surface (e.g. a candle on a table). Defaults to 0.
+ * Round-trips through `toJSON` only when non-zero so floor-decor snapshots
+ * stay compact.
  */
 
 const QUARTER_TURN = Math.PI / 2;
@@ -30,7 +35,7 @@ class GridPlacement
             throw new Errors.PlacementError(`GridPlacement: rotationStep must be an integer in 0..3 (got ${rotationStep}).`);
         }
 
-        const { walkable = false, blocks = false } = options;
+        const { walkable = false, blocks = false, surfaceY = 0 } = options;
 
         if(typeof walkable !== "boolean")
         {
@@ -40,12 +45,17 @@ class GridPlacement
         {
             throw new Errors.PlacementError(`GridPlacement: blocks must be a boolean (got ${typeof blocks}).`);
         }
+        if(typeof surfaceY !== "number" || !Number.isFinite(surfaceY))
+        {
+            throw new Errors.PlacementError(`GridPlacement: surfaceY must be a finite number (got ${surfaceY}).`);
+        }
 
         this.cx = cx;
         this.cz = cz;
         this.rotationStep = rotationStep;
         this.walkable = walkable;
         this.blocks = blocks;
+        this.surfaceY = surfaceY;
         this.entity = null;
     }
 
@@ -58,7 +68,7 @@ class GridPlacement
     {
         const { x, z } = world.grid.cellToWorld(this.cx, this.cz);
         const o = this.entity.object3D;
-        o.position.set(x, 0, z);
+        o.position.set(x, this.surfaceY, z);
         o.rotation.y = this.rotationStep * QUARTER_TURN;
 
         if(this.walkable) { world.grid.markFloor(this.cx, this.cz); }
@@ -80,8 +90,9 @@ class GridPlacement
     toJSON()
     {
         const json = { cx: this.cx, cz: this.cz, rotationStep: this.rotationStep };
-        if(this.walkable) { json.walkable = true; }
-        if(this.blocks)   { json.blocks   = true; }
+        if(this.walkable)        { json.walkable = true; }
+        if(this.blocks)          { json.blocks   = true; }
+        if(this.surfaceY !== 0)  { json.surfaceY = this.surfaceY; }
         return json;
     }
 }

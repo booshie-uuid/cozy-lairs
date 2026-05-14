@@ -74,6 +74,16 @@ class World extends Emitter
         this.emit("entityRemoved", entity);
     }
 
+    clear()
+    {
+        // Snapshot before iterating — removeEntity mutates this.entities.
+        const all = Array.from(this.entities);
+        for(const entity of all)
+        {
+            this.removeEntity(entity);
+        }
+    }
+
     update(dt)
     {
         for(const entity of this.entities)

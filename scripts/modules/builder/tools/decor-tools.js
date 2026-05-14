@@ -50,7 +50,8 @@ class DecorPlaceTool extends Tool
     {
         this.hoverCell = cell;
         const valid = this.editor.canPlaceDecor(this.kind, cell.cx, cell.cz);
-        this.positionGhostAtCell(cell.cx, cell.cz);
+        const surfaceY = this.editor.getPlacementYFor(this.kind, cell.cx, cell.cz);
+        this.positionGhostAtCell(cell.cx, cell.cz, surfaceY);
         this.setGhostTint(valid);
     }
 

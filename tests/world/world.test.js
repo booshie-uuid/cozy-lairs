@@ -139,3 +139,36 @@ test("removeEntity calls onRemovedFromWorld on every component that has one", ()
 
     expect(removedWith).toBe(world);
 });
+
+
+test("clear removes every entity and emits entityRemoved for each", () =>
+{
+    const world = makeWorld();
+    const a = new Entity("a", new THREE.Object3D());
+    const b = new Entity("b", new THREE.Object3D());
+    const c = new Entity("c", new THREE.Object3D());
+    world.addEntity(a);
+    world.addEntity(b);
+    world.addEntity(c);
+
+    const removed = [];
+    world.on("entityRemoved", entity => removed.push(entity));
+
+    world.clear();
+
+    expect(world.entities.size).toBe(0);
+    expect(world.scene.children.includes(a.object3D)).toBe(false);
+    expect(world.scene.children.includes(b.object3D)).toBe(false);
+    expect(world.scene.children.includes(c.object3D)).toBe(false);
+    expect(removed.length).toBe(3);
+    expect(new Set(removed)).toEqual(new Set([a, b, c]));
+});
+
+
+test("clear is safe to call on an empty world", () =>
+{
+    const world = makeWorld();
+
+    expect(() => world.clear()).not.toThrow();
+    expect(world.entities.size).toBe(0);
+});

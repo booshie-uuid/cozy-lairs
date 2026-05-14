@@ -140,6 +140,14 @@ While a tool is active, `BuilderCamera.setPanEnabled(false)` disables left-click
 
 `Input` passes `event.target` through pointer events. `BuilderCamera` and `BuilderInputAdapter` both ignore events whose `target` isn't the canvas — clicks on the panel chrome don't engage the camera or the tool dispatcher.
 
+### Derived entities are not persisted
+
+The save snapshot carries authoritative entities only — anything regenerated from other state on load is excluded via the `SAVE_SKIP_KINDS` constant in `scripts/app.js`. Currently that's `PLAYER_KIND` and the three `wall.stone.*` kinds (straight / half / corner). The skip-list is applied in both directions: `WorldSerializer.toJSON` skips them on save, and `App.applyAutosaveSnapshot` passes the same list to `fromJSONv2` so legacy snapshots that still carry the derived kinds are filtered on load.
+
+**If WallTracer (or any future tracer) gains additional auto-produced kinds, each new kind MUST be added to `SAVE_SKIP_KINDS`.** Persisting tracer output causes a duplication bug at load: `fromJSONv2` fires `entityAdded` for each floor, the tracer reacts by building its full set of walls + corners from current topology, and then the snapshot's own walls + corners are added on top. Wall index entries collapse correctly (array push) but the corner map overwrites — one corner per vertex gets orphaned in the world and stays there. Symptom is "corner-touching edges don't update properly after reload." See plan-v5 Issues and Adjustments for the full debug history.
+
+The same rule applies to any future kind whose state can be fully reconstructed from the rest of the world (cost-system pre-requisite indicators, lighting volumes derived from torch placement, etc.) — derive on load, don't persist.
+
 ### Builder camera multi-button safety
 
 `BuilderCamera` tracks the held drag button via `event.buttons` bitmask, not just by matching `event.button` on pointerup. If a pointerup is missed (pointer capture, pointercancel, browser oddities), the next pointermove/pointerup self-heals when the bitmask shows the drag button is no longer held.
@@ -180,9 +188,11 @@ The "witchy arcade" visual identity lives in `styles/cozy.css`, loaded **after**
 In scope (restyled by `cozy.css`):
 
 - `#camera-mode-chip`, `#save-status-chip` (HUD chips)
+- `#hud-actions` and its child buttons (`#save-button`, `#load-button`, future `#reset-button`)
 - `#loading-overlay` and its descendants
 - `#toast-tray` and `.toast` variants (`.is-info`, `.is-warning`, `.is-error`)
 - `#min-viewport-overlay` and its descendants
+- `#confirm-modal` and its descendants (generic two-button confirmation modal — Load and Reset both consume it)
 
 Out of scope (stays neutral, do **not** restyle in `cozy.css`):
 
@@ -273,6 +283,10 @@ Pinned at **r171** (`three@^0.171.0`). When re-vendoring, copy from `node_module
 - `examples/jsm/utils/BufferGeometryUtils.js`
 
 `GLTFLoader.js` line 68 must be patched after copy: `'../utils/BufferGeometryUtils.js'` → `'./BufferGeometryUtils.js'` (we flatten under `libs/three/` instead of preserving the `loaders/utils/` sibling layout).
+
+### LZ-string vendoring (libs/lz-string/)
+
+Pinned at **1.5.0** (`lz-string@1.5.0` in devDependencies, pinned exactly). Copy `node_modules/lz-string/libs/lz-string.min.js` to `libs/lz-string/lz-string.min.js`. Loaded as a classic UMD `<script>` in `index.html` before the bootstrap module; modules access it via `const LZString = window.LZString;` aliased at the top of the file (same pattern as KO). The codec layer uses `compressToUTF16` / `decompressFromUTF16` for `localStorage` (densest mode) and `compressToBase64` / `decompressFromBase64` for file saves (wrapped in `{ "v": 2, "lz": "<base64>" }` so the file stays valid JSON).
 
 ### Tests
 

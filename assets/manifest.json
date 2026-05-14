@@ -34,6 +34,30 @@
             "displayName": "Skeleton Minion"
         },
         {
+            "id":          "character.skeleton.mage",
+            "path":        "assets/kaykit/skeletons/characters/gltf/Skeleton_Mage.glb",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "character",
+            "displayName": "Skeleton Mage"
+        },
+        {
+            "id":          "character.skeleton.rogue",
+            "path":        "assets/kaykit/skeletons/characters/gltf/Skeleton_Rogue.glb",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "character",
+            "displayName": "Skeleton Rogue"
+        },
+        {
+            "id":          "character.skeleton.warrior",
+            "path":        "assets/kaykit/skeletons/characters/gltf/Skeleton_Warrior.glb",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "character",
+            "displayName": "Skeleton Warrior"
+        },
+        {
             "id":   "character.mannequin.medium",
             "path": "assets/kaykit/character-animations/characters/gltf/Mannequin_Medium.glb",
             "type": "gltf",
@@ -54,6 +78,57 @@
             "tier":        "core",
             "kind":        "decor.floor",
             "displayName": "Crate"
+        },
+        {
+            "id":          "decor.bed",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/bed_decorated.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Bed"
+        },
+        {
+            "id":          "decor.table",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/table_medium.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Table",
+            "meta":        { "surface": { "surfaceY": 1.0 } }
+        },
+        {
+            "id":          "decor.chair",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/chair.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Chair"
+        },
+        {
+            "id":          "decor.candle.triple",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/candle_triple.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Triple Candle",
+            "meta":        { "placeableOnSurface": true }
+        },
+        {
+            "id":          "decor.chest",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/chest.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Chest"
+        },
+        {
+            "id":          "decor.bottles",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/bottle_A_labeled_brown.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Bottles",
+            "meta":        { "placeableOnSurface": true }
         },
         {
             "id":          "decor.banner.blue",

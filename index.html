@@ -19,6 +19,7 @@
     </script>
 
     <script src="./libs/knockout-3.5.1.js"></script>
+    <script src="./libs/lz-string/lz-string.min.js"></script>
 </head>
 <body>
     <div id="canvas-wrapper"></div>
@@ -27,7 +28,18 @@
         <div id="camera-mode-chip"
              data-bind="text: cameraMode() === 'builder' ? 'Builder' : 'First Person'"></div>
         <div id="save-status-chip"
-             data-bind="text: saveStatus"></div>
+             data-bind="text: saveStatus, css: { 'is-visible': saveStatusVisible }"></div>
+        <div id="hud-actions">
+            <button id="save-button"
+                    title="Save lair to file (Ctrl+S)"
+                    data-bind="click: saveLair">Save</button>
+            <button id="load-button"
+                    title="Load lair from file (Ctrl+O)"
+                    data-bind="click: loadFile">Load</button>
+            <button id="reset-button"
+                    title="Reset to a fresh starter room"
+                    data-bind="click: resetLair">Reset</button>
+        </div>
     </div>
 
     <div id="fatal-overlay" hidden>
@@ -52,6 +64,19 @@
     <div id="toast-tray" data-bind="foreach: toasts">
         <div class="toast"
              data-bind="text: message, css: 'is-' + level"></div>
+    </div>
+
+    <div id="confirm-modal"
+         data-bind="visible: confirmModal.visible, with: confirmModal">
+        <div class="confirm-modal-backdrop"></div>
+        <div class="confirm-modal-box">
+            <h2 class="confirm-modal-title"   data-bind="text: title"></h2>
+            <p  class="confirm-modal-message" data-bind="text: message"></p>
+            <div class="confirm-modal-buttons">
+                <button class="confirm-modal-cancel" data-bind="click: cancel">Cancel</button>
+                <button class="confirm-modal-action" data-bind="text: actionLabel, click: confirm"></button>
+            </div>
+        </div>
     </div>
 
     <div id="controls-overlay" data-bind="visible: controlsVisible">
@@ -93,7 +118,10 @@
                 <dd>Rotate decor while placing</dd>
 
                 <dt>Ctrl + S</dt>
-                <dd>Save your lair</dd>
+                <dd>Save your lair to a file</dd>
+
+                <dt>Ctrl + O</dt>
+                <dd>Load a lair from a file</dd>
             </dl>
             <button class="controls-overlay-ok" data-bind="click: dismissControls">OK</button>
         </div>

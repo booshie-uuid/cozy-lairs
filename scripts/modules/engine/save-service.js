@@ -1,5 +1,6 @@
-import { Emitter } from "./emitter.js";
-import * as Errors from "./errors.js";
+import { Emitter }     from "./emitter.js";
+import * as Errors     from "./errors.js";
+import * as SaveCodec  from "../world/save-codec.js";
 
 
 /******************************************************************************/
@@ -12,13 +13,17 @@ import * as Errors from "./errors.js";
  * always-on `localStorage` autosave runs as a recovery net regardless of
  * primary-save availability.
  *
- *   saved        { size, mode: "fsa" | "download" }
- *   saveFailed   SaveError
- *   autosaved    { size, at }   — fires on each successful localStorage write
+ *   saved          { size, mode: "fsa" | "download" }
+ *   saveFailed     SaveError
+ *   autosaved      { size, at }            — fires on each successful localStorage write
+ *   loadRequested  { snapshot, fileName }  — fires after openFile decodes a snapshot
+ *   loadFailed     SaveError               — fires if openFile / decode fails
  *
- * Quota concern: localStorage caps at ~5 MB per origin. `lastAutosaveSize`
- * is exposed for monitoring; QuotaExceededError is caught and re-emitted as
- * `saveFailed` so the autosave timer never crashes silently.
+ * Snapshots produced by `getSnapshot()` are routed through `save-codec`:
+ * `encodeForStorage` for `localStorage` (UTF-16 LZ blob); `encodeForFile` for
+ * the picker / download (`{ "v": 2, "lz": "<base64>" }` JSON wrapper). On
+ * boot, `loadFromAutosave` decodes via `decodeForStorage`; any decode failure
+ * (legacy v1 strings included) silently clears the slot and returns null.
  */
 
 const AUTOSAVE_KEY = "cozy-lairs.autosave";
@@ -61,24 +66,24 @@ class SaveService extends Emitter
             return;
         }
 
-        let json;
+        let encoded;
         try
         {
-            json = JSON.stringify(this.getSnapshot());
+            encoded = SaveCodec.encodeForFile(this.getSnapshot());
         }
         catch(err)
         {
-            this.emitSaveFailed("Failed to serialise world snapshot.", err);
+            this.emitSaveFailed("Failed to encode world snapshot.", err);
             return;
         }
 
         if(this.supportsFsaPicker())
         {
-            await this.saveViaFsa(json);
+            await this.saveViaFsa(encoded);
         }
         else
         {
-            this.saveViaDownload(json);
+            this.saveViaDownload(encoded);
         }
     }
 
@@ -104,6 +109,18 @@ class SaveService extends Emitter
         }
     }
 
+    async openFile()
+    {
+        if(this.supportsFsaOpenPicker())
+        {
+            await this.openViaFsa();
+        }
+        else
+        {
+            await this.openViaInput();
+        }
+    }
+
     loadFromAutosave()
     {
         if(!this.storage) { return null; }
@@ -121,15 +138,37 @@ class SaveService extends Emitter
 
         if(!raw) { return null; }
 
+        const result = SaveCodec.decodeForStorage(raw);
+        if(result.error !== null)
+        {
+            try { this.storage.removeItem(AUTOSAVE_KEY); } catch(_) { /* best-effort */ }
+            return null;
+        }
+
+        return result.snapshot;
+    }
+
+    clearAutosave()
+    {
+        if(!this.storage) { return; }
+
         try
         {
-            return JSON.parse(raw);
+            this.storage.removeItem(AUTOSAVE_KEY);
         }
         catch(err)
         {
-            console.warn("[SaveService] Autosave entry is not valid JSON:", err);
-            return null;
+            console.warn("[SaveService] Could not clear autosave from storage:", err);
         }
+    }
+
+    clearFileHandle()
+    {
+        // Drop the cached FSA handle so the next save re-prompts the
+        // picker. Useful after a Load: the old handle pointed at a file
+        // unrelated to the freshly-loaded lair, so silently writing back
+        // to it would be confusing.
+        this.handle = null;
     }
 
     dispose()
@@ -145,7 +184,97 @@ class SaveService extends Emitter
         return typeof window !== "undefined" && typeof window.showSaveFilePicker === "function";
     }
 
-    async saveViaFsa(json)
+    supportsFsaOpenPicker()
+    {
+        return typeof window !== "undefined" && typeof window.showOpenFilePicker === "function";
+    }
+
+    async openViaFsa()
+    {
+        let file;
+        try
+        {
+            const [handle] = await window.showOpenFilePicker({
+                multiple: false,
+                types: [{
+                    description: FILE_DESCRIPTION,
+                    accept: { [FILE_MIME]: [".json"] }
+                }]
+            });
+            file = await handle.getFile();
+        }
+        catch(err)
+        {
+            // AbortError = user cancelled the picker; stay silent.
+            if(err && err.name === "AbortError") { return; }
+            this.emitLoadFailed("Couldn't open the chosen file.", err);
+            return;
+        }
+
+        await this.handleOpenedFile(file);
+    }
+
+    async openViaInput()
+    {
+        const file = await this.promptFileViaInput();
+        if(!file) { return; }   // user cancelled the picker
+        await this.handleOpenedFile(file);
+    }
+
+    promptFileViaInput()
+    {
+        return new Promise(resolve =>
+        {
+            const input = document.createElement("input");
+            input.type   = "file";
+            input.accept = ".json,application/json";
+            input.style.position = "fixed";
+            input.style.left     = "-9999px";
+
+            const cleanup = () => { if(input.parentNode) { input.parentNode.removeChild(input); } };
+
+            input.addEventListener("change", () =>
+            {
+                const file = input.files && input.files[0] ? input.files[0] : null;
+                cleanup();
+                resolve(file);
+            }, { once: true });
+
+            // No reliable cross-browser cancel event for <input type="file">.
+            // If the user dismisses the picker, the change event simply
+            // never fires; the input element lingers off-screen until the
+            // next openViaInput call replaces it. Acceptable.
+            document.body.appendChild(input);
+            input.click();
+        });
+    }
+
+    async handleOpenedFile(file)
+    {
+        const fileName = (file && file.name) ? file.name : "save.json";
+
+        let text;
+        try
+        {
+            text = await file.text();
+        }
+        catch(err)
+        {
+            this.emitLoadFailed("Couldn't read the chosen file.", err);
+            return;
+        }
+
+        const result = SaveCodec.decodeForFile(text);
+        if(result.error !== null)
+        {
+            this.emitLoadFailed(result.error.message, result.error.cause);
+            return;
+        }
+
+        this.emit("loadRequested", { snapshot: result.snapshot, fileName });
+    }
+
+    async saveViaFsa(encoded)
     {
         try
         {
@@ -161,10 +290,11 @@ class SaveService extends Emitter
             }
 
             const writable = await this.handle.createWritable();
-            await writable.write(json);
+            await writable.write(encoded);
             await writable.close();
 
-            this.emit("saved", { size: json.length, mode: "fsa" });
+            // File path is ASCII (base64 + JSON wrapper); byte count ≈ char count.
+            this.emit("saved", { size: encoded.length, mode: "fsa" });
         }
         catch(err)
         {
@@ -174,21 +304,21 @@ class SaveService extends Emitter
         }
     }
 
-    saveViaDownload(json)
+    saveViaDownload(encoded)
     {
         try
         {
-            const blob = new Blob([json], { type: FILE_MIME });
+            const blob = new Blob([encoded], { type: FILE_MIME });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
 
             a.href = url;
             a.download = SUGGESTED_FILENAME;
             a.click();
-            
+
             URL.revokeObjectURL(url);
 
-            this.emit("saved", { size: json.length, mode: "download" });
+            this.emit("saved", { size: encoded.length, mode: "download" });
         }
         catch(err)
         {
@@ -198,31 +328,34 @@ class SaveService extends Emitter
 
     writeAutosave()
     {
-        let json;
+        let encoded;
         try
         {
-            json = JSON.stringify(this.getSnapshot());
+            encoded = SaveCodec.encodeForStorage(this.getSnapshot());
         }
         catch(err)
         {
-            this.emitSaveFailed("Failed to serialise snapshot for autosave.", err);
+            this.emitSaveFailed("Failed to encode snapshot for autosave.", err);
             return;
         }
 
         try
         {
-            this.storage.setItem(AUTOSAVE_KEY, json);
-            this.lastAutosaveSize = json.length;
+            this.storage.setItem(AUTOSAVE_KEY, encoded);
+            // localStorage stores strings as UTF-16 → 2 bytes per char.
+            const bytes = encoded.length * 2;
+            this.lastAutosaveSize = bytes;
             this.lastAutosaveAt = Date.now();
-            this.emit("autosaved", { size: json.length, at: this.lastAutosaveAt });
+            this.emit("autosaved", { size: bytes, at: this.lastAutosaveAt });
         }
         catch(err)
         {
+            const bytes = encoded.length * 2;
             const isQuota = (err && (err.name === "QuotaExceededError" || err.code === 22));
             const message = isQuota
-                ? `Autosave exceeded localStorage quota (${json.length.toLocaleString()} bytes). Reduce the lair size or save to a file.`
+                ? `Autosave exceeded localStorage quota (${bytes.toLocaleString()} bytes). Reduce the lair size or save to a file.`
                 : "Autosave write to localStorage failed.";
-            
+
             this.emitSaveFailed(message, err);
         }
     }
@@ -232,8 +365,17 @@ class SaveService extends Emitter
         const error = (cause instanceof Errors.SaveError)
             ? cause
             : new Errors.SaveError(message, cause ? { cause } : undefined);
-        
+
         this.emit("saveFailed", error);
+    }
+
+    emitLoadFailed(message, cause)
+    {
+        const error = (cause instanceof Errors.SaveError)
+            ? cause
+            : new Errors.SaveError(message, cause ? { cause } : undefined);
+
+        this.emit("loadFailed", error);
     }
 }
 

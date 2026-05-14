@@ -18,8 +18,9 @@ import { PLAYER_MARKER } from "../../scripts/modules/engine/player-marker.js";
 
 function makeAssets(kindMap = {})
 {
-    // Stub AssetManager: `get` returns an empty mesh for any kind; `getKind`
-    // and `getDisplayName` consult `kindMap`; `getAnimations` returns [].
+    // Stub AssetManager: `get` returns an empty mesh for any kind; `getKind`,
+    // `getDisplayName`, and `getMeta` consult `kindMap`; `getAnimations`
+    // returns [].
     return {
         get(_id) { return new THREE.Mesh(); },
         getKind(id)
@@ -29,6 +30,10 @@ function makeAssets(kindMap = {})
         getDisplayName(id)
         {
             return kindMap[id]?.displayName ?? null;
+        },
+        getMeta(id)
+        {
+            return kindMap[id]?.meta ?? {};
         },
         getAnimations(_id) { return []; }
     };
@@ -446,4 +451,159 @@ test("no toast emitted when viewModel is null — refusal still returns false", 
     // Doesn't throw.
     expect(editor.paintFloor(-1, 0)).toBe(false);
     expect(editor.eraseFloor(3, 3)).toBe(false);
+});
+
+
+/******************************************************************************/
+/* SURFACE PLACEMENT                                                          */
+/******************************************************************************/
+
+const SURFACE_KIND_MAP = {
+    "decor.table": {
+        kind: "decor.floor",
+        displayName: "Table",
+        meta: { surface: { surfaceY: 0.85 } }
+    },
+    "decor.candle.triple": {
+        kind: "decor.floor",
+        displayName: "Triple Candle",
+        meta: { placeableOnSurface: true }
+    },
+    "decor.bottles": {
+        kind: "decor.floor",
+        displayName: "Bottles",
+        meta: { placeableOnSurface: true }
+    },
+    "decor.chair": {
+        kind: "decor.floor",
+        displayName: "Chair"
+        // no meta — pure floor decor
+    }
+};
+
+
+test("findSurfaceAtCell returns the surface entity when one is present", () =>
+{
+    const { editor, world } = setup(SURFACE_KIND_MAP);
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.table", 3, 3);
+
+    const surface = editor.findSurfaceAtCell(3, 3);
+    expect(surface).not.toBeNull();
+    expect(surface.kind).toBe("decor.table");
+    expect(editor.findSurfaceAtCell(4, 4)).toBeNull();
+});
+
+
+test("getPlacementYFor returns the surface's surfaceY for a placeable kind on a surface cell", () =>
+{
+    const { editor } = setup(SURFACE_KIND_MAP);
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.table", 3, 3);
+
+    expect(editor.getPlacementYFor("decor.candle.triple", 3, 3)).toBe(0.85);
+});
+
+
+test("getPlacementYFor returns 0 for a placeable kind on a bare floor cell", () =>
+{
+    const { editor } = setup(SURFACE_KIND_MAP);
+    editor.paintFloor(3, 3);
+
+    expect(editor.getPlacementYFor("decor.candle.triple", 3, 3)).toBe(0);
+});
+
+
+test("getPlacementYFor returns 0 for a non-placeable kind on a surface cell", () =>
+{
+    const { editor } = setup(SURFACE_KIND_MAP);
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.table", 3, 3);
+
+    expect(editor.getPlacementYFor("decor.chair", 3, 3)).toBe(0);
+});
+
+
+test("canPlaceDecor allows a placeableOnSurface kind on a surface cell", () =>
+{
+    const { editor } = setup(SURFACE_KIND_MAP);
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.table", 3, 3);
+
+    expect(editor.canPlaceDecor("decor.candle.triple", 3, 3)).toBe(true);
+});
+
+
+test("canPlaceDecor refuses a placeableOnSurface kind when the surface already has one", () =>
+{
+    const { editor } = setup(SURFACE_KIND_MAP);
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.table", 3, 3);
+    editor.placeDecor("decor.candle.triple", 3, 3);
+
+    expect(editor.canPlaceDecor("decor.bottles", 3, 3)).toBe(false);
+});
+
+
+test("canPlaceDecor refuses a non-placeableOnSurface kind on a surface cell", () =>
+{
+    const { editor } = setup(SURFACE_KIND_MAP);
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.table", 3, 3);
+
+    expect(editor.canPlaceDecor("decor.chair", 3, 3)).toBe(false);
+});
+
+
+test("placeDecor of a placeableOnSurface kind on a surface cell sets surfaceY to the surface's height", () =>
+{
+    const { editor, world } = setup(SURFACE_KIND_MAP);
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.table", 3, 3);
+    editor.placeDecor("decor.candle.triple", 3, 3);
+
+    const candle = [...world.entities].find(e => e.kind === "decor.candle.triple");
+    expect(candle.getComponent(GridPlacement).surfaceY).toBe(0.85);
+});
+
+
+test("placeDecor of a placeableOnSurface kind on bare floor sets surfaceY to 0 (floor placement)", () =>
+{
+    const { editor, world } = setup(SURFACE_KIND_MAP);
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.candle.triple", 3, 3);
+
+    const candle = [...world.entities].find(e => e.kind === "decor.candle.triple");
+    expect(candle.getComponent(GridPlacement).surfaceY).toBe(0);
+    expect(candle.getComponent(GridPlacement).blocks).toBe(true);
+});
+
+
+test("removeDecor of a surface entity cascade-removes any placeables sitting on it", () =>
+{
+    const { editor, world } = setup(SURFACE_KIND_MAP);
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.table", 3, 3);
+    editor.placeDecor("decor.candle.triple", 3, 3);
+
+    const table = [...world.entities].find(e => e.kind === "decor.table");
+    expect(editor.removeDecor(table)).toBe(true);
+
+    expect([...world.entities].some(e => e.kind === "decor.table")).toBe(false);
+    expect([...world.entities].some(e => e.kind === "decor.candle.triple")).toBe(false);
+});
+
+
+test("removeDecor of a placeable directly leaves the surface intact", () =>
+{
+    const { editor, world } = setup(SURFACE_KIND_MAP);
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.table", 3, 3);
+    editor.placeDecor("decor.candle.triple", 3, 3);
+
+    const candle = [...world.entities].find(e => e.kind === "decor.candle.triple");
+    expect(editor.removeDecor(candle)).toBe(true);
+
+    expect([...world.entities].some(e => e.kind === "decor.candle.triple")).toBe(false);
+    expect([...world.entities].some(e => e.kind === "decor.table")).toBe(true);
 });

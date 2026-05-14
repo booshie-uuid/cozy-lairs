@@ -1,7 +1,4 @@
 import { test, expect, vi, beforeEach, afterEach } from "vitest";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
 
 import { World }            from "../../scripts/modules/world/world.js";
 import { Grid }             from "../../scripts/modules/world/grid.js";
@@ -13,9 +10,6 @@ import { Walker }           from "../../scripts/modules/world/components/walker.
 
 import * as WorldSerializer from "../../scripts/modules/world/world-serializer.js";
 
-
-const HERE         = dirname(fileURLToPath(import.meta.url));
-const FIXTURE_PATH = resolve(HERE, "../data/world/empty-room-6x8.json");
 
 const STUB_ASSETS = { get: () => { throw new Error("stub: no asset cache in test"); } };
 
@@ -34,33 +28,80 @@ function makeWorld()
 
 /* SHAPE / VERSION ************************************************************/
 
-test("toJSON returns a snapshot with the schema version and an entities array", () =>
+test("toJSON returns a v2 snapshot with kinds, components, and entities arrays", () =>
 {
     const snapshot = WorldSerializer.toJSON(makeWorld());
 
-    expect(snapshot.version).toBe(WorldSerializer.SCHEMA_VERSION);
-    expect(snapshot.version).toBe(1);
+    expect(snapshot.v).toBe(WorldSerializer.SCHEMA_VERSION);
+    expect(snapshot.v).toBe(2);
+    expect(Array.isArray(snapshot.kinds)).toBe(true);
+    expect(Array.isArray(snapshot.components)).toBe(true);
     expect(Array.isArray(snapshot.entities)).toBe(true);
     expect(snapshot.entities.length).toBe(0);
 });
 
 
-/* ROUND-TRIP — FIXTURE *******************************************************/
+/* DICT ENCODING **************************************************************/
 
-test("round-trip — fixture loads, re-serialises, deep-equals the original", () =>
+test("toJSON de-dupes kinds and components into dictionary tables", () =>
 {
-    const fixture = JSON.parse(readFileSync(FIXTURE_PATH, "utf8"));
-    const world   = makeWorld();
+    const world = makeWorld();
 
-    const result = WorldSerializer.fromJSON(world, fixture, STUB_ASSETS);
+    for(let cz = 0; cz < 3; cz++)
+    {
+        const floor = Entity.fromKind("floor.stone.basic", STUB_ASSETS);
+        floor.addComponent(new GridPlacement(0, cz, 0, { walkable: true }));
+        world.addEntity(floor);
+    }
 
-    expect(result.loaded).toBe(fixture.entities.length);
-    expect(result.skipped).toBe(0);
-    expect(result.warnings).toEqual([]);
+    const snapshot = WorldSerializer.toJSON(world);
 
-    const reSerialised = WorldSerializer.toJSON(world);
+    expect(snapshot.kinds).toContain("floor.stone.basic");
+    expect(snapshot.kinds.length).toBe(1);
 
-    expect(reSerialised).toEqual(fixture);
+    expect(snapshot.components).toContain("Renderable");
+    expect(snapshot.components).toContain("GridPlacement");
+
+    expect(snapshot.entities.length).toBe(3);
+    for(const record of snapshot.entities)
+    {
+        expect(record[0]).toBe(0);
+    }
+});
+
+
+/* ENUM ENCODING **************************************************************/
+
+test("toJSON encodes EdgePlacement.side as a small integer", () =>
+{
+    const world = makeWorld();
+
+    const wall = Entity.fromKind("wall.stone.straight", STUB_ASSETS);
+    wall.addComponent(new EdgePlacement(1, 1, "north", 0, 0));
+    world.addEntity(wall);
+
+    const snapshot = WorldSerializer.toJSON(world);
+    const edgeComponentIdx = snapshot.components.indexOf("EdgePlacement");
+    const edgeRecord = snapshot.entities[0][1].find(c => c[0] === edgeComponentIdx);
+
+    expect(typeof edgeRecord[1].side).toBe("number");
+    expect(edgeRecord[1].side).toBe(1);
+});
+
+test("toJSON encodes CornerPlacement.corner as a small integer", () =>
+{
+    const world = makeWorld();
+
+    const corner = Entity.fromKind("wall.stone.corner", STUB_ASSETS);
+    corner.addComponent(new CornerPlacement(2, 3, "NE"));
+    world.addEntity(corner);
+
+    const snapshot = WorldSerializer.toJSON(world);
+    const cornerComponentIdx = snapshot.components.indexOf("CornerPlacement");
+    const cornerRecord = snapshot.entities[0][1].find(c => c[0] === cornerComponentIdx);
+
+    expect(typeof cornerRecord[1].corner).toBe("number");
+    expect(cornerRecord[1].corner).toBe(1);
 });
 
 
@@ -90,7 +131,7 @@ test("round-trip — programmatically built world preserves entity count and com
     const snapshot = WorldSerializer.toJSON(source);
 
     const target = makeWorld();
-    const result = WorldSerializer.fromJSON(target, snapshot, STUB_ASSETS);
+    const result = WorldSerializer.fromJSONv2(target, snapshot, STUB_ASSETS);
 
     expect(result.loaded).toBe(4);
     expect(result.skipped).toBe(0);
@@ -100,43 +141,172 @@ test("round-trip — programmatically built world preserves entity count and com
 });
 
 
+test("round-trip — every side and corner enum value", () =>
+{
+    const source = makeWorld();
+
+    for(const side of ["south", "north", "west", "east"])
+    {
+        const wall = Entity.fromKind("wall.stone.straight", STUB_ASSETS);
+        wall.addComponent(new EdgePlacement(1, 1, side, 0, 0));
+        source.addEntity(wall);
+    }
+
+    for(const corner of ["NW", "NE", "SW", "SE"])
+    {
+        const piece = Entity.fromKind("wall.stone.corner", STUB_ASSETS);
+        piece.addComponent(new CornerPlacement(2, 2, corner));
+        source.addEntity(piece);
+    }
+
+    const snapshot = WorldSerializer.toJSON(source);
+
+    const target = makeWorld();
+    WorldSerializer.fromJSONv2(target, snapshot, STUB_ASSETS);
+
+    expect(WorldSerializer.toJSON(target)).toEqual(snapshot);
+
+    const sidesInTarget = Array.from(target.entities)
+        .map(e => e.getComponent(EdgePlacement))
+        .filter(c => c !== undefined)
+        .map(c => c.side);
+    expect(sidesInTarget.sort()).toEqual(["east", "north", "south", "west"]);
+
+    const cornersInTarget = Array.from(target.entities)
+        .map(e => e.getComponent(CornerPlacement))
+        .filter(c => c !== undefined)
+        .map(c => c.corner);
+    expect(cornersInTarget.sort()).toEqual(["NE", "NW", "SE", "SW"]);
+});
+
+
 /* CLEAR-ON-LOAD **************************************************************/
 
-test("fromJSON clears existing entities before reconstruction", () =>
+test("fromJSONv2 clears existing entities before reconstruction", () =>
 {
     const world  = makeWorld();
     const stale  = Entity.fromKind("floor.stone.basic", STUB_ASSETS);
     world.addEntity(stale);
     expect(world.entities.size).toBe(1);
 
-    const snapshot = { version: 1, entities: [] };
-    const result   = WorldSerializer.fromJSON(world, snapshot, STUB_ASSETS);
+    const snapshot = { v: 2, kinds: [], components: [], entities: [] };
+    const result   = WorldSerializer.fromJSONv2(world, snapshot, STUB_ASSETS);
 
     expect(result.loaded).toBe(0);
     expect(world.entities.size).toBe(0);
 });
 
 
-/* WARNINGS — UNKNOWN COMPONENT ***********************************************/
+/* WALLTRACER RECONCILIATION VIA ENTITY EVENTS ********************************/
 
-test("fromJSON records a warning for unknown component classes and continues loading", () =>
+test("fromJSONv2 fires entityAdded for every reconstructed entity", () =>
+{
+    const source = makeWorld();
+    for(let i = 0; i < 3; i++)
+    {
+        const floor = Entity.fromKind("floor.stone.basic", STUB_ASSETS);
+        floor.addComponent(new GridPlacement(i, 0, 0, { walkable: true }));
+        source.addEntity(floor);
+    }
+
+    const snapshot = WorldSerializer.toJSON(source);
+
+    const target = makeWorld();
+    const addedEvents = [];
+    target.on("entityAdded", e => addedEvents.push(e));
+
+    WorldSerializer.fromJSONv2(target, snapshot, STUB_ASSETS);
+
+    expect(addedEvents.length).toBe(3);
+});
+
+
+/* SURFACE Y ROUND-TRIP *******************************************************/
+
+test("round-trip preserves GridPlacement.surfaceY through toJSON / fromJSONv2", () =>
+{
+    const source = makeWorld();
+
+    const candle = Entity.fromKind("decor.candle.triple", STUB_ASSETS);
+    candle.addComponent(new GridPlacement(2, 3, 0, { surfaceY: 0.85 }));
+    source.addEntity(candle);
+
+    const snapshot = WorldSerializer.toJSON(source);
+
+    const target = makeWorld();
+    WorldSerializer.fromJSONv2(target, snapshot, STUB_ASSETS);
+
+    const restored = Array.from(target.entities)[0];
+    expect(restored.getComponent(GridPlacement).surfaceY).toBe(0.85);
+});
+
+
+/* SKIP KINDS *****************************************************************/
+
+test("toJSON skips entities whose kind appears in options.skipKinds", () =>
+{
+    const world = makeWorld();
+
+    const floor = Entity.fromKind("floor.stone.basic", STUB_ASSETS);
+    floor.addComponent(new GridPlacement(2, 3, 0, { walkable: true }));
+    world.addEntity(floor);
+
+    const wall = Entity.fromKind("wall.stone.straight", STUB_ASSETS);
+    wall.addComponent(new EdgePlacement(2, 3, "north", 0, 0));
+    world.addEntity(wall);
+
+    const snapshot = WorldSerializer.toJSON(world, { skipKinds: ["wall.stone.straight"] });
+
+    expect(snapshot.kinds).not.toContain("wall.stone.straight");
+    expect(snapshot.entities.length).toBe(1);
+});
+
+
+test("fromJSONv2 skips entities whose kind appears in options.skipKinds", () =>
 {
     const snapshot =
     {
-        version: 1,
+        v:          2,
+        kinds:      ["floor.stone.basic", "wall.stone.straight"],
+        components: ["GridPlacement", "EdgePlacement"],
         entities:
-        [{
-            kind: "floor.stone.basic",
-            components:
-            {
-                GridPlacement:    { cx: 1, cz: 1, rotationStep: 0 },
-                MysteryComponent: { foo: "bar" }
-            }
-        }]
+        [
+            [0, [[0, { cx: 1, cz: 1, rotationStep: 0, walkable: true }]]],
+            [1, [[1, { cx: 1, cz: 1, side: 1, lengthOffset: 0, originOffset: 0 }]]]
+        ]
     };
 
     const world  = makeWorld();
-    const result = WorldSerializer.fromJSON(world, snapshot, STUB_ASSETS);
+    const result = WorldSerializer.fromJSONv2(world, snapshot, STUB_ASSETS, { skipKinds: ["wall.stone.straight"] });
+
+    expect(result.loaded).toBe(1);
+    expect(world.entities.size).toBe(1);
+    const kindsInWorld = [...world.entities].map(e => e.kind);
+    expect(kindsInWorld).toEqual(["floor.stone.basic"]);
+});
+
+
+/* WARNINGS — UNKNOWN COMPONENT ***********************************************/
+
+test("fromJSONv2 records a warning for unknown component classes and continues loading", () =>
+{
+    const snapshot =
+    {
+        v: 2,
+        kinds:      ["floor.stone.basic"],
+        components: ["GridPlacement", "MysteryComponent"],
+        entities:
+        [[
+            0,
+            [
+                [0, { cx: 1, cz: 1, rotationStep: 0 }],
+                [1, { foo: "bar" }]
+            ]
+        ]]
+    };
+
+    const world  = makeWorld();
+    const result = WorldSerializer.fromJSONv2(world, snapshot, STUB_ASSETS);
 
     expect(result.loaded).toBe(1);
     expect(result.warnings.length).toBe(1);
@@ -151,68 +321,71 @@ test("fromJSON records a warning for unknown component classes and continues loa
 });
 
 
-/* WARNINGS — MISSING KIND ****************************************************/
+/* WARNINGS — UNKNOWN KIND INDEX **********************************************/
 
-test("fromJSON skips records missing a string `kind` and records a warning", () =>
+test("fromJSONv2 skips records with an out-of-range kind index and records a warning", () =>
 {
     const snapshot =
     {
-        version: 1,
+        v:          2,
+        kinds:      ["floor.stone.basic"],
+        components: [],
         entities:
         [
-            { components: {} },
-            { kind: 42, components: {} },
-            { kind: "floor.stone.basic", components: {} }
+            [99, []],
+            [0,  []]
         ]
     };
 
     const world  = makeWorld();
-    const result = WorldSerializer.fromJSON(world, snapshot, STUB_ASSETS);
+    const result = WorldSerializer.fromJSONv2(world, snapshot, STUB_ASSETS);
 
     expect(result.loaded).toBe(1);
-    expect(result.skipped).toBe(2);
-    expect(result.warnings.length).toBe(2);
+    expect(result.skipped).toBe(1);
+    expect(result.warnings.length).toBe(1);
 });
 
 
 /* WARNINGS — INVALID SNAPSHOT ************************************************/
 
-test("fromJSON records a warning when the snapshot has no entities array", () =>
+test("fromJSONv2 records a warning when the snapshot is null or has the wrong version", () =>
 {
     const world = makeWorld();
 
-    const r1 = WorldSerializer.fromJSON(world, null, STUB_ASSETS);
+    const r1 = WorldSerializer.fromJSONv2(world, null, STUB_ASSETS);
     expect(r1.loaded).toBe(0);
     expect(r1.warnings.length).toBe(1);
 
-    const r2 = WorldSerializer.fromJSON(world, { version: 1 }, STUB_ASSETS);
+    const r2 = WorldSerializer.fromJSONv2(world, { v: 1, entities: [] }, STUB_ASSETS);
     expect(r2.loaded).toBe(0);
     expect(r2.warnings.length).toBe(1);
+
+    const r3 = WorldSerializer.fromJSONv2(world, { v: 2 }, STUB_ASSETS);
+    expect(r3.loaded).toBe(0);
+    expect(r3.warnings.length).toBe(1);
 });
 
 
 /* RENDERABLE NOT DUPLICATED **************************************************/
 
-test("fromJSON does not duplicate Renderable when the snapshot includes it", () =>
+test("fromJSONv2 does not duplicate Renderable when the snapshot includes it", () =>
 {
     const snapshot =
     {
-        version: 1,
+        v:          2,
+        kinds:      ["floor.stone.basic"],
+        components: ["Renderable"],
         entities:
-        [{
-            kind: "floor.stone.basic",
-            components:
-            {
-                Renderable: { kind: "floor.stone.basic" }
-            }
-        }]
+        [
+            [0, [[0, { kind: "floor.stone.basic" }]]]
+        ]
     };
 
     const world  = makeWorld();
-    const result = WorldSerializer.fromJSON(world, snapshot, STUB_ASSETS);
+    const result = WorldSerializer.fromJSONv2(world, snapshot, STUB_ASSETS);
 
     expect(result.loaded).toBe(1);
-    const entity = Array.from(world.entities)[0];
+    const entity           = Array.from(world.entities)[0];
     const componentClasses = Array.from(entity.components.keys());
     const renderableCount  = componentClasses.filter(K => K.name === "Renderable").length;
     expect(renderableCount).toBe(1);

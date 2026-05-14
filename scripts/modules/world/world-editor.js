@@ -1,4 +1,5 @@
 import { Entity }          from "./entity.js";
+import { Transform }       from "./components/transform.js";
 import { GridPlacement }   from "./components/grid-placement.js";
 import { EdgePlacement }   from "./components/edge-placement.js";
 import { Walker }          from "./components/walker.js";
@@ -80,16 +81,32 @@ class WorldEditor
         return true;
     }
 
-    canPlaceDecor(_kind, cx, cz)
+    canPlaceDecor(kind, cx, cz)
     {
         const grid = this.world.grid;
-        if(!grid.isInBounds(cx, cz))         { return false; }
-        if(!grid.isFloor(cx, cz))            { return false; }
-        if(grid.blockedCells.has(grid.cellKey(cx, cz))) { return false; }
+        if(!grid.isInBounds(cx, cz)) { return false; }
+        if(!grid.isFloor(cx, cz))    { return false; }
 
         const occupant = grid.getOccupant(cx, cz);
         if(occupant === PLAYER_MARKER)    { return false; }
         if(this.isWalkerEntity(occupant)) { return false; }
+
+        // Surface-placement branch: if the kind opts in AND a surface
+        // already sits at this cell, allow the placement provided no
+        // other surface-placeable is already there (V5 one-per-surface
+        // rule, lifted when nudging arrives).
+        const kindMeta = this.assets.getMeta(kind);
+        if(kindMeta && kindMeta.placeableOnSurface)
+        {
+            const surface = this.findSurfaceAtCell(cx, cz);
+            if(surface)
+            {
+                return this.findSurfacePlaceablesAtCell(cx, cz).length === 0;
+            }
+        }
+
+        // Floor-placement branch: cell must not already be blocked.
+        if(grid.blockedCells.has(grid.cellKey(cx, cz))) { return false; }
         return true;
     }
 
@@ -182,8 +199,15 @@ class WorldEditor
             return false;
         }
 
+        const surfaceY = this.getPlacementYFor(kind, cx, cz);
+
+        // Floor-placed decor blocks its cell. Surface-placed decor doesn't —
+        // the surface beneath it owns the blocking, so the cascade-on-surface-
+        // removal path can clear blockedCells exactly once.
+        const blocks = (surfaceY === 0);
+
         const entity = Entity.fromKind(kind, this.assets);
-        entity.addComponent(new GridPlacement(cx, cz, rotationStep, { blocks: true }));
+        entity.addComponent(new GridPlacement(cx, cz, rotationStep, { blocks, surfaceY }));
         this.world.addEntity(entity);
         return true;
     }
@@ -212,6 +236,23 @@ class WorldEditor
     removeDecor(entity)
     {
         if(!this.isPlacedDecor(entity)) { return false; }
+
+        // Cascade: removing a surface drops anything sitting on it. Cascade
+        // first so the placeables go before their support; matches the wall-
+        // decor cascade pattern in WallTracer.
+        const meta = this.assets.getMeta(entity.kind);
+        if(meta && meta.surface)
+        {
+            const placement = entity.getComponent(GridPlacement);
+            if(placement)
+            {
+                for(const placeable of this.findSurfacePlaceablesAtCell(placement.cx, placement.cz))
+                {
+                    this.world.removeEntity(placeable);
+                }
+            }
+        }
+
         this.world.removeEntity(entity);
         return true;
     }
@@ -268,6 +309,10 @@ class WorldEditor
     buildMinionEntity(kind)
     {
         const minion = Entity.fromKind(kind, this.assets);
+        // Transform first so it round-trips position: at load Walker reads
+        // object3D.position in onAddedToWorld, which must already be set by
+        // Transform.applyJSON. Component order is insertion order.
+        minion.addComponent(new Transform());
         minion.addComponent(new Walker({ speed: MINION_SPEED }));
 
         const animations = this.collectMinionAnimations(kind);
@@ -278,6 +323,40 @@ class WorldEditor
 
         minion.addComponent(new WanderBehaviour());
         return minion;
+    }
+
+    rehydrateMinion(entity)
+    {
+        // Walker + Transform survive a save round-trip (both have toJSON);
+        // Animator and WanderBehaviour don't, so re-attach them and run
+        // their onAddedToWorld manually (the entity is already in the
+        // world by the time rehydration happens).
+        if(!this.isMinionEntity(entity)) { return false; }
+
+        if(!entity.hasComponent(Animator))
+        {
+            const animations = this.collectMinionAnimations(entity.kind);
+            if(animations.length > 0)
+            {
+                const animator = entity.addComponent(new Animator({ clipMap: MINION_CLIPS, animations }));
+                if(typeof animator.onAddedToWorld === "function")
+                {
+                    animator.onAddedToWorld(this.world);
+                }
+                animator.crossfade("idle");
+            }
+        }
+
+        if(!entity.hasComponent(WanderBehaviour))
+        {
+            const wander = entity.addComponent(new WanderBehaviour());
+            if(typeof wander.onAddedToWorld === "function")
+            {
+                wander.onAddedToWorld(this.world);
+            }
+        }
+
+        return true;
     }
 
     collectMinionAnimations(kind)
@@ -311,12 +390,53 @@ class WorldEditor
         for(const entity of this.world.entities)
         {
             const placement = entity.getComponent(GridPlacement);
-            if(placement && placement.blocks && placement.cx === cx && placement.cz === cz && !this.isBlockEntity(entity))
-            {
-                found.push(entity);
-            }
+            if(!placement) { continue; }
+            if(placement.cx !== cx || placement.cz !== cz) { continue; }
+            // Decor is anything with a GridPlacement that either blocks
+            // (floor decor + surfaces) or sits on a surface (surfaceY > 0).
+            // Excludes terrain blocks and floor entities.
+            if(this.isBlockEntity(entity)) { continue; }
+            if(!placement.blocks && placement.surfaceY === 0) { continue; }
+            found.push(entity);
         }
         return found;
+    }
+
+    findSurfaceAtCell(cx, cz)
+    {
+        for(const entity of this.findDecorAtCell(cx, cz))
+        {
+            const meta = this.assets.getMeta(entity.kind);
+            if(meta && meta.surface) { return entity; }
+        }
+        return null;
+    }
+
+    findSurfacePlaceablesAtCell(cx, cz)
+    {
+        const found = [];
+        for(const entity of this.world.entities)
+        {
+            const placement = entity.getComponent(GridPlacement);
+            if(!placement) { continue; }
+            if(placement.cx !== cx || placement.cz !== cz) { continue; }
+            if(placement.surfaceY > 0) { found.push(entity); }
+        }
+        return found;
+    }
+
+    getPlacementYFor(kind, cx, cz)
+    {
+        const kindMeta = this.assets.getMeta(kind);
+        if(!kindMeta || !kindMeta.placeableOnSurface) { return 0; }
+
+        const surface = this.findSurfaceAtCell(cx, cz);
+        if(!surface) { return 0; }
+
+        const surfaceMeta = this.assets.getMeta(surface.kind);
+        return (surfaceMeta && surfaceMeta.surface && typeof surfaceMeta.surface.surfaceY === "number")
+            ? surfaceMeta.surface.surfaceY
+            : 0;
     }
 
     findBlockAtCell(cx, cz)
@@ -399,7 +519,7 @@ class WorldEditor
     {
         if(!entity || typeof entity.getComponent !== "function") { return false; }
         const gp = entity.getComponent(GridPlacement);
-        if(gp && gp.blocks) { return true; }
+        if(gp && (gp.blocks || gp.surfaceY > 0)) { return true; }
         if(this.isWallDecor(entity)) { return true; }
         return false;
     }

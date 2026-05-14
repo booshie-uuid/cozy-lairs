@@ -1,6 +1,7 @@
-import { DevConsoleViewModel } from "../engine/dev/dev-console-view-model.js";
-import { ToastQueue }          from "./toast-queue.js";
-import { AuthoringPanel }      from "./authoring-panel.js";
+import { DevConsoleViewModel }  from "../engine/dev/dev-console-view-model.js";
+import { ToastQueue }           from "./toast-queue.js";
+import { AuthoringPanel }       from "./authoring-panel.js";
+import { ConfirmModalViewModel } from "./confirm-modal.js";
 
 
 const ko = window.ko;
@@ -21,6 +22,11 @@ const ko = window.ko;
 const MIN_VIEWPORT_WIDTH  = 1024;
 const MIN_VIEWPORT_HEIGHT = 640;
 
+// How long the save-status chip stays visible after a save / autosave /
+// failure event before fading out. Tuned to be long enough to read but short
+// enough that the chip isn't a permanent fixture once the user moves on.
+const SAVE_STATUS_VISIBLE_MS = 3500;
+
 
 class AppViewModel
 {
@@ -33,7 +39,9 @@ class AppViewModel
         this.isReady = ko.observable(false);
 
         this.cameraMode = ko.observable("builder");
-        this.saveStatus = ko.observable("saved");
+        this.saveStatus = ko.observable("");
+        this.saveStatusVisible = ko.observable(false);
+        this.saveStatusFadeTimer = null;
         this.catalogueIcons = ko.observable(new Map());
         this.authoringPanel = ko.observable(null);
         this.controlsDismissed = ko.observable(false);
@@ -42,6 +50,8 @@ class AppViewModel
 
         this.toasts = ko.observableArray([]);
         this.toastQueue = new ToastQueue(this.toasts);
+
+        this.confirmModal = new ConfirmModalViewModel();
 
         const initialViewport = (typeof window !== "undefined")
             ? { width: window.innerWidth, height: window.innerHeight }
@@ -78,6 +88,22 @@ class AppViewModel
     toast(message, level = "info")
     {
         return this.toastQueue.push(message, level);
+    }
+
+    flashSaveStatus(message)
+    {
+        this.saveStatus(message);
+        this.saveStatusVisible(true);
+
+        if(this.saveStatusFadeTimer !== null)
+        {
+            clearTimeout(this.saveStatusFadeTimer);
+        }
+        this.saveStatusFadeTimer = setTimeout(() =>
+        {
+            this.saveStatusVisible(false);
+            this.saveStatusFadeTimer = null;
+        }, SAVE_STATUS_VISIBLE_MS);
     }
 
     installAuthoringPanel(assets)
