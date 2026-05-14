@@ -11,6 +11,9 @@ yarn-error.log*
 coverage/
 .nyc_output/
 
+# Deploy bundle output (.project/package-deploy.js)
+.project/deploy/
+
 # OS metadata
 .DS_Store
 Thumbs.db
