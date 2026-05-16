@@ -1,5 +1,6 @@
 import { Walker }       from "./walker.js";
 import * as Pathfinder  from "../../engine/pathfinding/index.js";
+import * as WalkSearch  from "../walk-search.js";
 
 
 /*
@@ -135,7 +136,7 @@ class WanderBehaviour
 
         if(!startTraversable)
         {
-            const free = this.findNearestTraversable(currentSub, isTraversable);
+            const free = WalkSearch.findNearestTraversable(this.world.walkGrid, currentSub, isTraversable);
             if(free)
             {
                 this.rescueWarned = false;
@@ -263,36 +264,6 @@ class WanderBehaviour
         return { sx: centre.sx + dsx, sz: centre.sz + dsz };
     }
 
-    findNearestTraversable(start, isTraversable)
-    {
-        const walkGrid = this.world.walkGrid;
-        const visited = new Set();
-        const queue = [{ sx: start.sx, sz: start.sz }];
-        visited.add(`${start.sx},${start.sz}`);
-
-        const NEIGHBOURS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-
-        while(queue.length > 0)
-        {
-            const cell = queue.shift();
-            if(walkGrid.isInBounds(cell.sx, cell.sz) && isTraversable(cell.sx, cell.sz))
-            {
-                return cell;
-            }
-            for(const [dsx, dsz] of NEIGHBOURS)
-            {
-                const nsx = cell.sx + dsx;
-                const nsz = cell.sz + dsz;
-                if(!walkGrid.isInBounds(nsx, nsz)) { continue; }
-                const key = `${nsx},${nsz}`;
-                if(visited.has(key)) { continue; }
-                visited.add(key);
-                queue.push({ sx: nsx, sz: nsz });
-            }
-        }
-
-        return null;
-    }
 }
 
 export { WanderBehaviour };

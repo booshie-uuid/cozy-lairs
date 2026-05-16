@@ -17,7 +17,8 @@ import {
     NoopTool
 } from "../../scripts/modules/builder/tools/minion-tools.js";
 
-import { SelectTool }    from "../../scripts/modules/builder/tools/select-tool.js";
+import { NudgeTool }     from "../../scripts/modules/builder/tools/nudge-tool.js";
+import { PickTool }      from "../../scripts/modules/builder/tools/pick-tool.js";
 
 import { Entity }        from "../../scripts/modules/world/entity.js";
 import { Walker }        from "../../scripts/modules/world/components/walker.js";
@@ -246,6 +247,46 @@ test("DecorPlaceTool sends the current rotationStep to placeDecor", () =>
 });
 
 
+test("DecorPlaceTool with consumePickup that returns true skips the regular placeDecor call", () =>
+{
+    /* When a held pickup consumes the click, the tool must not also place
+     * a fresh entity — single-shot semantics depend on the consumer being
+     * the only thing that runs. */
+    const consumePickup = vi.fn(() => true);
+    const tool = new DecorPlaceTool({ kind: "decor.crate", consumePickup });
+    const { editor } = activate(tool);
+
+    tool.onCellClick({ cx: 3, cz: 4 }, "left");
+
+    expect(consumePickup).toHaveBeenCalledWith("decor.crate", 3, 4);
+    expect(editor.placeDecor).not.toHaveBeenCalled();
+});
+
+
+test("DecorPlaceTool falls through to placeDecor when consumePickup returns false", () =>
+{
+    const consumePickup = vi.fn(() => false);
+    const tool = new DecorPlaceTool({ kind: "decor.crate", consumePickup });
+    const { editor } = activate(tool);
+
+    tool.onCellClick({ cx: 3, cz: 4 }, "left");
+
+    expect(consumePickup).toHaveBeenCalledWith("decor.crate", 3, 4);
+    expect(editor.placeDecor).toHaveBeenCalledWith("decor.crate", 3, 4, 0);
+});
+
+
+test("DecorPlaceTool without consumePickup always falls through to placeDecor (back-compat)", () =>
+{
+    const tool = new DecorPlaceTool({ kind: "decor.crate" });
+    const { editor } = activate(tool);
+
+    tool.onCellClick({ cx: 3, cz: 4 }, "left");
+
+    expect(editor.placeDecor).toHaveBeenCalledWith("decor.crate", 3, 4, 0);
+});
+
+
 /******************************************************************************/
 /* DECOR ERASE                                                                */
 /******************************************************************************/
@@ -340,6 +381,31 @@ test("MinionSpawnTool dispatches to spawnMinion with the configured kind", () =>
 });
 
 
+test("MinionSpawnTool with consumePickup that returns true skips the regular spawnMinion call", () =>
+{
+    const consumePickup = vi.fn(() => true);
+    const tool = new MinionSpawnTool({ kind: "character.skeleton.minion", consumePickup });
+    const { editor } = activate(tool);
+
+    tool.onCellClick({ cx: 1, cz: 2 }, "left");
+
+    expect(consumePickup).toHaveBeenCalledWith("character.skeleton.minion", 1, 2);
+    expect(editor.spawnMinion).not.toHaveBeenCalled();
+});
+
+
+test("MinionSpawnTool falls through to spawnMinion when consumePickup returns false", () =>
+{
+    const consumePickup = vi.fn(() => false);
+    const tool = new MinionSpawnTool({ kind: "character.skeleton.minion", consumePickup });
+    const { editor } = activate(tool);
+
+    tool.onCellClick({ cx: 1, cz: 2 }, "left");
+
+    expect(editor.spawnMinion).toHaveBeenCalledWith("character.skeleton.minion", 1, 2);
+});
+
+
 test("MinionEraseTool dispatches to removeMinion when a walker entity is at the cell", () =>
 {
     const minion = new Entity("character.skeleton.minion", new THREE.Object3D());
@@ -370,7 +436,7 @@ test("MinionEraseTool ignores cells without a walker", () =>
 
 
 /******************************************************************************/
-/* SELECT TOOL                                                                */
+/* NUDGE TOOL                                                                 */
 /******************************************************************************/
 
 function makeSelectableEntity(kind = "decor.crate")
@@ -387,9 +453,9 @@ function makeSelectableEntity(kind = "decor.crate")
 }
 
 
-test("SelectTool has targetType 'entity' and no ghost mesh", () =>
+test("NudgeTool has targetType 'entity' and no ghost mesh", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     const { scene } = activate(tool);
 
     expect(tool.targetType).toBe("entity");
@@ -398,9 +464,9 @@ test("SelectTool has targetType 'entity' and no ghost mesh", () =>
 });
 
 
-test("SelectTool.onEntityClick selects the entity and applies emissive highlight", () =>
+test("NudgeTool.onEntityClick selects the entity and applies emissive highlight", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     activate(tool);
     const entity = makeSelectableEntity();
     const originalMaterial = entity.object3D.children[0].material;
@@ -415,9 +481,9 @@ test("SelectTool.onEntityClick selects the entity and applies emissive highlight
 });
 
 
-test("SelectTool.onEntityClick ignores non-left buttons", () =>
+test("NudgeTool.onEntityClick ignores non-left buttons", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     activate(tool);
     const entity = makeSelectableEntity();
 
@@ -426,9 +492,9 @@ test("SelectTool.onEntityClick ignores non-left buttons", () =>
 });
 
 
-test("SelectTool.onEntityClick(null) deselects", () =>
+test("NudgeTool.onEntityClick(null) deselects", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     activate(tool);
     const entity = makeSelectableEntity();
     tool.onEntityClick(entity, "left");
@@ -439,9 +505,9 @@ test("SelectTool.onEntityClick(null) deselects", () =>
 });
 
 
-test("SelectTool clicking a non-nudgeable entity (floor / wall) deselects rather than selecting", () =>
+test("NudgeTool clicking a non-nudgeable entity (floor / wall) deselects rather than selecting", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     /* Editor reports the entity as non-nudgeable — mimics how floors,
      * walls, and minions are filtered out today. */
     const editor = makeStubEditor({ isNudgeable: vi.fn(() => false) });
@@ -457,9 +523,9 @@ test("SelectTool clicking a non-nudgeable entity (floor / wall) deselects rather
 });
 
 
-test("SelectTool clicking a non-nudgeable entity while another is selected drops the active selection", () =>
+test("NudgeTool clicking a non-nudgeable entity while another is selected drops the active selection", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     /* Per-entity eligibility: barrel nudgeable, floor not. */
     const editor = makeStubEditor({
         isNudgeable: vi.fn(entity => entity.kind === "decor.barrel")
@@ -479,9 +545,9 @@ test("SelectTool clicking a non-nudgeable entity while another is selected drops
 });
 
 
-test("SelectTool re-selection restores the first entity's material before highlighting the next", () =>
+test("NudgeTool re-selection restores the first entity's material before highlighting the next", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     activate(tool);
 
     const first  = makeSelectableEntity("decor.crate");
@@ -497,9 +563,9 @@ test("SelectTool re-selection restores the first entity's material before highli
 });
 
 
-test("SelectTool.deselect restores all swapped materials", () =>
+test("NudgeTool.deselect restores all swapped materials", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     activate(tool);
     const entity = makeSelectableEntity();
     const originalMaterial = entity.object3D.children[0].material;
@@ -513,9 +579,9 @@ test("SelectTool.deselect restores all swapped materials", () =>
 });
 
 
-test("SelectTool.deactivate deselects before tearing down", () =>
+test("NudgeTool.deactivate deselects before tearing down", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     activate(tool);
     const entity = makeSelectableEntity();
     const originalMaterial = entity.object3D.children[0].material;
@@ -528,9 +594,9 @@ test("SelectTool.deactivate deselects before tearing down", () =>
 });
 
 
-test("SelectTool.nudge delegates to editor.nudgeEntity with the active selection + deltas", () =>
+test("NudgeTool.nudge delegates to editor.nudgeEntity with the active selection + deltas", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     const editor = makeStubEditor({ nudgeEntity: vi.fn(() => true) });
     activate(tool, editor);
 
@@ -543,9 +609,9 @@ test("SelectTool.nudge delegates to editor.nudgeEntity with the active selection
 });
 
 
-test("SelectTool.nudge with no selection is a no-op and returns false", () =>
+test("NudgeTool.nudge with no selection is a no-op and returns false", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     const editor = makeStubEditor({ nudgeEntity: vi.fn(() => true) });
     activate(tool, editor);
 
@@ -554,9 +620,9 @@ test("SelectTool.nudge with no selection is a no-op and returns false", () =>
 });
 
 
-test("SelectTool.nudge on a removed entity self-deselects", () =>
+test("NudgeTool.nudge on a removed entity self-deselects", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     const editor = makeStubEditor({ nudgeEntity: vi.fn(() => true) });
     activate(tool, editor);
 
@@ -572,9 +638,9 @@ test("SelectTool.nudge on a removed entity self-deselects", () =>
 });
 
 
-test("SelectTool skips materials without an emissive channel (MeshBasicMaterial placeholders)", () =>
+test("NudgeTool skips materials without an emissive channel (MeshBasicMaterial placeholders)", () =>
 {
-    const tool = new SelectTool();
+    const tool = new NudgeTool();
     activate(tool);
 
     const root = new THREE.Group();
@@ -592,4 +658,95 @@ test("SelectTool skips materials without an emissive channel (MeshBasicMaterial 
     /* Selected, but no swap happened — original material still in place. */
     expect(tool.selected).toBe(entity);
     expect(basic.material).toBe(originalMaterial);
+});
+
+
+/******************************************************************************/
+/* PICK TOOL                                                                  */
+/******************************************************************************/
+
+test("PickTool has targetType 'entity' and no ghost mesh", () =>
+{
+    const tool = new PickTool();
+    const { scene } = activate(tool);
+
+    expect(tool.targetType).toBe("entity");
+    expect(tool.ghostMesh).toBe(null);
+    expect(scene.children.length).toBe(0);
+});
+
+
+test("PickTool.onEntityClick delegates to editor.pickUpEntity and fires onPicked with the snapshot", () =>
+{
+    const snapshot = { kind: "decor.crate", originCx: 3, originCz: 3 };
+    const onPicked = vi.fn();
+    const editor = makeStubEditor({
+        isPickupable: vi.fn(() => true),
+        pickUpEntity: vi.fn(() => snapshot)
+    });
+
+    const tool = new PickTool({ onPicked });
+    activate(tool, editor);
+
+    const entity = new Entity("decor.crate", new THREE.Object3D());
+    tool.onEntityClick(entity, "left");
+
+    expect(editor.pickUpEntity).toHaveBeenCalledWith(entity);
+    expect(onPicked).toHaveBeenCalledWith(snapshot);
+});
+
+
+test("PickTool.onEntityClick ignores non-left buttons", () =>
+{
+    const onPicked = vi.fn();
+    const editor = makeStubEditor({
+        isPickupable: vi.fn(() => true),
+        pickUpEntity: vi.fn(() => ({ kind: "decor.crate" }))
+    });
+
+    const tool = new PickTool({ onPicked });
+    activate(tool, editor);
+
+    const entity = new Entity("decor.crate", new THREE.Object3D());
+    tool.onEntityClick(entity, "right");
+
+    expect(editor.pickUpEntity).not.toHaveBeenCalled();
+    expect(onPicked).not.toHaveBeenCalled();
+});
+
+
+test("PickTool.onEntityClick skips non-pickupable entities", () =>
+{
+    const onPicked = vi.fn();
+    const editor = makeStubEditor({
+        isPickupable: vi.fn(() => false),
+        pickUpEntity: vi.fn()
+    });
+
+    const tool = new PickTool({ onPicked });
+    activate(tool, editor);
+
+    const entity = new Entity("floor.stone.basic", new THREE.Object3D());
+    tool.onEntityClick(entity, "left");
+
+    expect(editor.pickUpEntity).not.toHaveBeenCalled();
+    expect(onPicked).not.toHaveBeenCalled();
+});
+
+
+test("PickTool.onEntityClick skips when editor.pickUpEntity returns null", () =>
+{
+    /* Defensive: even if a tool's eligibility predicate says yes, the editor
+     * has the final say (e.g. concurrent removal). */
+    const onPicked = vi.fn();
+    const editor = makeStubEditor({
+        isPickupable: vi.fn(() => true),
+        pickUpEntity: vi.fn(() => null)
+    });
+
+    const tool = new PickTool({ onPicked });
+    activate(tool, editor);
+
+    tool.onEntityClick(new Entity("decor.crate", new THREE.Object3D()), "left");
+    expect(onPicked).not.toHaveBeenCalled();
 });

@@ -103,31 +103,75 @@ test("selectTab updates the active tab", () =>
 });
 
 
-/******************************************************************************/
-/* TOOL SELECTION                                                             */
-/******************************************************************************/
-
-test("initial selected tool id is null", () =>
+test("selectTab clears the selected kind and tool id", () =>
 {
     const { panel } = setup();
+    panel.selectKindAndArmBuild("decor.barrel", "decor");
+    expect(panel.selectedKind()).toBe("decor.barrel");
+    expect(panel.selectedToolId()).toBe("decor:build:decor.barrel");
+
+    panel.selectTab("minions");
+    expect(panel.selectedKind()).toBe(null);
     expect(panel.selectedToolId()).toBe(null);
 });
 
 
-test("selectTool updates the selected tool id observable", () =>
+/******************************************************************************/
+/* TOOL + KIND SELECTION                                                      */
+/******************************************************************************/
+
+test("initial selectedToolId and selectedKind are null", () =>
 {
     const { panel } = setup();
-    panel.selectTool("build:paint");
-    expect(panel.selectedToolId()).toBe("build:paint");
+    expect(panel.selectedToolId()).toBe(null);
+    expect(panel.selectedKind()).toBe(null);
 });
 
 
-test("isToolSelected returns true for the active tool only", () =>
+test("selectKindAndArmBuild writes both kind and tool id atomically", () =>
 {
     const { panel } = setup();
-    panel.selectTool("build:paint");
-    expect(panel.isToolSelected("build:paint")).toBe(true);
-    expect(panel.isToolSelected("build:erase")).toBe(false);
+    panel.selectKindAndArmBuild("decor.barrel", "decor");
+    expect(panel.selectedKind()).toBe("decor.barrel");
+    expect(panel.selectedToolId()).toBe("decor:build:decor.barrel");
+});
+
+
+test("selectKindAndArmBuild composes the tool id from tab + verb + kind", () =>
+{
+    const { panel } = setup();
+    panel.selectKindAndArmBuild("terrain.block.basic", "build");
+    expect(panel.selectedToolId()).toBe("build:build:terrain.block.basic");
+
+    panel.selectKindAndArmBuild("character.skeleton.minion", "minion");
+    expect(panel.selectedToolId()).toBe("minion:build:character.skeleton.minion");
+});
+
+
+test("isKindSelected returns true only for the currently armed kind", () =>
+{
+    const { panel } = setup();
+    panel.selectKindAndArmBuild("decor.crate", "decor");
+    expect(panel.isKindSelected("decor.crate")).toBe(true);
+    expect(panel.isKindSelected("decor.barrel")).toBe(false);
+});
+
+
+test("isToolSelected matches against the currently active tool id", () =>
+{
+    const { panel } = setup();
+    panel.selectedToolId("decor:nudge");
+    expect(panel.isToolSelected("decor:nudge")).toBe(true);
+    expect(panel.isToolSelected("decor:pick")).toBe(false);
+});
+
+
+test("legacy *Tools constants are no longer fields on the panel", () =>
+{
+    const { panel } = setup();
+    expect(panel.buildTools).toBeUndefined();
+    expect(panel.decorTools).toBeUndefined();
+    expect(panel.minionTools).toBeUndefined();
 });
 
 
@@ -180,7 +224,7 @@ test("minionTiles computed pulls only kind='character' entries", () =>
 });
 
 
-test("tile ids encode the tool prefix and the asset kind", () =>
+test("tiles carry their owning tab plus the asset kind for the new dispatch", () =>
 {
     const { panel } = setup({
         entries: [
@@ -189,9 +233,9 @@ test("tile ids encode the tool prefix and the asset kind", () =>
             { id: "char.skel",    kind: "character",   displayName: "Skel" }
         ]
     });
-    expect(panel.decorTiles()[0].id).toBe("decor:place:decor.barrel");
-    expect(panel.wallDecorTiles()[0].id).toBe("decor:wall:place:decor.banner");
-    expect(panel.minionTiles()[0].id).toBe("minion:spawn:char.skel");
+    expect(panel.decorTiles()[0]).toMatchObject({ tab: "decor", kind: "decor.barrel" });
+    expect(panel.wallDecorTiles()[0]).toMatchObject({ tab: "decor", kind: "decor.banner" });
+    expect(panel.minionTiles()[0]).toMatchObject({ tab: "minion", kind: "char.skel" });
 });
 
 

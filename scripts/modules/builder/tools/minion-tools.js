@@ -18,10 +18,14 @@ const PLACEHOLDER_SEGMENTS = 12;
 
 class MinionSpawnTool extends Tool
 {
-    constructor({ kind })
+    constructor({ kind, consumePickup = null })
     {
         super();
         this.kind = kind;
+        /* Same single-shot pickup hook as `DecorPlaceTool` — if a held
+         * minion snapshot is being placed, the consumer handles the click
+         * and the regular spawn path doesn't fire. */
+        this.consumePickup = consumePickup;
     }
 
     buildGhost()
@@ -52,6 +56,7 @@ class MinionSpawnTool extends Tool
     onCellClick(cell, button)
     {
         if(button !== "left") { return; }
+        if(this.consumePickup && this.consumePickup(this.kind, cell.cx, cell.cz)) { return; }
         this.editor.spawnMinion(this.kind, cell.cx, cell.cz);
     }
 }

@@ -50,20 +50,6 @@ html, body
     pointer-events: auto;
 }
 
-#camera-mode-chip
-{
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
-    padding: 0.4em 0.9em;
-    background-color: rgba(10, 14, 20, 0.7);
-    border: 1px solid rgba(216, 222, 233, 0.15);
-    border-radius: 999px;
-    font-size: clamp(0.7rem, 1.4vmin, 0.85rem);
-    letter-spacing: 0.06em;
-    pointer-events: none;
-}
-
 
 /******************************************************************************/
 /* LOADING OVERLAY                                                            */
@@ -503,8 +489,10 @@ html, body
 
 #hint-tray
 {
+    /* Sits below the V7 top menu (which is fixed at top: 1rem and ~58px tall
+     * with its chunky shadow). 5rem clears the menu + a 1rem gap. */
     position: fixed;
-    top: 1rem;
+    top: 6.5rem;
     left: 50%;
     transform: translateX(-50%);
     z-index: 300;

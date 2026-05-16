@@ -262,7 +262,7 @@ test("setTool deactivates the old tool before activating the new", () =>
 /* ENTITY DISPATCH + ARROW-KEY NUDGE                                          */
 /******************************************************************************/
 
-class StubSelectTool extends Tool
+class StubEntityTool extends Tool
 {
     constructor()
     {
@@ -278,7 +278,7 @@ class StubSelectTool extends Tool
 test("pointerdown left with an entity tool dispatches onEntityClick with the raycast entity", () =>
 {
     const { adapter, input } = setup();
-    const tool = new StubSelectTool();
+    const tool = new StubEntityTool();
     adapter.setTool(tool);
     const fakeEntity = { kind: "decor.crate" };
     adapter.screenToEntity = vi.fn(() => fakeEntity);
@@ -292,7 +292,7 @@ test("pointerdown left with an entity tool dispatches onEntityClick with the ray
 test("pointerdown left with an entity tool on empty space dispatches onEntityClick(null)", () =>
 {
     const { adapter, input } = setup();
-    const tool = new StubSelectTool();
+    const tool = new StubEntityTool();
     adapter.setTool(tool);
     adapter.screenToEntity = vi.fn(() => null);
 
@@ -305,7 +305,7 @@ test("pointerdown left with an entity tool on empty space dispatches onEntityCli
 test("ArrowUp dispatches tool.nudge(0, +1) for an entity tool", () =>
 {
     const { adapter, input } = setup();
-    const tool = new StubSelectTool();
+    const tool = new StubEntityTool();
     adapter.setTool(tool);
 
     input.emit("keydown", { code: "ArrowUp", repeat: false });
@@ -316,7 +316,7 @@ test("ArrowUp dispatches tool.nudge(0, +1) for an entity tool", () =>
 test("ArrowDown dispatches tool.nudge(0, -1)", () =>
 {
     const { adapter, input } = setup();
-    const tool = new StubSelectTool();
+    const tool = new StubEntityTool();
     adapter.setTool(tool);
 
     input.emit("keydown", { code: "ArrowDown", repeat: false });
@@ -327,7 +327,7 @@ test("ArrowDown dispatches tool.nudge(0, -1)", () =>
 test("ArrowLeft dispatches tool.nudge(-1, 0)", () =>
 {
     const { adapter, input } = setup();
-    const tool = new StubSelectTool();
+    const tool = new StubEntityTool();
     adapter.setTool(tool);
 
     input.emit("keydown", { code: "ArrowLeft", repeat: false });
@@ -338,7 +338,7 @@ test("ArrowLeft dispatches tool.nudge(-1, 0)", () =>
 test("ArrowRight dispatches tool.nudge(+1, 0)", () =>
 {
     const { adapter, input } = setup();
-    const tool = new StubSelectTool();
+    const tool = new StubEntityTool();
     adapter.setTool(tool);
 
     input.emit("keydown", { code: "ArrowRight", repeat: false });
@@ -360,7 +360,7 @@ test("arrow keys are inert for non-entity tools (no nudge method, no crash)", ()
 test("Escape on an entity tool still cancels back to NoopTool", () =>
 {
     const { adapter, input } = setup();
-    const tool = new StubSelectTool();
+    const tool = new StubEntityTool();
     adapter.setTool(tool);
 
     input.emit("keydown", { code: "Escape", repeat: false });

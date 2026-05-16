@@ -4,7 +4,7 @@ import { Tool } from "./tool.js";
 
 
 /******************************************************************************/
-/* SELECT TOOL                                                                */
+/* NUDGE TOOL                                                                 */
 /******************************************************************************/
 
 /*
@@ -23,7 +23,7 @@ const HIGHLIGHT_EMISSIVE  = 0x2a5a3a;
 const HIGHLIGHT_INTENSITY = 0.6;
 
 
-class SelectTool extends Tool
+class NudgeTool extends Tool
 {
     constructor()
     {
@@ -129,4 +129,4 @@ class SelectTool extends Tool
 }
 
 
-export { SelectTool };
+export { NudgeTool };

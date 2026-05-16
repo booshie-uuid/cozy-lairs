@@ -106,12 +106,171 @@
 
 
 /******************************************************************************/
+/* TOP MENU                                                                   */
+/******************************************************************************/
+
+#top-menu
+{
+    position:         fixed;
+    top:              1rem;
+    left:             50%;
+    transform:        translateX(-50%);
+    z-index:          80;
+    display:          flex;
+    align-items:      center;
+    gap:              1rem;
+    padding:          0.5rem 1rem;
+    background-color: var(--cozy-purple-soft);
+    border:           2px solid var(--cozy-neon-dim);
+    border-radius:    14px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 5px 0 var(--cozy-purple-deep),
+        0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.top-menu-cluster
+{
+    display:     flex;
+    gap:         0.5rem;
+    align-items: center;
+}
+
+.top-menu-cluster-centre
+{
+    padding: 0 0.5rem;
+    border-left:  1px solid var(--cozy-neon-dim);
+    border-right: 1px solid var(--cozy-neon-dim);
+}
+
+.top-menu-button
+{
+    display:         inline-flex;
+    align-items:     center;
+    justify-content: center;
+    width:           42px;
+    height:          42px;
+    padding:         0;
+    border:          2px solid var(--cozy-neon-dim);
+    border-radius:   10px;
+    background:      var(--cozy-purple);
+    color:           var(--cozy-text);
+    cursor:          pointer;
+    transition:      border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.top-menu-button:hover
+{
+    border-color: var(--cozy-neon);
+    background:   var(--cozy-purple-deep);
+}
+
+.top-menu-button:active
+{
+    transform: translateY(1px);
+}
+
+.top-menu-button img
+{
+    width:  26px;
+    height: 26px;
+    /* Icons ship as light-on-dark PNGs; no filter needed today, but the
+     * placeholder keeps a single recolouring point if the asset set changes. */
+}
+
+.top-menu-button-mode
+{
+    width:  52px;
+    height: 52px;
+}
+
+.top-menu-button-mode img
+{
+    width:  32px;
+    height: 32px;
+}
+
+
+/******************************************************************************/
+/* TOOL BAR                                                                   */
+/******************************************************************************/
+
+#tool-bar
+{
+    position:         fixed;
+    bottom:           1rem;
+    left:             50%;
+    transform:        translateX(-50%);
+    z-index:          80;
+    display:          flex;
+    align-items:      center;
+    gap:              0.5rem;
+    padding:          0.5rem 0.75rem;
+    background-color: var(--cozy-purple-soft);
+    border:           2px solid var(--cozy-neon-dim);
+    border-radius:    14px;
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 5px 0 var(--cozy-purple-deep),
+        0 8px 18px rgba(0, 0, 0, 0.4);
+}
+
+.tool-bar-button
+{
+    display:         inline-flex;
+    align-items:     center;
+    justify-content: center;
+    width:           44px;
+    height:          44px;
+    padding:         0;
+    border:          2px solid var(--cozy-neon-dim);
+    border-radius:   10px;
+    background:      var(--cozy-purple);
+    color:           var(--cozy-text);
+    cursor:          pointer;
+    transition:      border-color 120ms ease, background 120ms ease, transform 120ms ease;
+}
+
+.tool-bar-button:hover
+{
+    border-color: var(--cozy-neon);
+    background:   var(--cozy-purple-deep);
+}
+
+.tool-bar-button:active
+{
+    transform: translateY(1px);
+}
+
+.tool-bar-button.is-active
+{
+    border-color: var(--cozy-neon);
+    background:   var(--cozy-purple-deep);
+    box-shadow:
+        inset 0 0 0 1px var(--cozy-neon),
+        inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.tool-bar-button img
+{
+    width:  26px;
+    height: 26px;
+}
+
+
+/******************************************************************************/
 /* HUD CHIPS                                                                  */
 /******************************************************************************/
 
-#camera-mode-chip,
 #save-status-chip
 {
+    position:        absolute;
+    bottom:          1rem;
+    right:           1rem;
+    font-size:       clamp(0.7rem, 1.4vmin, 0.85rem);
+    letter-spacing:  0.04em;
+    pointer-events:  none;
+
     background-color: var(--cozy-purple-soft);
     border:           2px solid var(--cozy-neon-dim);
     color:            var(--cozy-text);
@@ -122,16 +281,6 @@
         inset 0 1px 0 rgba(255, 255, 255, 0.08),
         0 4px 0 var(--cozy-purple-deep),
         0 6px 14px rgba(0, 0, 0, 0.4);
-}
-
-#save-status-chip
-{
-    position:        absolute;
-    bottom:          1rem;
-    right:           1rem;
-    font-size:       clamp(0.7rem, 1.4vmin, 0.85rem);
-    letter-spacing:  0.04em;
-    pointer-events:  none;
 
     /* Hidden by default; flashSaveStatus toggles `.is-visible` for a few
        seconds on each save / autosave / failure event so the chip pops in
@@ -145,42 +294,6 @@
 {
     opacity:   1;
     transform: translateY(0) scale(1);
-}
-
-#hud-actions
-{
-    position:       absolute;
-    bottom:         3.25rem;
-    right:          1rem;
-    display:        flex;
-    gap:            0.5rem;
-    pointer-events: auto;
-}
-
-#hud-actions button
-{
-    padding:        0.45rem 1.25rem;
-    border-radius:  10px;
-    border:         2px solid var(--cozy-neon-dim);
-    background:     var(--cozy-purple-soft);
-    color:          var(--cozy-text-dim);
-    font-family:    var(--cozy-font-display);
-    font-size:      0.9rem;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    cursor:         pointer;
-    transition:     background 120ms ease, color 120ms ease, border-color 120ms ease;
-    box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.08),
-        0 4px 0 var(--cozy-purple-deep),
-        0 6px 14px rgba(0, 0, 0, 0.4);
-}
-
-#hud-actions button:hover
-{
-    border-color: var(--cozy-neon);
-    color:        var(--cozy-neon);
-    background:   var(--cozy-purple-deep);
 }
 
 

@@ -187,10 +187,11 @@ The "witchy arcade" visual identity lives in `styles/cozy.css`, loaded **after**
 
 In scope (restyled by `cozy.css`):
 
-- `#camera-mode-chip`, `#save-status-chip` (HUD chips)
-- `#hud-actions` and its child buttons (`#save-button`, `#load-button`, future `#reset-button`)
+- `#top-menu` and its `.top-menu-cluster` / `.top-menu-button` descendants (V7 top action bar)
+- `#save-status-chip` (transient save-status flash)
 - `#loading-overlay` and its descendants
 - `#toast-tray` and `.toast` variants (`.is-info`, `.is-warning`, `.is-error`)
+- `#hint-tray` (centre-top teaching prompts; same `.toast` chrome)
 - `#min-viewport-overlay` and its descendants
 - `#confirm-modal` and its descendants (generic two-button confirmation modal — Load and Reset both consume it)
 

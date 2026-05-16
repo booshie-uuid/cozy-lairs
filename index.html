@@ -24,22 +24,42 @@
 <body>
     <div id="canvas-wrapper"></div>
 
+    <header id="top-menu" data-bind="with: topMenu">
+        <div class="top-menu-cluster top-menu-cluster-left">
+            <button class="top-menu-button"
+                    title="Save"
+                    data-bind="click: save">
+                <img data-bind="attr: { src: saveIconUrl }" alt="Save">
+            </button>
+            <button class="top-menu-button"
+                    title="Load"
+                    data-bind="click: load">
+                <img data-bind="attr: { src: loadIconUrl }" alt="Load">
+            </button>
+        </div>
+        <div class="top-menu-cluster top-menu-cluster-centre">
+            <button class="top-menu-button top-menu-button-mode"
+                    data-bind="click: toggleMode, attr: { title: modeTitle }">
+                <img data-bind="attr: { src: modeIconUrl }" alt="Mode">
+            </button>
+        </div>
+        <div class="top-menu-cluster top-menu-cluster-right">
+            <button class="top-menu-button"
+                    title="Settings"
+                    data-bind="click: toggleSettings">
+                <img data-bind="attr: { src: settingsIconUrl }" alt="Settings">
+            </button>
+            <button class="top-menu-button"
+                    title="Exit"
+                    data-bind="click: exit">
+                <img data-bind="attr: { src: exitIconUrl }" alt="Exit">
+            </button>
+        </div>
+    </header>
+
     <div id="hud">
-        <div id="camera-mode-chip"
-             data-bind="text: cameraMode() === 'builder' ? 'Builder' : 'First Person'"></div>
         <div id="save-status-chip"
              data-bind="text: saveStatus, css: { 'is-visible': saveStatusVisible }"></div>
-        <div id="hud-actions">
-            <button id="save-button"
-                    title="Save lair to file (Ctrl+S)"
-                    data-bind="click: saveLair">Save</button>
-            <button id="load-button"
-                    title="Load lair from file (Ctrl+O)"
-                    data-bind="click: loadFile">Load</button>
-            <button id="reset-button"
-                    title="Reset to a fresh starter room"
-                    data-bind="click: resetLair">Reset</button>
-        </div>
     </div>
 
     <div id="fatal-overlay" hidden>
@@ -155,16 +175,10 @@
 
         <section class="authoring-panel-content"
                  data-bind="visible: activeTab() === 'build'">
-            <div class="authoring-panel-tools" data-bind="foreach: buildTools">
-                <button class="tool-tile"
-                        data-bind="text: label,
-                                   click: function() { $parent.selectTool(id); },
-                                   css: { 'is-active': $parent.isToolSelected(id) }"></button>
-            </div>
             <div class="authoring-panel-catalogue" data-bind="foreach: blockTiles">
                 <button class="catalogue-tile"
-                        data-bind="click: function() { $parent.selectTool(id); },
-                                   css: { 'is-active': $parent.isToolSelected(id) }">
+                        data-bind="click: function() { $parent.selectKindAndArmBuild(kind, tab); },
+                                   css: { 'is-active': $parent.isKindSelected(kind) }">
                     <img class="catalogue-tile-icon"
                          data-bind="attr: { src: iconURL, alt: displayName },
                                     visible: iconURL">
@@ -175,16 +189,10 @@
 
         <section class="authoring-panel-content"
                  data-bind="visible: activeTab() === 'decor'">
-            <div class="authoring-panel-tools" data-bind="foreach: decorTools">
-                <button class="tool-tile"
-                        data-bind="text: label,
-                                   click: function() { $parent.selectTool(id); },
-                                   css: { 'is-active': $parent.isToolSelected(id) }"></button>
-            </div>
             <div class="authoring-panel-catalogue" data-bind="foreach: decorTiles">
                 <button class="catalogue-tile"
-                        data-bind="click: function() { $parent.selectTool(id); },
-                                   css: { 'is-active': $parent.isToolSelected(id) }">
+                        data-bind="click: function() { $parent.selectKindAndArmBuild(kind, tab); },
+                                   css: { 'is-active': $parent.isKindSelected(kind) }">
                     <img class="catalogue-tile-icon"
                          data-bind="attr: { src: iconURL, alt: displayName },
                                     visible: iconURL">
@@ -193,8 +201,8 @@
             </div>
             <div class="authoring-panel-catalogue" data-bind="foreach: wallDecorTiles">
                 <button class="catalogue-tile"
-                        data-bind="click: function() { $parent.selectTool(id); },
-                                   css: { 'is-active': $parent.isToolSelected(id) }">
+                        data-bind="click: function() { $parent.selectKindAndArmBuild(kind, tab); },
+                                   css: { 'is-active': $parent.isKindSelected(kind) }">
                     <img class="catalogue-tile-icon"
                          data-bind="attr: { src: iconURL, alt: displayName },
                                     visible: iconURL">
@@ -205,16 +213,10 @@
 
         <section class="authoring-panel-content"
                  data-bind="visible: activeTab() === 'minions'">
-            <div class="authoring-panel-tools" data-bind="foreach: minionTools">
-                <button class="tool-tile"
-                        data-bind="text: label,
-                                   click: function() { $parent.selectTool(id); },
-                                   css: { 'is-active': $parent.isToolSelected(id) }"></button>
-            </div>
             <div class="authoring-panel-catalogue" data-bind="foreach: minionTiles">
                 <button class="catalogue-tile"
-                        data-bind="click: function() { $parent.selectTool(id); },
-                                   css: { 'is-active': $parent.isToolSelected(id) }">
+                        data-bind="click: function() { $parent.selectKindAndArmBuild(kind, tab); },
+                                   css: { 'is-active': $parent.isKindSelected(kind) }">
                     <img class="catalogue-tile-icon"
                          data-bind="attr: { src: iconURL, alt: displayName },
                                     visible: iconURL">
@@ -223,6 +225,18 @@
             </div>
         </section>
     </aside>
+
+    <footer id="tool-bar"
+            data-bind="visible: toolBar() && toolBar().isVisible(), with: toolBar">
+        <!-- ko foreach: visibleTools -->
+        <button class="tool-bar-button"
+                data-bind="click: function() { $parent.onClick(verb); },
+                           css: { 'is-active': isActive },
+                           attr: { title: label }">
+            <img data-bind="attr: { src: iconURL, alt: label }">
+        </button>
+        <!-- /ko -->
+    </footer>
 
     <aside id="dev-console" data-bind="css: { 'is-open': dev.isOpen }, with: dev">
         <header class="dev-console-header">

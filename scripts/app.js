@@ -31,7 +31,8 @@ import { FloorPaintTool, FloorEraseTool }                  from "./modules/build
 import { DecorPlaceTool, DecorEraseTool, WallDecorPlaceTool } from "./modules/builder/tools/decor-tools.js";
 import { MinionSpawnTool, MinionEraseTool, NoopTool }      from "./modules/builder/tools/minion-tools.js";
 import { BlockPlaceTool, BlockEraseTool }                  from "./modules/builder/tools/block-tools.js";
-import { SelectTool }                                      from "./modules/builder/tools/select-tool.js";
+import { NudgeTool }                                       from "./modules/builder/tools/nudge-tool.js";
+import { PickTool }                                        from "./modules/builder/tools/pick-tool.js";
 
 import { AppViewModel } from "./modules/ui/app-view-model.js";
 import "./modules/ui/bindings.js";
@@ -39,7 +40,7 @@ import "./modules/ui/bindings.js";
 
 const ko = window.ko;
 
-const VERSION = "V6_11_0";
+const VERSION = "V7_7_0";
 
 const GRID_WIDTH = 20;
 const GRID_DEPTH = 20;
@@ -241,6 +242,7 @@ class App
         this.unhandledRejectionHandler = null;
         this.isShutDown = false;
         this.player = null;
+        this.pickedUp = null;
         this.worldEditor = null;
         this.wallTracer = null;
         this.iconRenderer = null;
@@ -282,27 +284,6 @@ class App
 
         this.viewModel = new AppViewModel({ version: this.version });
 
-        // Late-bound: SaveService doesn't exist until wireSaveService runs,
-        // but the Save / Load / Reset button bindings are evaluated by
-        // ko.applyBindings below — so the callables must already exist.
-        this.viewModel.loadFile = () =>
-        {
-            if(this.saveService) { this.saveService.openFile(); }
-        };
-        this.viewModel.saveLair = () =>
-        {
-            if(this.saveService) { this.saveService.save(); }
-        };
-        this.viewModel.resetLair = () =>
-        {
-            this.viewModel.confirmModal.show({
-                title:       "Reset lair?",
-                message:     "Reset to a fresh starter room? Your current work will be lost.",
-                actionLabel: "Reset",
-                onConfirm:   () => this.resetLair()
-            });
-        };
-
         ko.applyBindings(this.viewModel);
 
         this.wireViewportTracking();
@@ -331,6 +312,9 @@ class App
             const builder = this.cameraControllers.builder;
             if(builder) { builder.setPanEnabled(id === null); }
         });
+        /* Tab change while a pickup is held → restore the entity before the
+         * tool bar swaps to the new tab's vocabulary. */
+        this.viewModel.authoringPanel().activeTab.subscribe(() => this.cancelPickup());
 
         this.buildWorld();
         this.wireSaveService();
@@ -350,6 +334,19 @@ class App
         this.buildLoop();
         this.wireCameraToggle();
         this.wireDevConsole();
+        /* TopMenu's save / load surface is wrapped so any held pickup is
+         * flushed back to the world before the persistence call fires.
+         * Otherwise the saved snapshot would be missing the held entity, or
+         * the freshly-loaded world would have a phantom pickup slot. */
+        this.viewModel.installTopMenu({
+            saveService:
+            {
+                save:     () => { this.cancelPickup(); this.saveService.save(); },
+                openFile: () => { this.cancelPickup(); this.saveService.openFile(); }
+            },
+            resetLair:    () => this.resetLair(),
+            onToggleMode: () => this.toggleCameraMode()
+        });
         this.setCameraMode("builder");
 
         this.gameLoop.start();
@@ -369,6 +366,10 @@ class App
         const next = this.cameraControllers[mode];
         if(!next) { throw new Error(`Unknown camera mode: ${mode}`); }
         if(this.cameraController === next) { return; }
+
+        /* Any held pickup must land before the mode swap — the user can't
+         * place from a snapshot once the builder camera is gone. */
+        this.cancelPickup();
 
         if(this.cameraController) { this.cameraController.deactivate(); }
         this.cameraController = next;
@@ -518,6 +519,9 @@ class App
         // Order matters: clear autosave first so a crash mid-rebuild leaves
         // a clean slate; clearing the file handle so the next Ctrl+S
         // re-prompts (the previous handle pointed at unrelated content).
+        // Discard any held pickup without restoring — the world it referenced
+        // is about to be replaced wholesale.
+        this.discardPickup();
         this.saveService.clearAutosave();
         this.saveService.clearFileHandle();
         this.world.clear();
@@ -564,7 +568,7 @@ class App
     buildToolFromId(toolId)
     {
         if(!toolId) { return new NoopTool(); }
-        if(toolId === "select") { return new SelectTool(); }
+        if(toolId === "select") { return new NudgeTool(); }   // legacy alias
 
         // Tool IDs follow `tab:slug[:kind]` — split safely on the first
         // two colons so kinds with dots (e.g. "decor.barrel") stay intact.
@@ -576,12 +580,20 @@ class App
         {
             case "build":
             {
+                // V7 verb-based ids
+                if(rest === "build") { return new FloorPaintTool(); }
+                if(rest === "break") { return new FloorEraseTool(); }
+                if(rest.startsWith("build:"))
+                {
+                    return new BlockPlaceTool({ kind: rest.slice("build:".length) });
+                }
+
+                // Legacy ids — kept working until V8 sweep
                 if(rest === "paint")       { return new FloorPaintTool(); }
                 if(rest === "erase")       { return new FloorEraseTool(); }
                 if(rest === "block:erase") { return new BlockEraseTool(); }
 
                 const [slug, ...kindParts] = rest.split(":");
-                const kind = kindParts.join(":");
                 if(slug === "block" && kindParts[0] === "place")
                 {
                     return new BlockPlaceTool({ kind: kindParts.slice(1).join(":") });
@@ -590,10 +602,21 @@ class App
             }
             case "decor":
             {
+                // V7 verb-based ids
+                if(rest === "pick")  { return new PickTool({ onPicked: snapshot => this.armBuildForSnapshot("decor", snapshot) }); }
+                if(rest === "break") { return new DecorEraseTool(); }
+                if(rest === "nudge") { return new NudgeTool(); }
+                if(rest.startsWith("build:"))
+                {
+                    const kind = rest.slice("build:".length);
+                    return this.buildDecorPlaceTool(kind);
+                }
+
+                // Legacy ids
                 const [slug, ...kindParts] = rest.split(":");
                 const kind = kindParts.join(":");
                 if(slug === "erase") { return new DecorEraseTool(); }
-                if(slug === "place" && kind) { return new DecorPlaceTool({ kind }); }
+                if(slug === "place" && kind) { return this.buildDecorPlaceTool(kind); }
                 if(slug === "wall" && kindParts[0] === "place")
                 {
                     return new WallDecorPlaceTool({ kind: kindParts.slice(1).join(":") });
@@ -602,6 +625,18 @@ class App
             }
             case "minion":
             {
+                // V7 verb-based ids
+                if(rest === "pick")  { return new PickTool({ onPicked: snapshot => this.armBuildForSnapshot("minion", snapshot) }); }
+                if(rest === "break") { return new MinionEraseTool(); }
+                if(rest.startsWith("build:"))
+                {
+                    return new MinionSpawnTool({
+                        kind: rest.slice("build:".length),
+                        consumePickup: this.makeConsumePickupHook()
+                    });
+                }
+
+                // Legacy ids
                 const [slug, ...kindParts] = rest.split(":");
                 const kind = kindParts.join(":");
                 if(slug === "erase") { return new MinionEraseTool(); }
@@ -611,6 +646,85 @@ class App
         }
         console.warn(`[App] Unknown tool id: ${toolId}`);
         return new NoopTool();
+    }
+
+    /*
+     * Routes decor build ids to the right tool class based on the asset's
+     * kind metadata: `decor.wall` → WallDecorPlaceTool, everything else
+     * (`decor.floor`, surface-placeables) → DecorPlaceTool. Keeps the dispatch
+     * id flat (`decor:build:<kind>`) — the wall-vs-floor distinction lives in
+     * the asset meta, not the id grammar.
+     */
+    buildDecorPlaceTool(kind)
+    {
+        let assetKind = null;
+        try { assetKind = this.assets.getKind(kind); } catch { assetKind = null; }
+        /* Wall decor isn't pickup-able in V7, so no consumePickup wiring there. */
+        if(assetKind === "decor.wall") { return new WallDecorPlaceTool({ kind }); }
+        return new DecorPlaceTool({ kind, consumePickup: this.makeConsumePickupHook() });
+    }
+
+    /*
+     * Constructs a per-tool closure over `App.consumePickupAt` so the place
+     * tools don't need a direct App reference. Each tool gets its own closure
+     * instance, but they all dispatch through the same method.
+     */
+    makeConsumePickupHook()
+    {
+        return (kind, cx, cz) => this.consumePickupAt(kind, cx, cz);
+    }
+
+    /*
+     * Pick handler. Stashes the snapshot as the single-slot held inventory
+     * and arms a `<tab>:build:<kind>` tool. If a previous pickup is still
+     * held, restore it first — single-slot rule, no stacked holds.
+     */
+    armBuildForSnapshot(tab, snapshot)
+    {
+        if(!snapshot) { return; }
+        if(this.pickedUp) { this.worldEditor.restorePickup(this.pickedUp); }
+        this.pickedUp = snapshot;
+        this.setTool(`${tab}:build:${snapshot.kind}`);
+    }
+
+    /*
+     * Cancel a held pickup — restores the entity to its origin cell (with
+     * preserved orientation/offset/surfaceY) via the editor. Idempotent: safe
+     * to call from every transition point (Esc, right-click, tab switch,
+     * mode toggle, save, load). When the world is being replaced (reset),
+     * use `discardPickup` instead to skip restoration.
+     */
+    cancelPickup()
+    {
+        if(!this.pickedUp) { return; }
+        const snapshot = this.pickedUp;
+        this.pickedUp = null;
+        this.worldEditor.restorePickup(snapshot);
+    }
+
+    discardPickup()
+    {
+        this.pickedUp = null;
+    }
+
+    /*
+     * Place tools (DecorPlaceTool / MinionSpawnTool) call this on every left
+     * click. If a pickup snapshot of the matching kind is held, consume it
+     * via `placeFromSnapshot`, clear the slot, and disarm the tool — single-
+     * shot held semantics. Returns true to tell the tool the click was
+     * handled; false means fall through to regular place-tool behaviour.
+     */
+    consumePickupAt(kind, cx, cz)
+    {
+        if(!this.pickedUp || this.pickedUp.kind !== kind) { return false; }
+        const ok = this.worldEditor.placeFromSnapshot(this.pickedUp, cx, cz);
+        if(!ok) { return false; }
+        this.pickedUp = null;
+        /* Disarm via the panel observable so the subscription in App.start
+         * runs `setTool(null)` and re-enables camera pan in one path. */
+        const panel = this.viewModel.authoringPanel();
+        if(panel) { panel.selectedToolId(null); }
+        return true;
     }
 
     spawnPlayer()
@@ -695,6 +809,9 @@ class App
             isTextInputFocused: () => this.isTextInputFocused(),
             onCancel:           () =>
             {
+                /* Restore any held pickup before clearing the tool — Esc /
+                 * right-click means "undo the in-flight action". */
+                this.cancelPickup();
                 const panel = this.viewModel.authoringPanel();
                 if(panel) { panel.selectedToolId(null); }
             }
@@ -783,11 +900,16 @@ class App
         {
             if(event.code === TOGGLE_CAMERA_KEY && !event.repeat)
             {
-                const next = this.viewModel.cameraMode() === "builder" ? "firstPerson" : "builder";
-                this.setCameraMode(next);
+                this.toggleCameraMode();
             }
         };
         this.input.on("keydown", this.tabHandler);
+    }
+
+    toggleCameraMode()
+    {
+        const next = this.viewModel.cameraMode() === "builder" ? "firstPerson" : "builder";
+        this.setCameraMode(next);
     }
 
     wireSaveService()

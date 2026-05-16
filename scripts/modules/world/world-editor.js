@@ -7,6 +7,7 @@ import { Animator }        from "./components/animator.js";
 import { WanderBehaviour } from "./components/wander-behaviour.js";
 
 import * as Footprint      from "./footprint.js";
+import * as WalkSearch     from "./walk-search.js";
 
 import { PLAYER_MARKER }   from "../engine/player-marker.js";
 
@@ -369,6 +370,97 @@ class WorldEditor
     }
 
 
+    /* PICKUP *****************************************************************/
+
+    /*
+     * Pickup eligibility. Floors, tracer walls, terrain blocks, and wall-decor
+     * (EdgePlacement) are excluded — the snapshot shape is GridPlacement-cell
+     * for decor and main-cell-from-position for minions. Wall decor pickup
+     * would need a different snapshot shape and is out of V7 scope.
+     */
+    isPickupable(entity)
+    {
+        if(!entity || typeof entity.getComponent !== "function") { return false; }
+        if(!entity.kind) { return false; }
+        if(entity.kind.startsWith("floor."))      { return false; }
+        if(entity.kind.startsWith("wall.stone.")) { return false; }
+        if(entity.kind.startsWith("terrain."))    { return false; }
+
+        if(entity.getComponent(GridPlacement)) { return true; }
+        if(entity.getComponent(Walker))        { return true; }
+        return false;
+    }
+
+    pickUpEntity(entity)
+    {
+        if(!this.isPickupable(entity))
+        {
+            const name = entity && entity.kind ? this.displayName(entity.kind) : "this";
+            this.toast(`Can't pick up ${name}.`, "warning");
+            return null;
+        }
+
+        const snapshot = this.snapshotEntity(entity);
+        this.world.removeEntity(entity);
+        return snapshot;
+    }
+
+    /*
+     * Fresh placement at a new cell — `rotationStep / xOffset / zOffset` reset
+     * to zero, matching the catalogue-tile placement convention. Routes
+     * through the standard `placeDecor` / `spawnMinion` paths so all the
+     * existing predicates fire (canPlaceDecor walker-in-cell check, etc).
+     */
+    placeFromSnapshot(snapshot, cx, cz)
+    {
+        if(!snapshot) { return false; }
+        if(this.isMinionKind(snapshot.kind))
+        {
+            return this.spawnMinion(snapshot.kind, cx, cz);
+        }
+        return this.placeDecor(snapshot.kind, cx, cz, 0);
+    }
+
+    /*
+     * Re-instantiate at the origin cell with preserved orientation / offset /
+     * surfaceY. Displaces any walkers currently occupying the target main cell
+     * via `Walker.teleportTo`. If the target cell can't accept the entity
+     * (floor was erased, etc.), drops the snapshot + toasts the audit message.
+     */
+    restorePickup(snapshot)
+    {
+        if(!snapshot) { return false; }
+
+        const grid = this.world.grid;
+        const cx = snapshot.originCx;
+        const cz = snapshot.originCz;
+
+        if(!grid.isInBounds(cx, cz) || !grid.isFloor(cx, cz))
+        {
+            this.toast(`Lost held ${this.displayName(snapshot.kind)} — original cell is no longer available.`, "warning");
+            return false;
+        }
+
+        this.displaceWalkersFromMainCell(cx, cz);
+
+        if(this.isMinionKind(snapshot.kind))
+        {
+            return this.spawnMinion(snapshot.kind, cx, cz);
+        }
+
+        const blocks = (snapshot.surfaceY === 0);
+        const entity = Entity.fromKind(snapshot.kind, this.assets);
+        entity.addComponent(new GridPlacement(cx, cz, snapshot.rotationStep, {
+            blocks,
+            surfaceY: snapshot.surfaceY,
+            xOffset:  snapshot.xOffset,
+            zOffset:  snapshot.zOffset
+        }));
+        this.world.addEntity(entity);
+        return true;
+    }
+
+
     /* HELPERS ****************************************************************/
 
     buildMinionEntity(kind)
@@ -640,6 +732,83 @@ class WorldEditor
         if(!occupant || occupant === PLAYER_MARKER) { return false; }
         if(typeof occupant.getComponent !== "function") { return false; }
         return occupant.getComponent(Walker) !== undefined;
+    }
+
+    /*
+     * Capture pickup state from an entity. Decor (GridPlacement) carries
+     * full rotation / offset / surfaceY; minions (Walker only) derive their
+     * origin cell from current world position and zero the rest.
+     */
+    snapshotEntity(entity)
+    {
+        const placement = entity.getComponent(GridPlacement);
+        if(placement)
+        {
+            return {
+                kind:         entity.kind,
+                originCx:     placement.cx,
+                originCz:     placement.cz,
+                rotationStep: placement.rotationStep,
+                xOffset:      placement.xOffset,
+                zOffset:      placement.zOffset,
+                surfaceY:     placement.surfaceY
+            };
+        }
+
+        const pos = entity.object3D.position;
+        const cell = this.world.grid.worldToCell(pos.x, pos.z);
+        return {
+            kind:         entity.kind,
+            originCx:     cell.cx,
+            originCz:     cell.cz,
+            rotationStep: 0,
+            xOffset:      0,
+            zOffset:      0,
+            surfaceY:     0
+        };
+    }
+
+    isMinionKind(kind)
+    {
+        try   { return this.assets.getKind(kind) === "character"; }
+        catch { return false; }
+    }
+
+    /*
+     * Move every walker whose `currentSubCell` lies inside main cell (cx, cz)
+     * to the nearest free sub-cell outside that main cell. Predicate filters
+     * out the source main cell so displacement always lands elsewhere — keeps
+     * the target main cell free for the entity being restored on top of it.
+     */
+    displaceWalkersFromMainCell(cx, cz)
+    {
+        const walkGrid = this.world.walkGrid;
+        const grid = this.world.grid;
+        const subsPerMain = walkGrid.subsPerMain;
+
+        const isTraversable = (sx, sz) =>
+        {
+            if(!walkGrid.isWalkable(sx, sz)) { return false; }
+            const mcx = Math.floor(sx / subsPerMain);
+            const mcz = Math.floor(sz / subsPerMain);
+            if(mcx === cx && mcz === cz) { return false; }
+            return grid.isFloor(mcx, mcz);
+        };
+
+        for(const entity of this.world.entities)
+        {
+            const walker = entity.getComponent(Walker);
+            if(!walker || !walker.currentSubCell) { continue; }
+            const sub = walker.currentSubCell;
+            if(Math.floor(sub.sx / subsPerMain) !== cx) { continue; }
+            if(Math.floor(sub.sz / subsPerMain) !== cz) { continue; }
+
+            walkGrid.revertStamp([sub]);
+            const free = WalkSearch.findNearestTraversable(walkGrid, sub, isTraversable);
+            walkGrid.applyStamp([sub]);
+
+            if(free) { walker.teleportTo(free.sx, free.sz); }
+        }
     }
 
     /*

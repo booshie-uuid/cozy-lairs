@@ -2,6 +2,8 @@ import { DevConsoleViewModel }  from "../engine/dev/dev-console-view-model.js";
 import { ToastQueue }           from "./toast-queue.js";
 import { AuthoringPanel }       from "./authoring-panel.js";
 import { ConfirmModalViewModel } from "./confirm-modal.js";
+import { TopMenuViewModel }     from "./top-menu.js";
+import { ToolBarViewModel }    from "./tool-bar.js";
 
 
 const ko = window.ko;
@@ -44,6 +46,8 @@ class AppViewModel
         this.saveStatusFadeTimer = null;
         this.catalogueIcons = ko.observable(new Map());
         this.authoringPanel = ko.observable(null);
+        this.topMenu = ko.observable(null);
+        this.toolBar = ko.observable(null);
         this.controlsDismissed = ko.observable(false);
 
         this.dev = new DevConsoleViewModel();
@@ -119,10 +123,33 @@ class AppViewModel
 
     installAuthoringPanel(assets)
     {
-        this.authoringPanel(new AuthoringPanel({
+        const panel = new AuthoringPanel({
             assets,
             catalogueIcons: this.catalogueIcons,
             cameraMode:     this.cameraMode
+        });
+        this.authoringPanel(panel);
+
+        /* Tool bar shares the panel's tab + kind state, so it lands as soon
+         * as the panel does. Verbose write into selectedToolId so the
+         * existing dispatch subscription in app.js does the actual setTool
+         * call — keeps the dispatch graph single-source. */
+        this.toolBar(new ToolBarViewModel({
+            authoringPanel: panel,
+            cameraMode:     this.cameraMode,
+            onSelectTool:   toolId => panel.selectedToolId(toolId)
+        }));
+    }
+
+    installTopMenu({ saveService, resetLair, onToggleMode })
+    {
+        this.topMenu(new TopMenuViewModel({
+            saveService,
+            devConsole:   this.dev,
+            cameraMode:   this.cameraMode,
+            confirmModal: this.confirmModal,
+            resetLair,
+            onToggleMode
         }));
     }
 }
