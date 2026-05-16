@@ -37,6 +37,15 @@ class DevConsoleViewModel
         this.eventFilter = ko.observable("");
         this.nowMs = ko.observable(0);
 
+        this.diagMode = ko.observable("off");
+        this.diagModeOptions =
+        [
+            { value: "off",      label: "Off"          },
+            { value: "overlay",  label: "Main + Sub"   },
+            { value: "sub-only", label: "Sub-grid only" }
+        ];
+        this.diagMode.subscribe(mode => this.actions.setDiagMode(mode));
+
         this.fps = ko.observable(0);
         this.frameMs = ko.observable(0);
         this.simTickRate = ko.observable(0);
@@ -90,10 +99,12 @@ class DevConsoleViewModel
         // default so the UI never throws if a button is clicked before bind.
         this.actions =
         {
-            toggleCameraMode: () => {},
-            dumpWorldJSON:    () => {},
-            forceSaveFailure: () => {},
-            reloadManifest:   () => {}
+            toggleCameraMode:     () => {},
+            toggleDiagnosticGrid: () => {},
+            setDiagMode:          () => {},
+            dumpWorldJSON:        () => {},
+            forceSaveFailure:     () => {},
+            reloadManifest:       () => {}
         };
     }
 

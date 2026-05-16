@@ -126,7 +126,7 @@ test("round-trip — programmatically built world preserves entity count and com
     const minion = Entity.fromKind("character.skeleton.minion", STUB_ASSETS);
     const walker = minion.addComponent(new Walker({ speed: 2.0 }));
     source.addEntity(minion);
-    walker.followPath([{ cx: 1, cz: 1 }, { cx: 3, cz: 3 }]);
+    walker.followPath([{ sx: 4, sz: 4 }, { sx: 12, sz: 12 }]);
 
     const snapshot = WorldSerializer.toJSON(source);
 
@@ -238,6 +238,149 @@ test("round-trip preserves GridPlacement.surfaceY through toJSON / fromJSONv2", 
 
     const restored = Array.from(target.entities)[0];
     expect(restored.getComponent(GridPlacement).surfaceY).toBe(0.85);
+});
+
+
+/* OFFSET ROUND-TRIP **********************************************************/
+
+test("round-trip preserves GridPlacement.xOffset / zOffset through toJSON / fromJSONv2", () =>
+{
+    const source = makeWorld();
+
+    const nudged = Entity.fromKind("decor.barrel", STUB_ASSETS);
+    nudged.addComponent(new GridPlacement(2, 3, 0, { xOffset: 0.5, zOffset: -0.25 }));
+    source.addEntity(nudged);
+
+    const snapshot = WorldSerializer.toJSON(source);
+
+    const target = makeWorld();
+    WorldSerializer.fromJSONv2(target, snapshot, STUB_ASSETS);
+
+    const restored = Array.from(target.entities)[0];
+    const placement = restored.getComponent(GridPlacement);
+    expect(placement.xOffset).toBe(0.5);
+    expect(placement.zOffset).toBe(-0.25);
+});
+
+
+test("entity with zero offsets emits no xOffset / zOffset keys in the snapshot", () =>
+{
+    const source = makeWorld();
+
+    const centred = Entity.fromKind("decor.barrel", STUB_ASSETS);
+    centred.addComponent(new GridPlacement(2, 3, 0));
+    source.addEntity(centred);
+
+    const snapshot = WorldSerializer.toJSON(source);
+    const componentRecord = snapshot.entities[0][1][0];
+    const gridPlacementData = componentRecord[1];
+
+    expect(gridPlacementData.xOffset).toBeUndefined();
+    expect(gridPlacementData.zOffset).toBeUndefined();
+});
+
+
+/* WALK-GRID POPULATION ON LOAD ***********************************************/
+
+function footprintAssets()
+{
+    /* Real getAabb / getMeta entries for the kinds used in walk-grid tests.
+     * `get` throws — entities use a magenta placeholder via Renderable. */
+    const aabb4x4   = { min: { x: -2,    y: 0, z: -2    }, max: { x:  2,    y: 0.15, z:  2    } };
+    const aabb1Cube = { min: { x: -0.5,  y: 0, z: -0.5  }, max: { x:  0.5,  y: 1,    z:  0.5  } };
+
+    const meta =
+    {
+        "floor.stone.basic":   {},
+        "decor.barrel":        {},
+        "wall.stone.corner":   { collision: "wall-corner" }
+    };
+
+    const aabb =
+    {
+        "floor.stone.basic":   aabb4x4,
+        "decor.barrel":        aabb1Cube,
+        "wall.stone.corner":   null  // wall-corner primitive ignores AABB.
+    };
+
+    return {
+        get:        () => { throw new Error("stub: no asset cache in test"); },
+        getMeta:    (kind) => (meta[kind] !== undefined ? meta[kind] : {}),
+        getAabb:    (kind) => (aabb[kind] !== undefined ? aabb[kind] : null)
+    };
+}
+
+
+test("fromJSONv2 populates the walk-grid: floors stay walkable, obstacles stamp", () =>
+{
+    const assets = footprintAssets();
+    const world  = new World(new Grid(8, 8, 4), assets);
+
+    // Synthetic V5-style snapshot: one floor (walkable, no block), one decor
+    // barrel (blocks the cell), and one corner. Tracer-produced corners are
+    // normally excluded by SAVE_SKIP_KINDS at save time; included here to
+    // exercise the wall-corner stamp path end-to-end.
+    const snapshot =
+    {
+        v:          2,
+        kinds:      ["floor.stone.basic", "decor.barrel", "wall.stone.corner"],
+        components: ["GridPlacement", "CornerPlacement"],
+        entities:
+        [
+            [0, [[0, { cx: 2, cz: 2, rotationStep: 0, walkable: true }]]],
+            [1, [[0, { cx: 3, cz: 3, rotationStep: 0, blocks: true }]]],
+            [2, [[1, { vx: 4, vz: 5, corner: 3 /* SE; CORNER_NAMES[3] = "SE" */ }]]]
+        ]
+    };
+
+    const result = WorldSerializer.fromJSONv2(world, snapshot, assets);
+
+    expect(result.loaded).toBe(3);
+
+    // Floor at cell (2, 2) — walkable, not a blocker — leaves its sub-cells
+    // walkable on the obstacle map.
+    for(let sx = 8; sx <= 11; sx++)
+    {
+        for(let sz = 8; sz <= 11; sz++)
+        {
+            expect(world.walkGrid.isWalkable(sx, sz)).toBe(true);
+        }
+    }
+
+    // Barrel at cell (3, 3) — blocks: true, AABB 1×1 centred → 4 straddle
+    // sub-cells around the cell centre.
+    expect(world.walkGrid.isWalkable(13, 13)).toBe(false);
+    expect(world.walkGrid.isWalkable(14, 13)).toBe(false);
+    expect(world.walkGrid.isWalkable(13, 14)).toBe(false);
+    expect(world.walkGrid.isWalkable(14, 14)).toBe(false);
+
+    // Corner at vertex (4, 5) SE → inner junction (vsx-1, vsz+0) = (15, 20),
+    // west-arm tip (vsx-2, vsz+0) = (14, 20), north-arm tip (vsx-1, vsz+1)
+    // = (15, 21). vsx = 4 * 4 = 16, vsz = 5 * 4 = 20.
+    expect(world.walkGrid.isWalkable(15, 20)).toBe(false);
+    expect(world.walkGrid.isWalkable(14, 20)).toBe(false);
+    expect(world.walkGrid.isWalkable(15, 21)).toBe(false);
+
+    // A nearby unrelated sub-cell stays walkable.
+    expect(world.walkGrid.isWalkable(0, 0)).toBe(true);
+});
+
+
+test("fromJSONv2 leaves the walk-grid empty when world has no assets reference", () =>
+{
+    const world = makeWorld();  // No assets — stamping silently skips.
+
+    const snapshot =
+    {
+        v:          2,
+        kinds:      ["floor.stone.basic"],
+        components: ["GridPlacement"],
+        entities:   [[0, [[0, { cx: 2, cz: 2, rotationStep: 0, walkable: true }]]]]
+    };
+
+    WorldSerializer.fromJSONv2(world, snapshot, STUB_ASSETS);
+
+    expect(world.walkGrid.refcounts.every(v => v === 0)).toBe(true);
 });
 
 

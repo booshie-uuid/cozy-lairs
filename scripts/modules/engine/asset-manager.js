@@ -161,6 +161,12 @@ class AssetManager
         return this.requireEntry(id).meta;
     }
 
+    getAabb(id)
+    {
+        const cached = this.cache.get(id);
+        return cached ? cached.aabb : null;
+    }
+
     listByKind(kind)
     {
         const result = [];
@@ -272,7 +278,8 @@ class AssetManager
                         {
                             root,
                             animations:     gltf.animations || [],
-                            hasSkinnedMesh: this.containsSkinnedMesh(root)
+                            hasSkinnedMesh: this.containsSkinnedMesh(root),
+                            aabb:           new THREE.Box3().setFromObject(root)
                         };
                         this.cache.set(entry.id, bundle);
                         this.inFlight.delete(entry.id);

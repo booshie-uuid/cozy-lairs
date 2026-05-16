@@ -17,7 +17,8 @@
             "id":   "wall.stone.corner",
             "path": "assets/kaykit/dungeon-remastered/models/gltf/wall_corner.gltf",
             "type": "gltf",
-            "tier": "core"
+            "tier": "core",
+            "meta": { "collision": "wall-corner" }
         },
         {
             "id":   "wall.stone.half",

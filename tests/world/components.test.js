@@ -315,3 +315,165 @@ test("GridPlacement.toJSON omits surfaceY when 0; includes it when non-zero", ()
     const lifted = new GridPlacement(3, 5, 0, { surfaceY: 0.85 });
     expect(lifted.toJSON()).toEqual({ cx: 3, cz: 5, rotationStep: 0, surfaceY: 0.85 });
 });
+
+
+/* GridPlacement — xOffset / zOffset + walk-grid stamps ***********************/
+
+test("GridPlacement.xOffset / zOffset default to 0 when omitted", () =>
+{
+    const placement = new GridPlacement(0, 0, 0);
+    expect(placement.xOffset).toBe(0);
+    expect(placement.zOffset).toBe(0);
+});
+
+
+test("GridPlacement constructor rejects non-finite xOffset / zOffset", () =>
+{
+    expect(() => new GridPlacement(0, 0, 0, { xOffset: "x" })).toThrow();
+    expect(() => new GridPlacement(0, 0, 0, { xOffset: NaN })).toThrow();
+    expect(() => new GridPlacement(0, 0, 0, { zOffset: Infinity })).toThrow();
+});
+
+
+test("GridPlacement.toJSON omits xOffset / zOffset when 0; includes when non-zero", () =>
+{
+    const centred = new GridPlacement(3, 5, 0);
+    expect(centred.toJSON().xOffset).toBeUndefined();
+    expect(centred.toJSON().zOffset).toBeUndefined();
+
+    const nudged = new GridPlacement(3, 5, 0, { xOffset: 1, zOffset: -2 });
+    expect(nudged.toJSON()).toEqual({ cx: 3, cz: 5, rotationStep: 0, xOffset: 1, zOffset: -2 });
+});
+
+
+test("GridPlacement applies xOffset / zOffset to object3D.position on add", () =>
+{
+    const world  = new World(new Grid(8, 8, 4));
+    const entity = new Entity("decor.test", new THREE.Object3D());
+    entity.addComponent(new GridPlacement(2, 3, 0, { xOffset: 0.5, zOffset: -0.25 }));
+
+    world.addEntity(entity);
+
+    const base = world.grid.cellToWorld(2, 3);
+    expect(entity.object3D.position.x).toBeCloseTo(base.x + 0.5);
+    expect(entity.object3D.position.z).toBeCloseTo(base.z - 0.25);
+});
+
+
+test("GridPlacement stamps walk-grid on add and reverts on remove for a blocking entity", () =>
+{
+    const grid     = new Grid(4, 4, 4);
+    const world    = new World(grid);
+    world.walkGrid = makeMockWalkGrid();
+    world.assets   = makeMockAssetsWith1x1Cube();
+
+    const entity = new Entity("decor.cube", new THREE.Object3D());
+    const placement = entity.addComponent(new GridPlacement(0, 0, 0, { blocks: true }));
+
+    world.addEntity(entity);
+    expect(placement.stampedSubCells.length).toBeGreaterThan(0);
+    expect(world.walkGrid.applyStamp).toHaveBeenCalledOnce();
+    expect(world.walkGrid.applyStamp).toHaveBeenCalledWith(placement.stampedSubCells);
+
+    world.removeEntity(entity);
+    expect(world.walkGrid.revertStamp).toHaveBeenCalledOnce();
+    expect(placement.stampedSubCells.length).toBe(0);
+});
+
+
+test("GridPlacement skips walk-grid stamp for a non-blocking entity (e.g. a floor)", () =>
+{
+    const grid     = new Grid(4, 4, 4);
+    const world    = new World(grid);
+    world.walkGrid = makeMockWalkGrid();
+    world.assets   = makeMockAssetsWith1x1Cube();
+
+    const entity = new Entity("floor.test", new THREE.Object3D());
+    const placement = entity.addComponent(new GridPlacement(0, 0, 0, { walkable: true }));
+
+    world.addEntity(entity);
+
+    expect(placement.stampedSubCells).toEqual([]);
+    expect(world.walkGrid.applyStamp).not.toHaveBeenCalled();
+});
+
+
+test("GridPlacement skips walk-grid stamp when world has no assets", () =>
+{
+    const world = new World(new Grid(4, 4, 4));  // assets = null
+    const entity = new Entity("decor.cube", new THREE.Object3D());
+    const placement = entity.addComponent(new GridPlacement(0, 0, 0, { blocks: true }));
+
+    world.addEntity(entity);
+
+    expect(placement.stampedSubCells).toEqual([]);
+});
+
+
+test("GridPlacement.setOffset revert-applies the stamp and updates position", () =>
+{
+    const grid     = new Grid(4, 4, 4);
+    const world    = new World(grid);
+    world.walkGrid = makeMockWalkGrid();
+    world.assets   = makeMockAssetsWith1x1Cube();
+
+    const entity = new Entity("decor.cube", new THREE.Object3D());
+    const placement = entity.addComponent(new GridPlacement(0, 0, 0, { blocks: true }));
+
+    world.addEntity(entity);
+
+    const initialStamp = placement.stampedSubCells;
+    expect(world.walkGrid.applyStamp).toHaveBeenCalledOnce();
+
+    placement.setOffset(1, 0);
+
+    expect(world.walkGrid.revertStamp).toHaveBeenCalledWith(initialStamp);
+    expect(world.walkGrid.applyStamp).toHaveBeenCalledTimes(2);
+    expect(placement.xOffset).toBe(1);
+    expect(placement.zOffset).toBe(0);
+
+    const base = grid.cellToWorld(0, 0);
+    expect(entity.object3D.position.x).toBeCloseTo(base.x + 1);
+});
+
+
+test("GridPlacement.setOffset on a detached placement updates fields without stamping", () =>
+{
+    const placement = new GridPlacement(0, 0, 0);
+
+    placement.setOffset(0.5, 0.5);
+
+    expect(placement.xOffset).toBe(0.5);
+    expect(placement.zOffset).toBe(0.5);
+    expect(placement.stampedSubCells).toEqual([]);
+});
+
+
+test("GridPlacement.setOffset rejects non-finite values", () =>
+{
+    const placement = new GridPlacement(0, 0, 0);
+    expect(() => placement.setOffset(NaN, 0)).toThrow();
+    expect(() => placement.setOffset(0, Infinity)).toThrow();
+});
+
+
+function makeMockWalkGrid()
+{
+    return {
+        mainCellSize: 4,
+        subCellSize:  1,
+        subsPerMain:  4,
+        applyStamp:   vi.fn(),
+        revertStamp:  vi.fn(),
+        mainToSub:    (cx, cz) => ({ sx: cx * 4, sz: cz * 4 })
+    };
+}
+
+
+function makeMockAssetsWith1x1Cube()
+{
+    return {
+        getMeta: () => ({}),
+        getAabb: () => ({ min: { x: -0.5, y: 0, z: -0.5 }, max: { x: 0.5, y: 1, z: 0.5 } })
+    };
+}

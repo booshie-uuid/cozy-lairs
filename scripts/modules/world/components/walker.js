@@ -7,41 +7,41 @@ import { Animator } from "./animator.js";
 /******************************************************************************/
 
 /*
- * Cell-based path follower. `followPath([{cx, cz}, ...])` consumes the cell
- * list and walks the entity from cell-centre to cell-centre via straight
- * lines, facing the direction of travel. Emits `arrived` once the last cell
- * is reached. No path = no movement; calling followPath with a 0- or 1-cell
- * path emits `arrived` immediately.
+ * Sub-cell path follower. `followPath([{sx, sz}, ...])` consumes the sub-cell
+ * list and walks the entity from sub-cell-centre to sub-cell-centre via
+ * straight lines, facing the direction of travel.
  *
- * Path coordinates are in cell space — `cellToWorld` translation happens
- * lazily during `update`, so the path is decoupled from `grid.cellSize`.
+ * Self-occupancy lives on the walk-grid as a refcount stamp: the walker holds
+ * a +1 stamp on its current sub-cell, transferred (revert + apply) on each
+ * boundary crossing. Other walkers see that stamp as a blocker via
+ * `walkGrid.isWalkable`.
  *
- * Collision model: the walker registers itself as the occupant of the cell
- * it's physically inside. The pre-check fires the moment its predicted next
- * position would land in a *different* cell (i.e. at the cell boundary).
- * If that cell is occupied, the walker doesn't advance into it — position
- * stays put just shy of the boundary, walker emits `blocked`, walker is
- * still aligned with its registered cell. No look-ahead beyond the
- * immediately-next cell, no snap-back.
+ * Collision model: pre-check fires the moment the predicted next position
+ * would land in a *different* sub-cell. If that sub-cell isn't walkable, the
+ * walker doesn't advance into it — position stays put just shy of the
+ * boundary, walker emits `blocked`, walker is still aligned with its
+ * registered sub-cell. No look-ahead beyond the immediately-next sub-cell,
+ * no snap-back.
  *
  * Events:
  *   "arrived"   — emitted when the path completes (or immediately for an
  *                 empty / single-cell path).
- *   "blocked"   — emitted when the walker tries to cross into an occupied
- *                 cell.
- *   "displaced" — emitted when `teleportTo` shoves the walker to a new cell.
+ *   "blocked"   — emitted when the walker tries to cross into an unwalkable
+ *                 sub-cell.
+ *   "displaced" — emitted when `teleportTo` shoves the walker to a new sub-cell.
  */
 
 const ARRIVE_EPSILON = 0.001;
 const TWO_PI = Math.PI * 2;
 
-// On block, if the walker is more than MESH_BUFFER metres from its
-// currentCell centre, set up a one-cell mini-path back to the centre and
-// emit "blocked" only after arrival. Prevents two walkers blocked on
-// opposite sides of a cell boundary from having visually overlapping
-// meshes — they each withdraw to their respective centres and end up a
-// full cell apart.
-const MESH_BUFFER = 1.0;
+/*
+ * On block, if the walker is more than MESH_BUFFER metres from its
+ * currentSubCell centre, set up a one-step mini-path back to the centre and
+ * emit "blocked" only after arrival. Sub-cells are 1m, so the buffer is
+ * smaller than the previous main-cell version — withdrawing a quarter-cell is
+ * enough to keep walker meshes from visually overlapping at boundaries.
+ */
+const MESH_BUFFER = 0.25;
 
 
 class Walker extends Emitter
@@ -57,10 +57,8 @@ class Walker extends Emitter
         this.entity = null;
         this.pendingFollow = null;
         this.targetRotation = 0;
-        this.currentCell = null;
+        this.currentSubCell = null;
         this.withdrawing = false;
-        // Latches so diagnostic warnings fire once per episode, not per
-        // frame. Reset when the corresponding state is restored.
         this.driftWarned = false;
     }
 
@@ -79,24 +77,24 @@ class Walker extends Emitter
             return;
         }
 
-        // Auto-register occupancy at the entity's current cell. Without this,
-        // a freshly-spawned walker sits unregistered until its first followPath
-        // — other walkers doing pre-checks see the spawn cell as empty and
-        // walk straight through.
+        // Auto-register occupancy at the entity's current sub-cell. Without
+        // this, a freshly-spawned walker sits unstamped until its first
+        // followPath — other walkers planning paths see the spawn sub-cell as
+        // free and route through it.
         const pos = this.entity.object3D.position;
-        const { cx, cz } = world.grid.worldToCell(pos.x, pos.z);
-        if(world.grid.isInBounds(cx, cz))
+        const { sx, sz } = world.walkGrid.worldToSub(pos.x, pos.z);
+        if(world.walkGrid.isInBounds(sx, sz))
         {
-            this.registerOccupancy(cx, cz);
+            this.stampSubCell(sx, sz);
         }
     }
 
     onRemovedFromWorld(world)
     {
-        if(this.currentCell)
+        if(this.currentSubCell)
         {
-            world.grid.clearOccupant(this.currentCell.cx, this.currentCell.cz);
-            this.currentCell = null;
+            world.walkGrid.revertStamp([this.currentSubCell]);
+            this.currentSubCell = null;
         }
     }
 
@@ -104,20 +102,18 @@ class Walker extends Emitter
     {
         if(!Array.isArray(path))
         {
-            throw new Error("Walker.followPath: path must be an array of {cx, cz} cells.");
+            throw new Error("Walker.followPath: path must be an array of {sx, sz} sub-cells.");
         }
 
-        // Fresh trip — clear any in-flight withdrawal flag so an arrival
-        // emits "arrived" not "blocked".
         this.withdrawing = false;
 
         this.path = path.map((cell, i) =>
         {
-            if(!cell || !Number.isFinite(cell.cx) || !Number.isFinite(cell.cz))
+            if(!cell || !Number.isFinite(cell.sx) || !Number.isFinite(cell.sz))
             {
-                throw new Error(`Walker.followPath: path[${i}] must have numeric cx and cz (got ${JSON.stringify(cell)}).`);
+                throw new Error(`Walker.followPath: path[${i}] must have numeric sx and sz (got ${JSON.stringify(cell)}).`);
             }
-            return { cx: cell.cx, cz: cell.cz };
+            return { sx: cell.sx, sz: cell.sz };
         });
 
         if(this.path.length === 0)
@@ -137,7 +133,7 @@ class Walker extends Emitter
             if(idx >= this.path.length)
             {
                 this.pathIndex = this.path.length;
-                this.snapToCell(this.path[this.path.length - 1]);
+                this.snapToSubCell(this.path[this.path.length - 1]);
                 this.completed = true;
                 this.crossfadeAnimator("idle");
                 this.emit("arrived", { walker: this });
@@ -145,30 +141,30 @@ class Walker extends Emitter
             }
             this.pathIndex = Math.max(0, idx);
             const snapIdx = Math.max(0, this.pathIndex - 1);
-            this.snapToCell(this.path[snapIdx]);
+            this.snapToSubCell(this.path[snapIdx]);
             this.completed = false;
-            this.faceTowardsCell(this.path[this.pathIndex]);
+            this.faceTowardsSubCell(this.path[this.pathIndex]);
             this.crossfadeAnimator("walk");
             return;
         }
 
-        // Don't force-snap to path[0]'s centre — that's a visible jump
-        // (cells are 4m, so up to a 2m teleport). Instead, register
-        // occupancy at path[0] without repositioning, as long as the
-        // walker is actually inside that cell. If the walker is somewhere
-        // else (defensive: shouldn't happen in normal play), fall back
-        // to a snap.
-        const grid = this.entity.world.grid;
+        /*
+         * Don't force-snap to path[0]'s centre when the walker is already
+         * inside that sub-cell — at 1m sub-cells the snap is at most 0.5m
+         * but still visible. Re-register occupancy in place. If the walker
+         * is somewhere else (defensive), fall back to a snap.
+         */
+        const walkGrid = this.entity.world.walkGrid;
         const startCell = this.path[0];
-        const physical  = grid.worldToCell(this.entity.object3D.position.x, this.entity.object3D.position.z);
+        const physical  = walkGrid.worldToSub(this.entity.object3D.position.x, this.entity.object3D.position.z);
 
-        if(physical.cx === startCell.cx && physical.cz === startCell.cz)
+        if(physical.sx === startCell.sx && physical.sz === startCell.sz)
         {
-            this.registerOccupancy(startCell.cx, startCell.cz);
+            this.stampSubCell(startCell.sx, startCell.sz);
         }
         else
         {
-            this.snapToCell(startCell);
+            this.snapToSubCell(startCell);
         }
 
         if(this.path.length === 1)
@@ -182,7 +178,7 @@ class Walker extends Emitter
 
         this.pathIndex = 1;
         this.completed = false;
-        this.faceTowardsCell(this.path[1]);
+        this.faceTowardsSubCell(this.path[1]);
         this.crossfadeAnimator("walk");
     }
 
@@ -195,20 +191,19 @@ class Walker extends Emitter
         }
 
         const o = this.entity.object3D;
-        const grid = this.entity.world.grid;
+        const walkGrid = this.entity.world.walkGrid;
 
-        // Drift detector: physical cell vs registered cell. Latched so a
-        // sustained drift only logs once — the warn is a signal, not a heartbeat.
-        if(this.currentCell)
+        // Drift detector: physical sub-cell vs registered sub-cell. Latched.
+        if(this.currentSubCell)
         {
-            const physical = grid.worldToCell(o.position.x, o.position.z);
-            const drifted = physical.cx !== this.currentCell.cx
-                         || physical.cz !== this.currentCell.cz;
+            const physical = walkGrid.worldToSub(o.position.x, o.position.z);
+            const drifted = physical.sx !== this.currentSubCell.sx
+                         || physical.sz !== this.currentSubCell.sz;
             if(drifted && !this.driftWarned)
             {
                 console.warn(
-                    `[Walker] ${this.entity.kind} drift: physical (${physical.cx}, ${physical.cz}) ` +
-                    `vs registered (${this.currentCell.cx}, ${this.currentCell.cz}) ` +
+                    `[Walker] ${this.entity.kind} drift: physical (${physical.sx}, ${physical.sz}) ` +
+                    `vs registered (${this.currentSubCell.sx}, ${this.currentSubCell.sz}) ` +
                     `at world (${o.position.x.toFixed(2)}, ${o.position.z.toFixed(2)})`
                 );
                 this.driftWarned = true;
@@ -219,7 +214,7 @@ class Walker extends Emitter
             }
         }
 
-        const target = this.cellToWorld(this.path[this.pathIndex]);
+        const target = this.subCellToWorld(this.path[this.pathIndex]);
 
         const dx = target.x - o.position.x;
         const dz = target.z - o.position.z;
@@ -227,10 +222,6 @@ class Walker extends Emitter
 
         if(dist <= ARRIVE_EPSILON)
         {
-            // Already at target — treat as arrived for this leg and advance.
-            // Defending against degenerate paths (e.g. duplicate consecutive
-            // cells) so the walker can't stall forever animating "walk"
-            // without moving.
             this.pathIndex += 1;
             if(this.pathIndex >= this.path.length)
             {
@@ -238,7 +229,7 @@ class Walker extends Emitter
                 this.tickRotation(dt);
                 return;
             }
-            this.faceTowardsCell(this.path[this.pathIndex]);
+            this.faceTowardsSubCell(this.path[this.pathIndex]);
             this.tickRotation(dt);
             return;
         }
@@ -250,26 +241,28 @@ class Walker extends Emitter
         const newX = o.position.x + dirX * moveAmount;
         const newZ = o.position.z + dirZ * moveAmount;
 
-        // Pre-check on cell-boundary crossing only. As long as we're moving
-        // within the cell we've already registered, no checks are needed —
-        // we own this cell. The check fires the moment our predicted next
-        // position would land in a different cell. If that cell is
-        // unavailable, we don't advance into it: position stays put and
-        // we emit "blocked".
-        const newCell = grid.worldToCell(newX, newZ);
-        const crossesCell = !this.currentCell
-            || newCell.cx !== this.currentCell.cx
-            || newCell.cz !== this.currentCell.cz;
+        /*
+         * Pre-check on sub-cell-boundary crossing only. As long as we're
+         * moving within the sub-cell we've already registered, no checks are
+         * needed — we own this sub-cell. The check fires the moment our
+         * predicted next position would land in a different sub-cell. If
+         * that sub-cell is blocked, we don't advance into it: position
+         * stays put and we trigger withdrawal.
+         */
+        const newCell = walkGrid.worldToSub(newX, newZ);
+        const crossesCell = !this.currentSubCell
+            || newCell.sx !== this.currentSubCell.sx
+            || newCell.sz !== this.currentSubCell.sz;
 
         if(crossesCell)
         {
-            if(!grid.isAvailable(newCell.cx, newCell.cz, this.entity))
+            if(!walkGrid.isWalkable(newCell.sx, newCell.sz))
             {
                 this.startWithdrawal();
                 this.tickRotation(dt);
                 return;
             }
-            this.registerOccupancy(newCell.cx, newCell.cz);
+            this.stampSubCell(newCell.sx, newCell.sz);
         }
 
         o.position.x = newX;
@@ -288,7 +281,7 @@ class Walker extends Emitter
                 return;
             }
 
-            this.faceTowardsCell(this.path[this.pathIndex]);
+            this.faceTowardsSubCell(this.path[this.pathIndex]);
         }
 
         this.tickRotation(dt);
@@ -311,19 +304,15 @@ class Walker extends Emitter
 
     startWithdrawal()
     {
-        if(!this.currentCell)
+        if(!this.currentSubCell)
         {
-            // No cell to withdraw to — block immediately.
             this.completed = true;
             this.crossfadeAnimator("idle");
             this.emit("blocked", { walker: this });
             return;
         }
 
-        // If already close to centre, withdrawal would be near-zero — just
-        // block immediately. The MESH_BUFFER threshold means walker meshes
-        // can't visually overlap when both stop within their cells.
-        const centre = this.cellToWorld(this.currentCell);
+        const centre = this.subCellToWorld(this.currentSubCell);
         const o = this.entity.object3D;
         const dx = centre.x - o.position.x;
         const dz = centre.z - o.position.z;
@@ -335,25 +324,22 @@ class Walker extends Emitter
             return;
         }
 
-        // Withdraw: replace path with a single-cell mini-path back to
-        // currentCell centre. Walker keeps animating "walk" until it
-        // arrives, then completePath() emits "blocked".
-        this.path = [{ cx: this.currentCell.cx, cz: this.currentCell.cz }];
+        this.path = [{ sx: this.currentSubCell.sx, sz: this.currentSubCell.sz }];
         this.pathIndex = 0;
         this.withdrawing = true;
-        this.faceTowardsCell(this.path[0]);
+        this.faceTowardsSubCell(this.path[0]);
     }
 
-    teleportTo(cx, cz)
+    teleportTo(sx, sz)
     {
         this.path = [];
         this.pathIndex = 0;
         this.completed = true;
         this.withdrawing = false;
 
-        const w = this.cellToWorld({ cx, cz });
+        const w = this.subCellCentre(sx, sz);
         this.entity.object3D.position.set(w.x, 0, w.z);
-        this.registerOccupancy(cx, cz);
+        this.stampSubCell(sx, sz);
 
         this.crossfadeAnimator("idle");
         this.emit("displaced", { walker: this });
@@ -363,7 +349,7 @@ class Walker extends Emitter
     {
         return {
             speed:     this.speed,
-            path:      this.path.map(c => ({ cx: c.cx, cz: c.cz })),
+            path:      this.path.map(c => ({ sx: c.sx, sz: c.sz })),
             pathIndex: this.pathIndex
         };
     }
@@ -371,9 +357,14 @@ class Walker extends Emitter
 
     /* INTERNAL ***************************************************************/
 
-    cellToWorld(cell)
+    subCellToWorld(cell)
     {
-        return this.entity.world.grid.cellToWorld(cell.cx, cell.cz);
+        return this.subCellCentre(cell.sx, cell.sz);
+    }
+
+    subCellCentre(sx, sz)
+    {
+        return this.entity.world.walkGrid.subToWorld(sx, sz);
     }
 
     crossfadeAnimator(state)
@@ -381,47 +372,34 @@ class Walker extends Emitter
         this.entity.getComponent(Animator)?.crossfade(state);
     }
 
-    snapToCell(cell)
+    snapToSubCell(cell)
     {
-        const w = this.cellToWorld(cell);
+        const w = this.subCellCentre(cell.sx, cell.sz);
         this.entity.object3D.position.set(w.x, 0, w.z);
-        this.registerOccupancy(cell.cx, cell.cz);
+        this.stampSubCell(cell.sx, cell.sz);
     }
 
-    registerOccupancy(cx, cz)
+    stampSubCell(sx, sz)
     {
-        const grid = this.entity.world.grid;
+        const walkGrid = this.entity.world.walkGrid;
 
-        // Refuse to clobber another occupant. Pre-checks (boundary-cross
-        // `isAvailable`, `WanderBehaviour.kickTrip`, FP camera marker policy)
-        // should make this unreachable; if it ever fires, there's a bug
-        // upstream — log loudly and bail rather than corrupt grid state.
-        const existing = grid.getOccupant(cx, cz);
-        if(existing && existing !== this.entity)
+        if(this.currentSubCell && this.currentSubCell.sx === sx && this.currentSubCell.sz === sz)
         {
-            const existingKind = existing && existing.kind ? existing.kind : "<unknown>";
-            console.error(`[Walker] ${this.entity.kind} refusing to overwrite occupant at (${cx}, ${cz}) — was ${existingKind}`);
-            return;
+            return; // Already stamped here.
         }
 
-        if(this.currentCell)
+        if(this.currentSubCell)
         {
-            // Only clear if we still own the previous cell — guards against
-            // the case where the FP camera or another writer has taken over.
-            const prev = grid.getOccupant(this.currentCell.cx, this.currentCell.cz);
-            if(prev === this.entity)
-            {
-                grid.clearOccupant(this.currentCell.cx, this.currentCell.cz);
-            }
+            walkGrid.revertStamp([this.currentSubCell]);
         }
 
-        grid.setOccupant(cx, cz, this.entity);
-        this.currentCell = { cx, cz };
+        walkGrid.applyStamp([{ sx, sz }]);
+        this.currentSubCell = { sx, sz };
     }
 
-    faceTowardsCell(cell)
+    faceTowardsSubCell(cell)
     {
-        const w = this.cellToWorld(cell);
+        const w = this.subCellCentre(cell.sx, cell.sz);
         const o = this.entity.object3D;
         const dx = w.x - o.position.x;
         const dz = w.z - o.position.z;
@@ -435,10 +413,8 @@ class Walker extends Emitter
     {
         const o = this.entity.object3D;
         let delta = this.targetRotation - o.rotation.y;
-        // Wrap to [-π, π] so the lerp always picks the shortest arc.
         while(delta >  Math.PI) { delta -= TWO_PI; }
         while(delta < -Math.PI) { delta += TWO_PI; }
-        // Exponential smoothing: framerate-independent, asymptotic approach.
         const factor = 1 - Math.exp(-this.turnRate * dt);
         o.rotation.y += delta * factor;
     }

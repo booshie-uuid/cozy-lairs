@@ -75,9 +75,8 @@ class WorldEditor
         if(!grid.isInBounds(cx, cz)) { return false; }
         if(!grid.isFloor(cx, cz))    { return false; }
 
-        const occupant = grid.getOccupant(cx, cz);
-        if(occupant === PLAYER_MARKER) { return false; }
-        if(this.isWalkerEntity(occupant)) { return false; }
+        if(grid.getOccupant(cx, cz) === PLAYER_MARKER) { return false; }
+        if(this.walkerInMainCell(cx, cz))              { return false; }
         return true;
     }
 
@@ -87,9 +86,8 @@ class WorldEditor
         if(!grid.isInBounds(cx, cz)) { return false; }
         if(!grid.isFloor(cx, cz))    { return false; }
 
-        const occupant = grid.getOccupant(cx, cz);
-        if(occupant === PLAYER_MARKER)    { return false; }
-        if(this.isWalkerEntity(occupant)) { return false; }
+        if(grid.getOccupant(cx, cz) === PLAYER_MARKER) { return false; }
+        if(this.walkerInMainCell(cx, cz))              { return false; }
 
         // Surface-placement branch: if the kind opts in AND a surface
         // already sits at this cell, allow the placement provided no
@@ -125,9 +123,17 @@ class WorldEditor
     canSpawnMinion(_kind, cx, cz)
     {
         const grid = this.world.grid;
+        const walkGrid = this.world.walkGrid;
         if(!grid.isInBounds(cx, cz)) { return false; }
         if(!grid.isFloor(cx, cz))    { return false; }
-        if(grid.getOccupant(cx, cz) !== null) { return false; }
+        if(grid.getOccupant(cx, cz) === PLAYER_MARKER) { return false; }
+
+        // Walkers can share a main cell at different sub-cells; reject spawn
+        // only if the spawn sub-cell itself (main-cell centre) is blocked.
+        const base = walkGrid.mainToSub(cx, cz);
+        const centreSx = base.sx + Math.floor(walkGrid.subsPerMain / 2);
+        const centreSz = base.sz + Math.floor(walkGrid.subsPerMain / 2);
+        if(!walkGrid.isWalkable(centreSx, centreSz)) { return false; }
         return true;
     }
 
@@ -169,13 +175,12 @@ class WorldEditor
             return false;
         }
 
-        const occupant = grid.getOccupant(cx, cz);
-        if(occupant === PLAYER_MARKER)
+        if(grid.getOccupant(cx, cz) === PLAYER_MARKER)
         {
             this.toast("Can't erase floor — the player is standing here.", "warning");
             return false;
         }
-        if(this.isWalkerEntity(occupant))
+        if(this.walkerInMainCell(cx, cz))
         {
             this.toast("Can't erase floor — a minion is standing here.", "warning");
             return false;
@@ -558,6 +563,27 @@ class WorldEditor
         if(!occupant || occupant === PLAYER_MARKER) { return false; }
         if(typeof occupant.getComponent !== "function") { return false; }
         return occupant.getComponent(Walker) !== undefined;
+    }
+
+    /*
+     * Walkers no longer register on the main grid — multiple walkers can
+     * occupy the same 4×4 main cell at different sub-cells, which a single-
+     * value main-grid slot can't represent. Scan world entities instead.
+     */
+    walkerInMainCell(cx, cz)
+    {
+        const subsPerMain = this.world.walkGrid.subsPerMain;
+        for(const entity of this.world.entities)
+        {
+            const walker = entity.getComponent(Walker);
+            if(!walker || !walker.currentSubCell) { continue; }
+            if(Math.floor(walker.currentSubCell.sx / subsPerMain) === cx
+               && Math.floor(walker.currentSubCell.sz / subsPerMain) === cz)
+            {
+                return entity;
+            }
+        }
+        return null;
     }
 
     displayName(kind)

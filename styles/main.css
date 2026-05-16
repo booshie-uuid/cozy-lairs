@@ -288,6 +288,28 @@ html, body
     margin: 0;
 }
 
+.dev-console-select
+{
+    background-color: rgba(216, 222, 233, 0.04);
+    border: 1px solid rgba(216, 222, 233, 0.1);
+    color: inherit;
+    font: inherit;
+    padding: 0.15rem 0.3rem;
+    border-radius: 3px;
+}
+
+.dev-console-select:focus
+{
+    outline: none;
+    border-color: rgba(136, 192, 208, 0.5);
+}
+
+.dev-console-select option
+{
+    background-color: #0c1016;
+    color: #d8dee9;
+}
+
 .dev-console-button
 {
     background-color: rgba(216, 222, 233, 0.06);

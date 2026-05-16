@@ -2,26 +2,35 @@ import { Walker }       from "./walker.js";
 import * as Pathfinder  from "../../engine/pathfinding/index.js";
 
 
+/*
+ * Wander target search radius, in sub-cells. 16 sub-cells = 4 main cells.
+ * Big enough that the minion explores past immediate obstacles; small
+ * enough that random picks predominantly land in the same connected
+ * component as the walker (sampling globally drowns useful targets in a
+ * sea of unreachable cells across the rest of the world).
+ */
+const SAMPLE_RADIUS   = 16;
+const SAMPLE_ATTEMPTS = 32;
+
+
 /******************************************************************************/
 /* WANDER BEHAVIOUR                                                           */
 /******************************************************************************/
 
 /*
  * Picks random walkable destinations for a sibling `Walker`, separated by
- * brief idle pauses, with corner-cutting handled by `Pathfinder`. One of
- * several swappable AI strategies — V1 uses this; V2+ goal-driven behaviours
- * (sleep, eat, work-station) will live alongside under the same component
- * lifecycle.
+ * brief idle pauses, with corner-cutting handled by `Pathfinder`. The walker
+ * substrate is the sub-grid: targets are individual sub-cells, paths are
+ * sub-cell waypoints, the pathfinder runs 4-neighbour BFS over the walk-grid.
  *
  * Constructor options:
  *   idleMin / idleMax       — seconds; pause range between trips.
  *   retryLimit              — re-rolls per kick before giving up and idling
- *                             again (handles the rare "picked an unreachable
- *                             cell" case in fragmented rooms).
- *   minTargetDistance       — Chebyshev distance, in cells. Targets within
- *                             this radius of the current cell are excluded
- *                             so the minion doesn't pick adjacent cells and
- *                             twitch.
+ *                             again.
+ *   minTargetDistance       — sub-cell Chebyshev distance. Targets within
+ *                             this radius are excluded so the minion doesn't
+ *                             pick adjacent sub-cells and twitch. At 1m
+ *                             sub-cells, 12 ≈ 3 main cells away.
  *   pathfinder              — defaults to the shared `Pathfinder` module;
  *                             tests inject a stub.
  */
@@ -33,7 +42,7 @@ class WanderBehaviour
         idleMin           = 0.5,
         idleMax           = 1.5,
         retryLimit        = 3,
-        minTargetDistance = 3,
+        minTargetDistance = 4,
         pathfinder        = null
     } = {})
     {
@@ -48,9 +57,6 @@ class WanderBehaviour
         this.world = null;
         this.walker = null;
         this.arrivedHandler = null;
-        // Latch so the "stuck on non-walkable, no rescue" warning fires
-        // once per episode, not on every idle expiry. Cleared once we
-        // successfully kick a trip again.
         this.rescueWarned = false;
     }
 
@@ -114,31 +120,33 @@ class WanderBehaviour
 
     kickTrip()
     {
-        const currentCell = this.currentCell();
-        const grid = this.world.grid;
+        const currentSub = this.currentSubCell();
+        const isTraversable = this.makeTraversablePredicate();
 
-        // Self-rescue: if we somehow ended up on a non-walkable cell (e.g.
-        // teleported onto decor by a dev-console call, or displaced by a
-        // future bug), pathfinder would refuse to plan a route from here.
-        // Find the closest available cell and teleport. The displaced
-        // event triggers another scheduleNextTrip so wandering resumes.
-        if(!grid.isAvailable(currentCell.cx, currentCell.cz, this.entity))
+        /*
+         * Self-rescue: if we ended up on an untraversable sub-cell (e.g. a
+         * blocker was placed on top of us, or a sub-grid bug stranded us),
+         * the walker's own stamp is on the cell, so the pathfinder sees it
+         * as blocked. Temporarily un-stamp before checking traversability.
+         */
+        this.world.walkGrid.revertStamp([currentSub]);
+        const startTraversable = isTraversable(currentSub.sx, currentSub.sz);
+        this.world.walkGrid.applyStamp([currentSub]);
+
+        if(!startTraversable)
         {
-            const free = grid.findClosestAvailable(currentCell.cx, currentCell.cz, this.entity);
+            const free = this.findNearestTraversable(currentSub, isTraversable);
             if(free)
             {
                 this.rescueWarned = false;
-                this.walker.teleportTo(free.cx, free.cz);
+                this.walker.teleportTo(free.sx, free.sz);
                 return;
             }
-            // No free cell anywhere on the grid — degenerate state. Idle
-            // and try again later. Warn once so the silent-loop failure
-            // mode is visible in the dev console.
             if(!this.rescueWarned)
             {
                 console.warn(
-                    `[WanderBehaviour] ${this.entity.kind} stuck on non-walkable (${currentCell.cx}, ${currentCell.cz}) ` +
-                    `— no free cell available, will retry next idle.`
+                    `[WanderBehaviour] ${this.entity.kind} stuck on untraversable sub-cell ` +
+                    `(${currentSub.sx}, ${currentSub.sz}) — no free sub-cell available, will retry next idle.`
                 );
                 this.rescueWarned = true;
             }
@@ -150,15 +158,18 @@ class WanderBehaviour
 
         for(let i = 0; i < this.retryLimit; i++)
         {
-            const target = this.pickTarget(currentCell);
+            const target = this.pickTarget(currentSub, isTraversable);
             if(target === null) { break; }
 
+            this.world.walkGrid.revertStamp([currentSub]);
             const path = this.pathfinder.findPath(
-                grid,
-                currentCell,
+                this.world.walkGrid,
+                currentSub,
                 target,
-                { excludeOccupant: this.entity }
+                isTraversable
             );
+            this.world.walkGrid.applyStamp([currentSub]);
+
             if(path !== null)
             {
                 this.walker.followPath(path);
@@ -169,30 +180,118 @@ class WanderBehaviour
         this.scheduleNextTrip();
     }
 
-    currentCell()
+    currentSubCell()
     {
         const o = this.entity.object3D;
-        return this.world.grid.worldToCell(o.position.x, o.position.z);
+        return this.world.walkGrid.worldToSub(o.position.x, o.position.z);
     }
 
-    pickTarget(currentCell)
+    /*
+     * Composes walk-grid walkability with a main-grid floor check: minions
+     * may only path along sub-cells that sit inside a floor-marked main cell.
+     * Without the floor check the BFS would happily route a minion across
+     * empty void where there's no floor entity at all.
+     *
+     * Crucially, the main-grid `blocked` flag is NOT consulted here — the
+     * walk-grid already tracks blockers at sub-cell resolution. A barrel in
+     * a main cell stamps 4 sub-cells but leaves the other 12 walkable, so
+     * the pathfinder can route around it within the same main cell.
+     */
+    makeTraversablePredicate()
     {
-        const grid = this.world.grid;
-        const candidates = grid.walkableCells().filter(c =>
-        {
-            // Exclude cells currently occupied by another walker — picking
-            // one would force pathfinder to fail (target unavailable),
-            // burning a retry slot. The walker's own cell is also excluded
-            // by the distance filter below.
-            const occupant = grid.getOccupant(c.cx, c.cz);
-            if(occupant && occupant !== this.entity) { return false; }
-            const dx = Math.abs(c.cx - currentCell.cx);
-            const dz = Math.abs(c.cz - currentCell.cz);
-            return Math.max(dx, dz) >= this.minTargetDistance;
-        });
+        const walkGrid = this.world.walkGrid;
+        const grid     = this.world.grid;
+        const subsPerMain = walkGrid.subsPerMain;
 
-        if(candidates.length === 0) { return null; }
-        return candidates[Math.floor(Math.random() * candidates.length)];
+        return (sx, sz) =>
+        {
+            if(!walkGrid.isWalkable(sx, sz)) { return false; }
+            const cx = Math.floor(sx / subsPerMain);
+            const cz = Math.floor(sz / subsPerMain);
+            return grid.isFloor(cx, cz);
+        };
+    }
+
+    /*
+     * Samples sub-cells within a bounded radius of the walker's current
+     * position rather than from the entire world's floor pool. Two reasons:
+     *   1. Random picks land in the walker's connected component with high
+     *      probability (a global sample would pile up picks in other rooms
+     *      that the pathfinder then fails to reach, burning retries).
+     *   2. Targets are visually plausible — minions wander in their
+     *      immediate surroundings rather than constantly aiming at the
+     *      far side of the map.
+     *
+     * Two passes: first prefer targets at or beyond `minTargetDistance` so
+     * the wander looks intentional; if none found, fall back to any
+     * traversable cell so a minion in a tiny pocket still gets to move.
+     */
+    pickTarget(currentSub, isTraversable)
+    {
+        const walkGrid = this.world.walkGrid;
+
+        for(let attempt = 0; attempt < SAMPLE_ATTEMPTS; attempt++)
+        {
+            const candidate = this.sampleInRadius(currentSub, SAMPLE_RADIUS);
+            if(!walkGrid.isInBounds(candidate.sx, candidate.sz)) { continue; }
+            if(!isTraversable(candidate.sx, candidate.sz))       { continue; }
+
+            const dx = Math.abs(candidate.sx - currentSub.sx);
+            const dz = Math.abs(candidate.sz - currentSub.sz);
+            const cheb = Math.max(dx, dz);
+            if(cheb < this.minTargetDistance) { continue; }
+
+            return candidate;
+        }
+
+        for(let attempt = 0; attempt < SAMPLE_ATTEMPTS; attempt++)
+        {
+            const candidate = this.sampleInRadius(currentSub, SAMPLE_RADIUS);
+            if(candidate.sx === currentSub.sx && candidate.sz === currentSub.sz) { continue; }
+            if(!walkGrid.isInBounds(candidate.sx, candidate.sz)) { continue; }
+            if(!isTraversable(candidate.sx, candidate.sz))       { continue; }
+            return candidate;
+        }
+
+        return null;
+    }
+
+    sampleInRadius(centre, radius)
+    {
+        const dsx = Math.floor(Math.random() * (2 * radius + 1)) - radius;
+        const dsz = Math.floor(Math.random() * (2 * radius + 1)) - radius;
+        return { sx: centre.sx + dsx, sz: centre.sz + dsz };
+    }
+
+    findNearestTraversable(start, isTraversable)
+    {
+        const walkGrid = this.world.walkGrid;
+        const visited = new Set();
+        const queue = [{ sx: start.sx, sz: start.sz }];
+        visited.add(`${start.sx},${start.sz}`);
+
+        const NEIGHBOURS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+        while(queue.length > 0)
+        {
+            const cell = queue.shift();
+            if(walkGrid.isInBounds(cell.sx, cell.sz) && isTraversable(cell.sx, cell.sz))
+            {
+                return cell;
+            }
+            for(const [dsx, dsz] of NEIGHBOURS)
+            {
+                const nsx = cell.sx + dsx;
+                const nsz = cell.sz + dsz;
+                if(!walkGrid.isInBounds(nsx, nsz)) { continue; }
+                const key = `${nsx},${nsz}`;
+                if(visited.has(key)) { continue; }
+                visited.add(key);
+                queue.push({ sx: nsx, sz: nsz });
+            }
+        }
+
+        return null;
     }
 }
 

@@ -44,9 +44,11 @@ const COMPONENT_BUILDERS =
     GridPlacement: (entity, data) =>
     {
         const options = {};
-        if(data.walkable === true)        { options.walkable = true; }
-        if(data.blocks   === true)        { options.blocks   = true; }
+        if(data.walkable === true)            { options.walkable = true; }
+        if(data.blocks   === true)            { options.blocks   = true; }
         if(typeof data.surfaceY === "number") { options.surfaceY = data.surfaceY; }
+        if(typeof data.xOffset  === "number") { options.xOffset  = data.xOffset;  }
+        if(typeof data.zOffset  === "number") { options.zOffset  = data.zOffset;  }
         entity.addComponent(new GridPlacement(data.cx, data.cz, data.rotationStep, options));
     },
 
@@ -65,7 +67,15 @@ const COMPONENT_BUILDERS =
         const walker = entity.addComponent(new Walker({ speed: data.speed }));
         if(Array.isArray(data.path) && data.path.length > 0)
         {
-            walker.pendingFollow = { path: data.path, startIndex: data.pathIndex };
+            // V6+ saves use sub-cell coords {sx, sz}. Older V5 saves used
+            // main-cell {cx, cz} — those are dropped on load (walker idles,
+            // wander re-plans on the new substrate). Mixing the two would
+            // require coord translation we don't need.
+            const sample = data.path[0];
+            if(sample && typeof sample.sx === "number" && typeof sample.sz === "number")
+            {
+                walker.pendingFollow = { path: data.path, startIndex: data.pathIndex };
+            }
         }
     }
 };

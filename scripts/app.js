@@ -38,7 +38,7 @@ import "./modules/ui/bindings.js";
 
 const ko = window.ko;
 
-const VERSION = "V5_13_0";
+const VERSION = "V6_9_0";
 
 const GRID_WIDTH = 20;
 const GRID_DEPTH = 20;
@@ -101,6 +101,14 @@ const GRID_HELPER_Y_OFFSET = 0.001;
 const DIAG_GRID_COLOUR = 0xff3030;
 const DIAG_GRID_Y_OFFSET = 0.05;
 
+const SUB_GRID_LINE_COLOUR = 0x6688aa;
+const SUB_GRID_LINE_OPACITY = 0.35;
+const SUB_GRID_LINE_Y_OFFSET = 0.06;
+const SUB_GRID_BLOCKER_COLOUR = 0xff3030;
+const SUB_GRID_BLOCKER_OPACITY = 0.45;
+const SUB_GRID_BLOCKER_Y_OFFSET = 0.08;
+const SUB_GRID_BLOCKER_INSET = 0.04;  // shrink the tile slightly so adjacent blockers don't merge visually
+
 
 function buildRectGrid(grid, colour)
 {
@@ -122,6 +130,84 @@ function buildRectGrid(grid, colour)
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
     const material = new THREE.LineBasicMaterial({ color: colour });
     return new THREE.LineSegments(geometry, material);
+}
+
+
+function buildSubGridLines(walkGrid)
+{
+    const S = walkGrid.subCellSize;
+    const W = walkGrid.width * S;
+    const D = walkGrid.depth * S;
+    const points = [];
+    for(let i = 0; i <= walkGrid.width; i++)
+    {
+        const x = i * S;
+        points.push(x, 0, 0, x, 0, D);
+    }
+    for(let i = 0; i <= walkGrid.depth; i++)
+    {
+        const z = i * S;
+        points.push(0, 0, z, W, 0, z);
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+    const material = new THREE.LineBasicMaterial({
+        color:       SUB_GRID_LINE_COLOUR,
+        transparent: true,
+        opacity:     SUB_GRID_LINE_OPACITY,
+        depthWrite:  false
+    });
+    return new THREE.LineSegments(geometry, material);
+}
+
+
+function buildSubGridBlockerMesh(walkGrid)
+{
+    const total = walkGrid.width * walkGrid.depth;
+    const tileSize = walkGrid.subCellSize - SUB_GRID_BLOCKER_INSET * 2;
+
+    const geometry = new THREE.PlaneGeometry(tileSize, tileSize);
+    geometry.rotateX(-Math.PI / 2);  // lie flat on XZ plane
+    const material = new THREE.MeshBasicMaterial({
+        color:       SUB_GRID_BLOCKER_COLOUR,
+        transparent: true,
+        opacity:     SUB_GRID_BLOCKER_OPACITY,
+        depthWrite:  false
+    });
+
+    const mesh = new THREE.InstancedMesh(geometry, material, total);
+    mesh.frustumCulled = false;
+    return mesh;
+}
+
+
+function refreshSubGridBlockerMesh(walkGrid, mesh)
+{
+    const S = walkGrid.subCellSize;
+    const half = S / 2;
+    const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+    const reusable = new THREE.Matrix4();
+    let count = 0;
+
+    for(let sz = 0; sz < walkGrid.depth; sz++)
+    {
+        for(let sx = 0; sx < walkGrid.width; sx++)
+        {
+            const index = sz * walkGrid.width + sx;
+            if(walkGrid.refcounts[index] === 0)
+            {
+                mesh.setMatrixAt(index, hidden);
+                continue;
+            }
+            reusable.makeTranslation(sx * S + half, 0, sz * S + half);
+            mesh.setMatrixAt(index, reusable);
+            count += 1;
+        }
+    }
+
+    mesh.count = walkGrid.width * walkGrid.depth;
+    mesh.instanceMatrix.needsUpdate = true;
+    return count;
 }
 
 
@@ -159,6 +245,10 @@ class App
         this.iconRenderer = null;
         this.builderInputAdapter = null;
         this.diagGrid = null;
+        this.subGridLines = null;
+        this.subGridBlockers = null;
+        this.diagMode = "off";
+        this.walkGridChangeHandler = null;
 
         // Component class refs exposed for dev-console use. Modules don't
         // leak into global scope, so without this the dev console can't
@@ -357,7 +447,7 @@ class App
 
     buildWorld()
     {
-        this.world = new World(new Grid(GRID_WIDTH, GRID_DEPTH, GRID_CELL_SIZE));
+        this.world = new World(new Grid(GRID_WIDTH, GRID_DEPTH, GRID_CELL_SIZE), this.assets);
         this.world.scene.background = new THREE.Color(SCENE_BACKGROUND);
         this.renderer.setScene(this.world.scene);
 
@@ -382,6 +472,25 @@ class App
         this.diagGrid.position.y = DIAG_GRID_Y_OFFSET;
         this.diagGrid.visible = false;
         this.world.scene.add(this.diagGrid);
+
+        this.subGridLines = buildSubGridLines(this.world.walkGrid);
+        this.subGridLines.position.y = SUB_GRID_LINE_Y_OFFSET;
+        this.subGridLines.visible = false;
+        this.world.scene.add(this.subGridLines);
+
+        this.subGridBlockers = buildSubGridBlockerMesh(this.world.walkGrid);
+        this.subGridBlockers.position.y = SUB_GRID_BLOCKER_Y_OFFSET;
+        this.subGridBlockers.visible = false;
+        this.world.scene.add(this.subGridBlockers);
+        refreshSubGridBlockerMesh(this.world.walkGrid, this.subGridBlockers);
+
+        this.walkGridChangeHandler = () =>
+        {
+            if(this.diagMode === "off") { return; }
+            refreshSubGridBlockerMesh(this.world.walkGrid, this.subGridBlockers);
+        };
+        this.world.on("entityAdded",   this.walkGridChangeHandler);
+        this.world.on("entityRemoved", this.walkGridChangeHandler);
 
         this.worldEditor = new WorldEditor({
             world:     this.world,
@@ -814,6 +923,7 @@ class App
         {
             toggleCameraMode:     () => this.toggleCameraMode(),
             toggleDiagnosticGrid: () => this.toggleDiagnosticGrid(),
+            setDiagMode:          mode => this.setDiagMode(mode),
             dumpWorldJSON:        () => this.dumpWorldJSON(),
             forceSaveFailure:     () => this.forceSaveFailure(),
             reloadManifest:       () => this.reloadManifest()
@@ -909,7 +1019,31 @@ class App
 
     toggleDiagnosticGrid()
     {
-        if(this.diagGrid) { this.diagGrid.visible = !this.diagGrid.visible; }
+        const next = this.diagMode === "off" ? "overlay" : "off";
+        this.setDiagMode(next);
+        if(this.viewModel && this.viewModel.dev) { this.viewModel.dev.diagMode(next); }
+    }
+
+    setDiagMode(mode)
+    {
+        if(mode !== "off" && mode !== "overlay" && mode !== "sub-only")
+        {
+            console.warn(`setDiagMode: ignoring unknown mode "${mode}".`);
+            return;
+        }
+        this.diagMode = mode;
+
+        const showMain     = mode === "overlay";
+        const showSubGrid  = mode === "overlay" || mode === "sub-only";
+
+        if(this.diagGrid)        { this.diagGrid.visible        = showMain;    }
+        if(this.subGridLines)    { this.subGridLines.visible    = showSubGrid; }
+        if(this.subGridBlockers) { this.subGridBlockers.visible = showSubGrid; }
+
+        if(showSubGrid && this.subGridBlockers)
+        {
+            refreshSubGridBlockerMesh(this.world.walkGrid, this.subGridBlockers);
+        }
     }
 
     dumpWorldJSON()
@@ -920,7 +1054,7 @@ class App
 
     diagnoseWalkers()
     {
-        const grid = this.world.grid;
+        const walkGrid = this.world.walkGrid;
         const minions = [...this.world.entities].filter(e => e.getComponent(Walker));
         console.log("=== Walker diagnostics ===");
         for(let i = 0; i < minions.length; i++)
@@ -928,23 +1062,18 @@ class App
             const minion = minions[i];
             const walker = minion.getComponent(Walker);
             const pos = minion.object3D.position;
-            const physical = grid.worldToCell(pos.x, pos.z);
-            const physicalOccupant = grid.getOccupant(physical.cx, physical.cz);
-            const ownTag = physicalOccupant === minion ? "self"
-                          : physicalOccupant ? `OTHER(${physicalOccupant.kind})`
-                          : "<empty>";
-            const reg = walker.currentCell
-                ? `(${walker.currentCell.cx}, ${walker.currentCell.cz})`
+            const physical = walkGrid.worldToSub(pos.x, pos.z);
+            const reg = walker.currentSubCell
+                ? `(${walker.currentSubCell.sx}, ${walker.currentSubCell.sz})`
                 : "<null>";
-            const drift = walker.currentCell
-                && (physical.cx !== walker.currentCell.cx || physical.cz !== walker.currentCell.cz)
+            const drift = walker.currentSubCell
+                && (physical.sx !== walker.currentSubCell.sx || physical.sz !== walker.currentSubCell.sz)
                 ? " ** DRIFT **" : "";
             console.log(
                 `  #${i} pos=(${pos.x.toFixed(2)}, ${pos.z.toFixed(2)}) ` +
-                `physical=(${physical.cx}, ${physical.cz}) ` +
+                `physicalSub=(${physical.sx}, ${physical.sz}) ` +
                 `registered=${reg} ` +
-                `completed=${walker.completed} ` +
-                `physicalCellOccupant=${ownTag}${drift}`
+                `completed=${walker.completed}${drift}`
             );
         }
     }
@@ -987,6 +1116,10 @@ class App
             onFrameUpdate: alpha =>
             {
                 if(this.cameraController) { this.cameraController.frameUpdate(alpha); }
+                if(this.subGridBlockers && this.subGridBlockers.visible)
+                {
+                    refreshSubGridBlockerMesh(this.world.walkGrid, this.subGridBlockers);
+                }
                 this.renderer.render();
             }
         });

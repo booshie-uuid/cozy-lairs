@@ -138,11 +138,13 @@ test("eraseFloor refuses cells holding a walker and toasts", () =>
     const { editor, world, viewModel } = setup();
     editor.paintFloor(3, 3);
 
+    // Walker presence is detected by scanning entities for any walker whose
+    // currentSubCell maps into main cell (3, 3). Stand a walker on a sub-cell
+    // inside (3, 3) — sub-cells (12..15, 12..15) at default 4× scaling.
     const walker = new Entity("test.walker", new THREE.Object3D());
-    walker.addComponent(new Walker());
-    // Mimic a walker registered as occupant of the cell.
+    const wComp  = walker.addComponent(new Walker());
+    wComp.currentSubCell = { sx: 13, sz: 13 };
     world.entities.add(walker);
-    world.grid.setOccupant(3, 3, walker);
 
     expect(editor.eraseFloor(3, 3)).toBe(false);
     expect(viewModel.toast).toHaveBeenCalledWith(expect.stringContaining("minion"), "warning");
@@ -216,10 +218,11 @@ test("placeDecor refuses cells holding a walker", () =>
 {
     const { editor, world } = setup();
     editor.paintFloor(3, 3);
+
     const walker = new Entity("test.walker", new THREE.Object3D());
-    walker.addComponent(new Walker());
+    const wComp  = walker.addComponent(new Walker());
+    wComp.currentSubCell = { sx: 13, sz: 13 };  // sub-cell in main cell (3, 3)
     world.entities.add(walker);
-    world.grid.setOccupant(3, 3, walker);
 
     expect(editor.placeDecor("decor.crate", 3, 3)).toBe(false);
 });

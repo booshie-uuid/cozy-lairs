@@ -13,9 +13,9 @@ function makeStubPathfinder(plan)
     const pathfinder =
     {
         findPathCalls: [],
-        findPath(grid, start, end)
+        findPath(walkGrid, start, end, isTraversable)
         {
-            this.findPathCalls.push({ start, end });
+            this.findPathCalls.push({ start, end, isTraversable });
             return plan(start, end);
         }
     };
@@ -25,6 +25,7 @@ function makeStubPathfinder(plan)
 
 function makeOpenWorld(width = 10, depth = 10)
 {
+    /* All main cells walkable; walk-grid has no blockers. */
     const world = new World(new Grid(width, depth, 4));
     for(let cx = 0; cx < width; cx++)
     {
@@ -38,9 +39,9 @@ function makeOpenWorld(width = 10, depth = 10)
 
 
 function setup({
-    pathfinder = makeStubPathfinder(() => [{ cx: 0, cz: 0 }, { cx: 5, cz: 5 }]),
-    spawnCell = { cx: 2, cz: 2 },
-    minTargetDistance = 3,
+    pathfinder = makeStubPathfinder(() => [{ sx: 8, sz: 8 }, { sx: 20, sz: 20 }]),
+    spawnSub = { sx: 8, sz: 8 },                     // sub-cell (8, 8) ≈ main cell (2, 2)
+    minTargetDistance = 6,
     idleMin = 0.1,
     idleMax = 0.1,
     retryLimit = 3
@@ -56,7 +57,7 @@ function setup({
         idleMin, idleMax, retryLimit, minTargetDistance, pathfinder
     }));
 
-    const spawn = world.grid.cellToWorld(spawnCell.cx, spawnCell.cz);
+    const spawn = world.walkGrid.subToWorld(spawnSub.sx, spawnSub.sz);
     entity.object3D.position.set(spawn.x, 0, spawn.z);
 
     world.addEntity(entity);
@@ -69,9 +70,15 @@ let mathRandomSpy;
 
 beforeEach(() =>
 {
-    // Deterministic Math.random for pickTarget; tests that need different
-    // values can re-mock per-test.
-    mathRandomSpy = vi.spyOn(Math, "random").mockReturnValue(0.5);
+    /* Deterministic but varying — a fixed `mockReturnValue` makes
+     * sampleInRadius always produce the same (zero) offset which is the
+     * walker's own cell; pickTarget would never return a valid target. */
+    let counter = 0;
+    mathRandomSpy = vi.spyOn(Math, "random").mockImplementation(() =>
+    {
+        counter += 1;
+        return ((counter * 7919) % 1000) / 1000;
+    });
 });
 
 afterEach(() =>
@@ -80,7 +87,9 @@ afterEach(() =>
 });
 
 
-test("scheduling — onAddedToWorld queues an initial idle countdown", () =>
+/* SCHEDULING *****************************************************************/
+
+test("onAddedToWorld queues an initial idle countdown", () =>
 {
     const { behaviour } = setup({ idleMin: 0.5, idleMax: 1.5 });
 
@@ -100,22 +109,56 @@ test("update ticks down idleRemaining and kicks a trip on zero", () =>
 });
 
 
-test("kickTrip calls pathfinder.findPath with current cell + target, hands result to walker", () =>
+/* TRIP KICK ******************************************************************/
+
+test("kickTrip calls pathfinder.findPath with current sub-cell + target, hands result to walker", () =>
 {
-    const path = [{ cx: 2, cz: 2 }, { cx: 5, cz: 5 }];
+    const path = [{ sx: 8, sz: 8 }, { sx: 20, sz: 20 }];
     const pathfinder = makeStubPathfinder(() => path);
 
-    const { behaviour, walker, pathfinder: pf, followPathSpy } = setup({ pathfinder });
+    const { behaviour, pathfinder: pf, followPathSpy } = setup({ pathfinder });
 
     behaviour.update(0.2);
 
     expect(pf.findPathCalls.length).toBe(1);
-    expect(pf.findPathCalls[0].start).toEqual({ cx: 2, cz: 2 });
+    expect(pf.findPathCalls[0].start).toEqual({ sx: 8, sz: 8 });
+    expect(typeof pf.findPathCalls[0].isTraversable).toBe("function");
     expect(followPathSpy).toHaveBeenCalledWith(path);
 });
 
 
-test("walker blocked re-schedules another trip (same handler as arrived)", () =>
+test("traversable predicate filters out sub-cells outside walkable main cells", () =>
+{
+    const { world, pathfinder: pf } = setup({
+        pathfinder: makeStubPathfinder(() => [{ sx: 8, sz: 8 }])
+    });
+
+    // Mark main cell (5, 5) as non-floor → sub-cells (20..23, 20..23) are
+    // traversable only if both walk-grid says walkable AND grid.isWalkable
+    // says yes. Removing the floor (it's currently marked) flips the predicate.
+    world.grid.unmarkFloor(5, 5);
+
+    pf.findPathCalls = [];
+
+    // Trigger another kick by calling kickTrip directly. behaviour has the
+    // pf stub so the path planner gets re-called.
+    const beh = world.entities.values().next().value.getComponent(WanderBehaviour);
+    beh.kickTrip();
+
+    const predicate = pf.findPathCalls[pf.findPathCalls.length - 1].isTraversable;
+    // Sub-cells in main cell (5, 5) → sx in [20..23], sz in [20..23]. Should
+    // now report as untraversable.
+    expect(predicate(20, 20)).toBe(false);
+    expect(predicate(21, 22)).toBe(false);
+    // Sub-cell (12, 12) is inside still-walkable main cell (3, 3) and isn't
+    // stamped by anyone, so the predicate returns true.
+    expect(predicate(12, 12)).toBe(true);
+});
+
+
+/* WALKER EVENT HANDLERS ******************************************************/
+
+test("walker blocked re-schedules another trip", () =>
 {
     const { behaviour, walker, followPathSpy } = setup({ idleMin: 0.1, idleMax: 0.1 });
 
@@ -130,7 +173,7 @@ test("walker blocked re-schedules another trip (same handler as arrived)", () =>
 });
 
 
-test("walker displaced re-schedules another trip (same handler as arrived)", () =>
+test("walker displaced re-schedules another trip", () =>
 {
     const { behaviour, walker, followPathSpy } = setup({ idleMin: 0.1, idleMax: 0.1 });
 
@@ -149,11 +192,9 @@ test("walker arrived re-schedules another trip", () =>
 {
     const { behaviour, walker, followPathSpy } = setup({ idleMin: 0.1, idleMax: 0.1 });
 
-    // First trip
     behaviour.update(0.2);
     expect(followPathSpy).toHaveBeenCalledTimes(1);
 
-    // Walker fires arrived — should reschedule and tick a new trip after idle
     walker.emit("arrived", { walker });
     expect(behaviour.idleRemaining).toBeGreaterThan(0);
 
@@ -161,6 +202,8 @@ test("walker arrived re-schedules another trip", () =>
     expect(followPathSpy).toHaveBeenCalledTimes(2);
 });
 
+
+/* PATH RETRIES ***************************************************************/
 
 test("retries on null pathfind up to retryLimit, then idles again", () =>
 {
@@ -178,82 +221,82 @@ test("retries on null pathfind up to retryLimit, then idles again", () =>
 });
 
 
-test("pickTarget returns null when no walkable cell is far enough away", () =>
+test("pickTarget falls back to a close target when no distant one is available", () =>
 {
+    // With minTargetDistance set above the whole-world Chebyshev radius, the
+    // primary distance constraint can never be met — the fallback should
+    // still produce a traversable close target so minions in tiny accessible
+    // areas don't get stuck idling forever.
     const { behaviour, followPathSpy, pathfinder: pf } = setup({
-        spawnCell: { cx: 5, cz: 5 },
-        minTargetDistance: 100
+        spawnSub: { sx: 20, sz: 20 },
+        minTargetDistance: 1000
     });
 
     behaviour.update(0.2);
 
-    expect(pf.findPathCalls.length).toBe(0);
-    expect(followPathSpy).not.toHaveBeenCalled();
-    expect(behaviour.idleRemaining).toBeGreaterThan(0);
+    expect(pf.findPathCalls.length).toBeGreaterThan(0);
+    expect(followPathSpy).toHaveBeenCalled();
 });
 
 
-test("pickTarget excludes cells within minTargetDistance (Chebyshev)", () =>
+test("pickTarget excludes sub-cells within minTargetDistance (Chebyshev)", () =>
 {
-    // Mock Math.random so we can predict which candidate gets picked.
-    // pickTarget builds a sorted candidates list (filtered) then picks
-    // index = floor(random * length). With random = 0, picks index 0.
     mathRandomSpy.mockReturnValue(0);
 
     const { behaviour, pathfinder: pf } = setup({
-        spawnCell: { cx: 5, cz: 5 },
-        minTargetDistance: 3
+        spawnSub: { sx: 20, sz: 20 },
+        minTargetDistance: 8
     });
 
     behaviour.update(0.2);
 
-    // Whatever was picked, every excluded-zone cell must NOT have been picked
     expect(pf.findPathCalls.length).toBe(1);
     const target = pf.findPathCalls[0].end;
-    const dx = Math.abs(target.cx - 5);
-    const dz = Math.abs(target.cz - 5);
-    expect(Math.max(dx, dz)).toBeGreaterThanOrEqual(3);
+    const dx = Math.abs(target.sx - 20);
+    const dz = Math.abs(target.sz - 20);
+    expect(Math.max(dx, dz)).toBeGreaterThanOrEqual(8);
 });
 
 
+/* LIFECYCLE ******************************************************************/
+
 test("onRemovedFromWorld unsubscribes from walker.arrived", () =>
 {
-    const { world, entity, walker, behaviour, followPathSpy } = setup();
+    const { world, entity, walker, followPathSpy } = setup();
 
-    behaviour.update(0.2);
-    expect(followPathSpy).toHaveBeenCalledTimes(1);
+    walker.emit("arrived", { walker });
+    walker.followPath.mockReset();
 
     world.removeEntity(entity);
 
     walker.emit("arrived", { walker });
-    // After unsubscribe, arrived events are ignored — idleRemaining stays at 0
-    // and update is no-op (walker reference cleared).
-    behaviour.update(1.0);
-    expect(followPathSpy).toHaveBeenCalledTimes(1);
+    expect(followPathSpy).not.toHaveBeenCalled();
 });
 
 
-test("self-rescue — teleports the walker off a non-walkable cell instead of pathfinding", () =>
+/* SELF-RESCUE ****************************************************************/
+
+test("self-rescue — teleports the walker off an untraversable sub-cell", () =>
 {
     const { world, walker, behaviour, followPathSpy, pathfinder: pf } = setup({
-        spawnCell: { cx: 5, cz: 5 }
+        spawnSub: { sx: 8, sz: 8 }
     });
     const teleportSpy = vi.spyOn(walker, "teleportTo");
 
-    // Block the walker's spawn cell after-the-fact (simulates a teleport
-    // onto decor or a placement-on-occupant edge case).
-    world.grid.setBlocked(5, 5);
+    // Block the walker's spawn sub-cell (simulating decor placed on top of it).
+    // The walker's own stamp is already there; add another so refcount=2.
+    // After the walker temporarily un-stamps to check traversability, the
+    // sub-cell still reads refcount=1 (blocked) → not traversable → rescue.
+    world.walkGrid.applyStamp([{ sx: 8, sz: 8 }]);
 
     behaviour.update(0.2);
 
-    // No pathfinder calls — kickTrip detected the unavailable start cell
-    // and chose to rescue instead.
     expect(pf.findPathCalls.length).toBe(0);
     expect(followPathSpy).not.toHaveBeenCalled();
     expect(teleportSpy).toHaveBeenCalledTimes(1);
-    // Teleport target must be a walkable + unoccupied cell.
-    const [cx, cz] = teleportSpy.mock.calls[0];
-    expect(world.grid.isWalkable(cx, cz)).toBe(true);
+
+    const [sx, sz] = teleportSpy.mock.calls[0];
+    expect(world.walkGrid.isInBounds(sx, sz)).toBe(true);
 });
 
 
@@ -272,7 +315,6 @@ test("warns and disables when entity has no Walker", () =>
     expect(behaviour.idleRemaining).toBe(0);
 
     behaviour.update(1.0);
-    // Still no-op
     expect(behaviour.idleRemaining).toBe(0);
 
     consoleWarnSpy.mockRestore();

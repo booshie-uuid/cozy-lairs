@@ -517,6 +517,95 @@ test("listAllIds returns every manifest id in declaration order", async () =>
 
 
 /******************************************************************************/
+/* AABB CACHE                                                                 */
+/******************************************************************************/
+
+function meshAt(minX, minZ, maxX, maxZ)
+{
+    const geometry = new THREE.BoxGeometry(maxX - minX, 1, maxZ - minZ);
+    const mesh = new THREE.Mesh(geometry);
+    mesh.position.set((minX + maxX) / 2, 0.5, (minZ + maxZ) / 2);
+    return mesh;
+}
+
+
+test("preloadCore caches an AABB for each core-tier asset", async () =>
+{
+    installMockFetch({
+        version: 1,
+        assets: [
+            { id: "small", path: "s.gltf", type: "gltf", tier: "core" },
+            { id: "wide",  path: "w.gltf", type: "gltf", tier: "core" }
+        ]
+    });
+
+    const manager = new AssetManager("/manifest.json");
+    patchLoader(manager, (path) =>
+    {
+        const root = new THREE.Group();
+        if(path === "s.gltf") { root.add(meshAt(-0.5, -0.5, 0.5, 0.5)); }
+        else                  { root.add(meshAt(-3,   -1,   3,   1));   }
+        return root;
+    });
+
+    await manager.loadManifest();
+    await manager.preloadCore();
+
+    const small = manager.getAabb("small");
+    const wide  = manager.getAabb("wide");
+
+    expect(small).toBeInstanceOf(THREE.Box3);
+    expect(small.min.x).toBeCloseTo(-0.5);
+    expect(small.max.x).toBeCloseTo(0.5);
+
+    expect(wide.min.x).toBeCloseTo(-3);
+    expect(wide.max.x).toBeCloseTo(3);
+    expect(wide.min.z).toBeCloseTo(-1);
+    expect(wide.max.z).toBeCloseTo(1);
+});
+
+
+test("getAabb returns null for an unloaded world-tier id, then a Box3 once loaded", async () =>
+{
+    installMockFetch({
+        version: 1,
+        assets: [{ id: "lazy", path: "l.gltf", type: "gltf", tier: "world" }]
+    });
+
+    const manager = new AssetManager("/manifest.json");
+    patchLoader(manager, () =>
+    {
+        const root = new THREE.Group();
+        root.add(meshAt(-1, -1, 1, 1));
+        return root;
+    });
+
+    await manager.loadManifest();
+
+    // Before lazy load — null.
+    expect(manager.getAabb("lazy")).toBeNull();
+
+    await manager.load("lazy");
+
+    const aabb = manager.getAabb("lazy");
+    expect(aabb).toBeInstanceOf(THREE.Box3);
+    expect(aabb.min.x).toBeCloseTo(-1);
+    expect(aabb.max.x).toBeCloseTo(1);
+});
+
+
+test("getAabb returns null for an unknown id (no throw)", async () =>
+{
+    installMockFetch({ version: 1, assets: [] });
+
+    const manager = new AssetManager("/manifest.json");
+    await manager.loadManifest();
+
+    expect(manager.getAabb("never.heard.of")).toBeNull();
+});
+
+
+/******************************************************************************/
 /* RELOAD                                                                     */
 /******************************************************************************/
 

@@ -1,4 +1,5 @@
-import * as Errors from "../../engine/errors.js";
+import * as Errors    from "../../engine/errors.js";
+import * as Footprint from "../footprint.js";
 
 
 /******************************************************************************/
@@ -15,6 +16,11 @@ import * as Errors from "../../engine/errors.js";
  * compensate for assets whose origin is not at their visual centre — e.g.
  * `wall_half.gltf` has bounds X=0..2 (origin at one end), so pass -1 to
  * centre it on the requested position.
+ *
+ * Stamps the walk-grid on add via the footprint module's AABB primitive,
+ * passing the pre-computed world transform (edge placements don't fit the
+ * cell-centred cx/cz/rotationStep shape). Reverts on remove. Gated on the
+ * world having both a walk-grid and an assets cache.
  */
 
 const HALF_TURN = Math.PI;
@@ -43,6 +49,7 @@ class EdgePlacement
         this.lengthOffset = lengthOffset;
         this.originOffset = originOffset;
         this.entity = null;
+        this.stampedSubCells = [];
     }
 
     attach(entity)
@@ -51,6 +58,36 @@ class EdgePlacement
     }
 
     onAddedToWorld(world)
+    {
+        const transform = this.computeWorldTransform(world);
+
+        const o = this.entity.object3D;
+        o.position.set(transform.x, 0, transform.z);
+        o.rotation.y = transform.rotationRadians;
+
+        this.stampWalkGrid(world, transform);
+    }
+
+    onRemovedFromWorld(world)
+    {
+        this.revertWalkGrid(world);
+    }
+
+    toJSON()
+    {
+        return {
+            cx: this.cx,
+            cz: this.cz,
+            side: this.side,
+            lengthOffset: this.lengthOffset,
+            originOffset: this.originOffset
+        };
+    }
+
+
+    /* INTERNAL ***************************************************************/
+
+    computeWorldTransform(world)
     {
         const S = world.grid.cellSize;
         const half = S / 2;
@@ -75,28 +112,38 @@ class EdgePlacement
             z += this.lengthOffset;
         }
 
-        const rotY = ROTATION_BY_SIDE[this.side];
+        const rotationRadians = ROTATION_BY_SIDE[this.side];
 
         if(this.originOffset !== 0)
         {
-            x += this.originOffset * Math.cos(rotY);
-            z -= this.originOffset * Math.sin(rotY);
+            x += this.originOffset * Math.cos(rotationRadians);
+            z -= this.originOffset * Math.sin(rotationRadians);
         }
 
-        const o = this.entity.object3D;
-        o.position.set(x, 0, z);
-        o.rotation.y = rotY;
+        return { x, z, rotationRadians };
     }
 
-    toJSON()
+    stampWalkGrid(world, transform)
     {
-        return {
-            cx: this.cx,
-            cz: this.cz,
-            side: this.side,
-            lengthOffset: this.lengthOffset,
-            originOffset: this.originOffset
-        };
+        if(!world.walkGrid || !world.assets) { return; }
+
+        const { subCells } = Footprint.computeFootprint({
+            kind:           this.entity.kind,
+            assets:         world.assets,
+            walkGrid:       world.walkGrid,
+            worldTransform: transform
+        });
+
+        this.stampedSubCells = subCells;
+        world.walkGrid.applyStamp(subCells);
+    }
+
+    revertWalkGrid(world)
+    {
+        if(!world.walkGrid || this.stampedSubCells.length === 0) { return; }
+
+        world.walkGrid.revertStamp(this.stampedSubCells);
+        this.stampedSubCells = [];
     }
 }
 

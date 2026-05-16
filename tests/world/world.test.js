@@ -172,3 +172,53 @@ test("clear is safe to call on an empty world", () =>
     expect(() => world.clear()).not.toThrow();
     expect(world.entities.size).toBe(0);
 });
+
+
+/* WALK-GRID INTEGRATION ******************************************************/
+
+test("World constructs a walk-grid sized to the main grid", () =>
+{
+    const grid = new Grid(5, 7, 4);
+    const world = new World(grid);
+
+    expect(world.walkGrid).toBeDefined();
+    expect(world.walkGrid.width).toBe(20);  // 5 * 4
+    expect(world.walkGrid.depth).toBe(28);  // 7 * 4
+    expect(world.walkGrid.subCellSize).toBe(1);
+    expect(world.walkGrid.subsPerMain).toBe(4);
+});
+
+
+test("World walk-grid scales sub-cells to the main grid's cellSize", () =>
+{
+    const grid = new Grid(3, 3, 2);  // 2m main cells
+    const world = new World(grid);
+
+    expect(world.walkGrid.subsPerMain).toBe(2);
+    expect(world.walkGrid.width).toBe(6);  // 3 * 2
+    expect(world.walkGrid.depth).toBe(6);
+});
+
+
+test("World.clear resets the walk-grid refcounts", () =>
+{
+    const world = makeWorld();
+    world.walkGrid.applyStamp([{ sx: 1, sz: 2 }, { sx: 3, sz: 4 }]);
+
+    expect(world.walkGrid.isWalkable(1, 2)).toBe(false);
+
+    world.clear();
+
+    expect(world.walkGrid.isWalkable(1, 2)).toBe(true);
+    expect(world.walkGrid.isWalkable(3, 4)).toBe(true);
+});
+
+
+test("World stores the optional assets reference for lifecycle components", () =>
+{
+    const grid = new Grid(4, 4);
+    const fakeAssets = { getMeta: () => null, getAabb: () => null };
+    const world = new World(grid, fakeAssets);
+
+    expect(world.assets).toBe(fakeAssets);
+});

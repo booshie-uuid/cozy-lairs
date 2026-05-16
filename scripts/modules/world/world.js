@@ -1,6 +1,7 @@
 import * as THREE from "three";
 
-import { Emitter } from "../engine/emitter.js";
+import { Emitter }   from "../engine/emitter.js";
+import { WalkGrid }  from "./walk-grid.js";
 
 
 /******************************************************************************/
@@ -8,21 +9,31 @@ import { Emitter } from "../engine/emitter.js";
 /******************************************************************************/
 
 /*
- * Owns the THREE.Scene, the Grid, and the entity registry. `addEntity` and
- * `removeEntity` keep the three in lock-step.
+ * Owns the THREE.Scene, the main Grid, the walk-grid sub-resolution map, and
+ * the entity registry. `addEntity` and `removeEntity` keep them in lock-step;
+ * `GridPlacement` (and other lifecycle-aware components) stamps/reverts the
+ * walk-grid in its own lifecycle hooks.
  *
  *   entityAdded    — the Entity that was just added
  *   entityRemoved  — the Entity that was just removed
  *   gridChanged    — emitted when the Grid mutates (reserved)
+ *
+ * `assets` is optional. When supplied, lifecycle components that need to look
+ * up per-asset data (e.g. `GridPlacement` reading the AABB for footprint
+ * stamping) can resolve it from `world.assets`. Tests that don't exercise the
+ * sub-grid can construct the world without it; the components silently skip
+ * the sub-grid work in that case.
  */
 
 class World extends Emitter
 {
-    constructor(grid)
+    constructor(grid, assets = null)
     {
         super();
-        this.grid = grid;
-        this.scene = new THREE.Scene();
+        this.grid     = grid;
+        this.assets   = assets;
+        this.walkGrid = buildWalkGrid(grid);
+        this.scene    = new THREE.Scene();
         this.entities = new Set();
         this.playerDisplaceHandler = null;
     }
@@ -82,6 +93,10 @@ class World extends Emitter
         {
             this.removeEntity(entity);
         }
+        // Defensive reset: removeEntity should leave the walk-grid empty via
+        // each placement's revert, but a stale refcount from a logic bug
+        // would otherwise survive World.clear and bleed into the next load.
+        this.walkGrid.clear();
     }
 
     update(dt)
@@ -92,5 +107,18 @@ class World extends Emitter
         }
     }
 }
+
+
+/* INTERNAL *******************************************************************/
+
+function buildWalkGrid(grid)
+{
+    /* Sub-grid resolution is 1m. The main grid's `cellSize` (in metres) maps
+     * directly to `subsPerMain`; cozy-lairs uses 4m authoring cells so the
+     * sub-grid is 4× the main grid extent on each axis. */
+    const subsPerMain = grid.cellSize;
+    return new WalkGrid(grid.width * subsPerMain, grid.depth * subsPerMain, 1, subsPerMain);
+}
+
 
 export { World };

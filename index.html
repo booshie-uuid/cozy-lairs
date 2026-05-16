@@ -239,9 +239,11 @@
             <button class="dev-console-button"
                     title="Switch between Builder and First-Person cameras"
                     data-bind="click: actions.toggleCameraMode">Toggle camera</button>
-            <button class="dev-console-button"
-                    title="Show / hide the red cell-boundary overlay on the floor"
-                    data-bind="click: actions.toggleDiagnosticGrid">Toggle grid</button>
+            <label class="dev-console-toggle" title="Show / hide the cell-boundary and sub-cell diagnostic overlays">
+                Grid:
+                <select class="dev-console-select"
+                        data-bind="options: diagModeOptions, optionsText: 'label', optionsValue: 'value', value: diagMode"></select>
+            </label>
             <button class="dev-console-button"
                     title="Pretty-print the current world snapshot to the browser console"
                     data-bind="click: actions.dumpWorldJSON">Dump world</button>
