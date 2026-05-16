@@ -6,6 +6,8 @@ import { Walker }          from "./components/walker.js";
 import { Animator }        from "./components/animator.js";
 import { WanderBehaviour } from "./components/wander-behaviour.js";
 
+import * as Footprint      from "./footprint.js";
+
 import { PLAYER_MARKER }   from "../engine/player-marker.js";
 
 
@@ -140,6 +142,50 @@ class WorldEditor
     canRemoveMinion(entity)
     {
         return this.isMinionEntity(entity);
+    }
+
+    /*
+     * Nudge predicate. Recomputes the entity's sub-grid footprint at the
+     * proposed offset and verifies every candidate sub-cell is in-bounds and
+     * unblocked by *other* entities. Comparison runs with the entity's own
+     * stamp temporarily reverted so it never collides with itself.
+     *
+     * Surface-placeables (`blocks: false` with non-zero `surfaceY`) don't
+     * stamp the sub-grid, so the overlap check short-circuits — eligibility
+     * is the only gate.
+     */
+    canNudge(entity, deltaX, deltaZ)
+    {
+        if(!this.isNudgeable(entity))                           { return false; }
+        if(!Number.isFinite(deltaX) || !Number.isFinite(deltaZ)) { return false; }
+
+        const placement = entity.getComponent(GridPlacement);
+        if(!placement.blocks) { return true; }
+
+        const walkGrid = this.world.walkGrid;
+        if(!walkGrid || !this.world.assets) { return true; }
+
+        walkGrid.revertStamp(placement.stampedSubCells);
+
+        const { subCells } = Footprint.computeFootprint({
+            kind:         entity.kind,
+            cx:           placement.cx,
+            cz:           placement.cz,
+            rotationStep: placement.rotationStep,
+            xOffset:      placement.xOffset + deltaX,
+            zOffset:      placement.zOffset + deltaZ,
+            assets:       this.world.assets,
+            walkGrid
+        });
+
+        let clear = true;
+        for(const sub of subCells)
+        {
+            if(!walkGrid.isWalkable(sub.sx, sub.sz)) { clear = false; break; }
+        }
+
+        walkGrid.applyStamp(placement.stampedSubCells);
+        return clear;
     }
 
 
@@ -305,6 +351,20 @@ class WorldEditor
     {
         if(!this.isBlockEntity(entity)) { return false; }
         this.world.removeEntity(entity);
+        return true;
+    }
+
+    nudgeEntity(entity, deltaX, deltaZ)
+    {
+        if(!this.canNudge(entity, deltaX, deltaZ))
+        {
+            const name = entity && entity.kind ? this.displayName(entity.kind) : "this";
+            this.toast(`Can't nudge ${name} — would overlap.`, "warning");
+            return false;
+        }
+
+        const placement = entity.getComponent(GridPlacement);
+        placement.setOffset(placement.xOffset + deltaX, placement.zOffset + deltaZ);
         return true;
     }
 
@@ -549,6 +609,23 @@ class WorldEditor
         return entity.getComponent(Walker) !== undefined;
     }
 
+    /*
+     * Nudge eligibility. Entity must have a `GridPlacement` (the nudge
+     * substrate); floors are tile-aligned so they can't nudge; tracer-derived
+     * walls/corners are auto-placed and have no GridPlacement, but the kind
+     * check is belt-and-braces against any future manually-placed wall kinds.
+     */
+    isNudgeable(entity)
+    {
+        if(!entity || typeof entity.getComponent !== "function") { return false; }
+        if(!entity.kind)                                         { return false; }
+        if(!entity.getComponent(GridPlacement))                  { return false; }
+
+        if(entity.kind.startsWith("floor."))      { return false; }
+        if(entity.kind.startsWith("wall.stone.")) { return false; }
+        return true;
+    }
+
     isBlockEntity(entity)
     {
         if(!entity || !entity.kind) { return false; }
@@ -603,6 +680,14 @@ class WorldEditor
         if(this.viewModel && typeof this.viewModel.toast === "function")
         {
             this.viewModel.toast(message, level);
+        }
+    }
+
+    hint(message)
+    {
+        if(this.viewModel && typeof this.viewModel.hint === "function")
+        {
+            this.viewModel.hint(message);
         }
     }
 }

@@ -21,6 +21,7 @@ const BUILD_TOOLS =
 
 const DECOR_TOOLS =
 [
+    { id: "select",      label: "Select Decor" },
     { id: "decor:erase", label: "Remove Decor" }
 ];
 

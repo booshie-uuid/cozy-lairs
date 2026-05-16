@@ -256,3 +256,115 @@ test("setTool deactivates the old tool before activating the new", () =>
     expect(deactivateSpy).toHaveBeenCalled();
     expect(adapter.tool).toBe(newTool);
 });
+
+
+/******************************************************************************/
+/* ENTITY DISPATCH + ARROW-KEY NUDGE                                          */
+/******************************************************************************/
+
+class StubSelectTool extends Tool
+{
+    constructor()
+    {
+        super();
+        this.targetType = "entity";
+        this.onEntityClick = vi.fn();
+        this.nudge = vi.fn();
+    }
+    buildGhost() { return null; }
+}
+
+
+test("pointerdown left with an entity tool dispatches onEntityClick with the raycast entity", () =>
+{
+    const { adapter, input } = setup();
+    const tool = new StubSelectTool();
+    adapter.setTool(tool);
+    const fakeEntity = { kind: "decor.crate" };
+    adapter.screenToEntity = vi.fn(() => fakeEntity);
+
+    input.emit("pointerdown", { x: 50, y: 50, button: 0 });
+
+    expect(tool.onEntityClick).toHaveBeenCalledWith(fakeEntity, "left");
+});
+
+
+test("pointerdown left with an entity tool on empty space dispatches onEntityClick(null)", () =>
+{
+    const { adapter, input } = setup();
+    const tool = new StubSelectTool();
+    adapter.setTool(tool);
+    adapter.screenToEntity = vi.fn(() => null);
+
+    input.emit("pointerdown", { x: 50, y: 50, button: 0 });
+
+    expect(tool.onEntityClick).toHaveBeenCalledWith(null, "left");
+});
+
+
+test("ArrowUp dispatches tool.nudge(0, +1) for an entity tool", () =>
+{
+    const { adapter, input } = setup();
+    const tool = new StubSelectTool();
+    adapter.setTool(tool);
+
+    input.emit("keydown", { code: "ArrowUp", repeat: false });
+    expect(tool.nudge).toHaveBeenCalledWith(0, 1);
+});
+
+
+test("ArrowDown dispatches tool.nudge(0, -1)", () =>
+{
+    const { adapter, input } = setup();
+    const tool = new StubSelectTool();
+    adapter.setTool(tool);
+
+    input.emit("keydown", { code: "ArrowDown", repeat: false });
+    expect(tool.nudge).toHaveBeenCalledWith(0, -1);
+});
+
+
+test("ArrowLeft dispatches tool.nudge(-1, 0)", () =>
+{
+    const { adapter, input } = setup();
+    const tool = new StubSelectTool();
+    adapter.setTool(tool);
+
+    input.emit("keydown", { code: "ArrowLeft", repeat: false });
+    expect(tool.nudge).toHaveBeenCalledWith(-1, 0);
+});
+
+
+test("ArrowRight dispatches tool.nudge(+1, 0)", () =>
+{
+    const { adapter, input } = setup();
+    const tool = new StubSelectTool();
+    adapter.setTool(tool);
+
+    input.emit("keydown", { code: "ArrowRight", repeat: false });
+    expect(tool.nudge).toHaveBeenCalledWith(1, 0);
+});
+
+
+test("arrow keys are inert for non-entity tools (no nudge method, no crash)", () =>
+{
+    const { input, tool } = setup({ targetType: "cell" });
+
+    input.emit("keydown", { code: "ArrowUp", repeat: false });
+
+    /* Stub tool has no `nudge` method — it must not be summoned. */
+    expect(tool.rotate).not.toHaveBeenCalled();
+});
+
+
+test("Escape on an entity tool still cancels back to NoopTool", () =>
+{
+    const { adapter, input } = setup();
+    const tool = new StubSelectTool();
+    adapter.setTool(tool);
+
+    input.emit("keydown", { code: "Escape", repeat: false });
+
+    expect(adapter.tool).not.toBe(tool);
+    expect(adapter.tool.targetType).toBe("none");
+});

@@ -31,6 +31,7 @@ import { FloorPaintTool, FloorEraseTool }                  from "./modules/build
 import { DecorPlaceTool, DecorEraseTool, WallDecorPlaceTool } from "./modules/builder/tools/decor-tools.js";
 import { MinionSpawnTool, MinionEraseTool, NoopTool }      from "./modules/builder/tools/minion-tools.js";
 import { BlockPlaceTool, BlockEraseTool }                  from "./modules/builder/tools/block-tools.js";
+import { SelectTool }                                      from "./modules/builder/tools/select-tool.js";
 
 import { AppViewModel } from "./modules/ui/app-view-model.js";
 import "./modules/ui/bindings.js";
@@ -38,7 +39,7 @@ import "./modules/ui/bindings.js";
 
 const ko = window.ko;
 
-const VERSION = "V6_9_0";
+const VERSION = "V6_11_0";
 
 const GRID_WIDTH = 20;
 const GRID_DEPTH = 20;
@@ -563,6 +564,8 @@ class App
     buildToolFromId(toolId)
     {
         if(!toolId) { return new NoopTool(); }
+        if(toolId === "select") { return new SelectTool(); }
+
         // Tool IDs follow `tab:slug[:kind]` — split safely on the first
         // two colons so kinds with dots (e.g. "decor.barrel") stay intact.
         const firstColon = toolId.indexOf(":");

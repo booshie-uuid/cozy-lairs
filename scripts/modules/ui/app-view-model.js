@@ -51,6 +51,12 @@ class AppViewModel
         this.toasts = ko.observableArray([]);
         this.toastQueue = new ToastQueue(this.toasts);
 
+        /* Hints live in a separate centre-top tray so teaching-style prompts
+         * ("use arrow keys to nudge decor") don't compete with the warning /
+         * error feed that the user reflexively glances at top-right. */
+        this.hints = ko.observableArray([]);
+        this.hintQueue = new ToastQueue(this.hints);
+
         this.confirmModal = new ConfirmModalViewModel();
 
         const initialViewport = (typeof window !== "undefined")
@@ -88,6 +94,11 @@ class AppViewModel
     toast(message, level = "info")
     {
         return this.toastQueue.push(message, level);
+    }
+
+    hint(message)
+    {
+        return this.hintQueue.push(message, "info");
     }
 
     flashSaveStatus(message)

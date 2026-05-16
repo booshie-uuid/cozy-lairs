@@ -126,6 +126,13 @@ class BuilderInputAdapter
             const cell = this.screenToCell(event);
             if(cell) { this.tool.onCellClick(cell, buttonName); }
         }
+        else if(this.tool.targetType === "entity")
+        {
+            /* Entity raycast: clicking empty floor is a valid "deselect"
+             * signal, so a null hit still routes through. The tool decides. */
+            const entity = this.screenToEntity(event);
+            this.tool.onEntityClick(entity, buttonName);
+        }
     }
 
     onPointerUp(event)
@@ -147,12 +154,26 @@ class BuilderInputAdapter
     onKeyDown(event)
     {
         if(this.isTextInputFocused()) { return; }
-        if(event.code === "KeyQ" && !event.repeat)   { this.tool.rotate("ccw"); }
+        if(event.code === "KeyQ" && !event.repeat)      { this.tool.rotate("ccw"); }
         else if(event.code === "KeyE" && !event.repeat) { this.tool.rotate("cw"); }
         else if(event.code === "Escape" && !event.repeat)
         {
             this.setTool(new NoopTool());
             this.onCancel();
+        }
+        else if(this.tool.targetType === "entity" && typeof this.tool.nudge === "function")
+        {
+            /* Arrow keys nudge the active selection in 1m world-axis steps.
+             * +Z is north (per the project's compass convention) so ArrowUp
+             * decreases Z visually (camera looks down -Z by default). The
+             * actual mapping: up = +Z, down = -Z, left = -X, right = +X —
+             * matches the floor-plan compass since the builder camera looks
+             * down. `event.repeat` is allowed: holding an arrow continues to
+             * nudge cell-by-cell. */
+            if(event.code === "ArrowUp")         { this.tool.nudge( 0,  1); }
+            else if(event.code === "ArrowDown")  { this.tool.nudge( 0, -1); }
+            else if(event.code === "ArrowLeft")  { this.tool.nudge(-1,  0); }
+            else if(event.code === "ArrowRight") { this.tool.nudge( 1,  0); }
         }
     }
 
@@ -180,6 +201,32 @@ class BuilderInputAdapter
         if(wallHit) { return wallHit; }
 
         return this.raycastNearestCellEdge();
+    }
+
+    /*
+     * Raycasts the scene and walks up from the hit node looking for an
+     * `Entity` backref on `object3D.userData.entity` (seeded by the Entity
+     * constructor). Returns the owning entity or null on miss.
+     *
+     * No allow-list of entity roots — meshes without a backref (ghost meshes,
+     * sub-grid overlay, lighting helpers) are skipped during the parent walk.
+     */
+    screenToEntity(event)
+    {
+        if(!this.setRaycastFromEvent(event)) { return null; }
+        if(!this.scene) { return null; }
+
+        const hits = this.raycaster.intersectObjects(this.scene.children, true);
+        for(const hit of hits)
+        {
+            let node = hit.object;
+            while(node)
+            {
+                if(node.userData && node.userData.entity) { return node.userData.entity; }
+                node = node.parent;
+            }
+        }
+        return null;
     }
 
     raycastWallEntity()

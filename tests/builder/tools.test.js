@@ -17,6 +17,8 @@ import {
     NoopTool
 } from "../../scripts/modules/builder/tools/minion-tools.js";
 
+import { SelectTool }    from "../../scripts/modules/builder/tools/select-tool.js";
+
 import { Entity }        from "../../scripts/modules/world/entity.js";
 import { Walker }        from "../../scripts/modules/world/components/walker.js";
 
@@ -58,6 +60,8 @@ function makeStubEditor(overrides = {})
         findDecorAtCell:    vi.fn(() => []),
         findWallDecorAtEdge: vi.fn(() => null),
         floorSideOfEdge:    vi.fn(edge => edge),
+        isNudgeable:        vi.fn(() => true),
+        nudgeEntity:        vi.fn(() => true),
         ...overrides
     };
 }
@@ -362,4 +366,230 @@ test("MinionEraseTool ignores cells without a walker", () =>
 
     tool.onCellClick({ cx: 0, cz: 0 }, "left");
     expect(editor.removeMinion).not.toHaveBeenCalled();
+});
+
+
+/******************************************************************************/
+/* SELECT TOOL                                                                */
+/******************************************************************************/
+
+function makeSelectableEntity(kind = "decor.crate")
+{
+    const root = new THREE.Group();
+    const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshStandardMaterial({ color: 0xffffff })
+    );
+    root.add(mesh);
+    const entity = new Entity(kind, root);
+    entity.world = { entities: new Set([entity]) };
+    return entity;
+}
+
+
+test("SelectTool has targetType 'entity' and no ghost mesh", () =>
+{
+    const tool = new SelectTool();
+    const { scene } = activate(tool);
+
+    expect(tool.targetType).toBe("entity");
+    expect(tool.ghostMesh).toBe(null);
+    expect(scene.children.length).toBe(0);
+});
+
+
+test("SelectTool.onEntityClick selects the entity and applies emissive highlight", () =>
+{
+    const tool = new SelectTool();
+    activate(tool);
+    const entity = makeSelectableEntity();
+    const originalMaterial = entity.object3D.children[0].material;
+
+    tool.onEntityClick(entity, "left");
+
+    expect(tool.selected).toBe(entity);
+    /* Material was swapped for a clone with boosted emissive. */
+    const swapped = entity.object3D.children[0].material;
+    expect(swapped).not.toBe(originalMaterial);
+    expect(swapped.emissiveIntensity).toBeGreaterThan(0);
+});
+
+
+test("SelectTool.onEntityClick ignores non-left buttons", () =>
+{
+    const tool = new SelectTool();
+    activate(tool);
+    const entity = makeSelectableEntity();
+
+    tool.onEntityClick(entity, "right");
+    expect(tool.selected).toBe(null);
+});
+
+
+test("SelectTool.onEntityClick(null) deselects", () =>
+{
+    const tool = new SelectTool();
+    activate(tool);
+    const entity = makeSelectableEntity();
+    tool.onEntityClick(entity, "left");
+    expect(tool.selected).toBe(entity);
+
+    tool.onEntityClick(null, "left");
+    expect(tool.selected).toBe(null);
+});
+
+
+test("SelectTool clicking a non-nudgeable entity (floor / wall) deselects rather than selecting", () =>
+{
+    const tool = new SelectTool();
+    /* Editor reports the entity as non-nudgeable — mimics how floors,
+     * walls, and minions are filtered out today. */
+    const editor = makeStubEditor({ isNudgeable: vi.fn(() => false) });
+    activate(tool, editor);
+
+    const floor = makeSelectableEntity("floor.stone.basic");
+    const originalMaterial = floor.object3D.children[0].material;
+
+    tool.onEntityClick(floor, "left");
+
+    expect(tool.selected).toBe(null);
+    expect(floor.object3D.children[0].material).toBe(originalMaterial);
+});
+
+
+test("SelectTool clicking a non-nudgeable entity while another is selected drops the active selection", () =>
+{
+    const tool = new SelectTool();
+    /* Per-entity eligibility: barrel nudgeable, floor not. */
+    const editor = makeStubEditor({
+        isNudgeable: vi.fn(entity => entity.kind === "decor.barrel")
+    });
+    activate(tool, editor);
+
+    const barrel = makeSelectableEntity("decor.barrel");
+    const floor  = makeSelectableEntity("floor.stone.basic");
+    const barrelOriginal = barrel.object3D.children[0].material;
+
+    tool.onEntityClick(barrel, "left");
+    expect(tool.selected).toBe(barrel);
+
+    tool.onEntityClick(floor, "left");
+    expect(tool.selected).toBe(null);
+    expect(barrel.object3D.children[0].material).toBe(barrelOriginal);
+});
+
+
+test("SelectTool re-selection restores the first entity's material before highlighting the next", () =>
+{
+    const tool = new SelectTool();
+    activate(tool);
+
+    const first  = makeSelectableEntity("decor.crate");
+    const second = makeSelectableEntity("decor.barrel");
+    const firstOriginal = first.object3D.children[0].material;
+
+    tool.onEntityClick(first,  "left");
+    tool.onEntityClick(second, "left");
+
+    expect(tool.selected).toBe(second);
+    /* First entity's material is restored to the pre-selection original. */
+    expect(first.object3D.children[0].material).toBe(firstOriginal);
+});
+
+
+test("SelectTool.deselect restores all swapped materials", () =>
+{
+    const tool = new SelectTool();
+    activate(tool);
+    const entity = makeSelectableEntity();
+    const originalMaterial = entity.object3D.children[0].material;
+
+    tool.onEntityClick(entity, "left");
+    expect(entity.object3D.children[0].material).not.toBe(originalMaterial);
+
+    tool.deselect();
+    expect(tool.selected).toBe(null);
+    expect(entity.object3D.children[0].material).toBe(originalMaterial);
+});
+
+
+test("SelectTool.deactivate deselects before tearing down", () =>
+{
+    const tool = new SelectTool();
+    activate(tool);
+    const entity = makeSelectableEntity();
+    const originalMaterial = entity.object3D.children[0].material;
+    tool.onEntityClick(entity, "left");
+
+    tool.deactivate();
+
+    expect(tool.selected).toBe(null);
+    expect(entity.object3D.children[0].material).toBe(originalMaterial);
+});
+
+
+test("SelectTool.nudge delegates to editor.nudgeEntity with the active selection + deltas", () =>
+{
+    const tool = new SelectTool();
+    const editor = makeStubEditor({ nudgeEntity: vi.fn(() => true) });
+    activate(tool, editor);
+
+    const entity = makeSelectableEntity();
+    tool.onEntityClick(entity, "left");
+
+    const ok = tool.nudge(1, -1);
+    expect(ok).toBe(true);
+    expect(editor.nudgeEntity).toHaveBeenCalledWith(entity, 1, -1);
+});
+
+
+test("SelectTool.nudge with no selection is a no-op and returns false", () =>
+{
+    const tool = new SelectTool();
+    const editor = makeStubEditor({ nudgeEntity: vi.fn(() => true) });
+    activate(tool, editor);
+
+    expect(tool.nudge(1, 0)).toBe(false);
+    expect(editor.nudgeEntity).not.toHaveBeenCalled();
+});
+
+
+test("SelectTool.nudge on a removed entity self-deselects", () =>
+{
+    const tool = new SelectTool();
+    const editor = makeStubEditor({ nudgeEntity: vi.fn(() => true) });
+    activate(tool, editor);
+
+    const entity = makeSelectableEntity();
+    tool.onEntityClick(entity, "left");
+
+    /* Simulate entity removal: world ref cleared by World.removeEntity. */
+    entity.world = null;
+
+    expect(tool.nudge(1, 0)).toBe(false);
+    expect(editor.nudgeEntity).not.toHaveBeenCalled();
+    expect(tool.selected).toBe(null);
+});
+
+
+test("SelectTool skips materials without an emissive channel (MeshBasicMaterial placeholders)", () =>
+{
+    const tool = new SelectTool();
+    activate(tool);
+
+    const root = new THREE.Group();
+    const basic = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshBasicMaterial({ color: 0xff00ff })
+    );
+    root.add(basic);
+    const entity = new Entity("placeholder", root);
+    entity.world = { entities: new Set([entity]) };
+    const originalMaterial = basic.material;
+
+    tool.onEntityClick(entity, "left");
+
+    /* Selected, but no swap happened — original material still in place. */
+    expect(tool.selected).toBe(entity);
+    expect(basic.material).toBe(originalMaterial);
 });

@@ -382,16 +382,23 @@ Land the nudge mutation surface as code + tests — predicate, mutator, eligibil
 
 ### Steps
 
-- [ ] Bump `VERSION` to `V6_10_0`.
-- [ ] Implement `canNudge` + `nudgeEntity` on `WorldEditor`.
-- [ ] Add eligibility guard: rejects `floor.*` kinds, rejects `wall.stone.*` kinds.
-- [ ] Extend `tests/world/world-editor.test.js`: happy path, refusal on overlap, surface-placed decor doesn't stamp, eligibility rejections.
-- [ ] Extend `tests/world/world-serializer.test.js`: nudged decor round-trips through save/load with offsets preserved.
-- [ ] Run `npm test`; confirm green — auto-progress.
+- [*] Bump `VERSION` to `V6_10_0`.
+- [*] Implement `canNudge` + `nudgeEntity` on `WorldEditor`.
+- [*] Add eligibility guard: rejects `floor.*` kinds, rejects `wall.stone.*` kinds.
+- [*] Extend `tests/world/world-editor.test.js`: happy path, refusal on overlap, surface-placed decor doesn't stamp, eligibility rejections.
+- [*] Extend `tests/world/world-serializer.test.js`: nudged decor round-trips through save/load with offsets preserved.
+- [*] Run `npm test`; confirm green — auto-progress.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- `canNudge` runs the revert-test-reapply dance against the walk-grid: temporarily un-stamps the entity's own footprint so it never collides with itself, recomputes the footprint at the proposed offset, then walks the new sub-cells checking `walkGrid.isWalkable`. The own-stamp is always re-applied (no early-return paths skip it). The empty-footprint case is treated as "clear" (returns true) — a footprint that overlaps zero sub-cells can't overlap anything else.
+- Surface-placeables (`blocks: false`) short-circuit to `true` before touching the walk-grid: they don't contribute to the refcount, so there's nothing to check against. Matches the existing `GridPlacement.stampWalkGrid` gate. Side-effect: nudging a candle off its table is permitted regardless of where it lands. Surface-bound clamping is a Task 11 UX concern, not a Task 10 data invariant.
+- When `world.walkGrid` or `world.assets` is missing (test-only world setup), `canNudge` returns `true` rather than throwing. Mirrors how `GridPlacement.stampWalkGrid` silently skips when either is missing — tests that don't seed assets still get to exercise the nudge surface, and production always has both. Non-finite deltas are rejected by `canNudge` directly so the toast path fires cleanly.
+- Eligibility filter is `(has GridPlacement) AND (!kind.startsWith("floor.") AND !kind.startsWith("wall.stone."))`. The `wall.stone.*` arm is belt-and-braces: tracer-derived walls live on `EdgePlacement` / `CornerPlacement`, so the `GridPlacement` test already rejects them — but the prefix guard also rejects any future manually-placed wall variants and provides a semantic-not-structural refusal.
+- `nudgeEntity` delegates the actual sub-grid + transform update to `placement.setOffset` (revert → mutate fields → re-apply transform → re-stamp). Avoids duplicating the four-step sequence; the only WorldEditor work is the predicate gate plus the refusal toast.
+- Toast wording: `"Can't nudge ${name} — would overlap."`. Single message for any refusal — eligibility failures + overlap failures share the same toast to keep the user-facing vocabulary small. The active-attempt-only toast pattern (predicate silent, action toasts) matches the other editor pairs.
+- Tests: world-editor 11 new (canNudge accepts blocking decor with clear neighbour, nudge applies delta + re-stamps, position update, overlap refusal predicate, overlap refusal action with toast + walk-grid unchanged, surface-placed decor doesn't stamp, floor rejection, wall.stone.* prefix rejection, non-GridPlacement entity rejection, non-finite delta rejection, can/action gate agreement). world-serializer 1 new (post-attach `setOffset` mutation round-trips). Full suite **507 / 30** (was 495 / 30).
+- Existing pre-task tests already covered the constructor-passed offset round-trip and the `xOffset`/`zOffset` snapshot omission for centred entities — left untouched. The new round-trip test exercises the path `nudgeEntity` actually uses (`setOffset` after the entity is in-world).
 
 ---
 
@@ -418,22 +425,37 @@ Ship the minimal nudge UX: a Select tool, click-to-select on canvas, arrow keys 
 
 ### Steps
 
-- [ ] Bump `VERSION` to `V6_11_0`.
-- [ ] Confirm/add `object3D.userData.entity` backref in `Entity`.
-- [ ] Create `SelectTool` class with `onEntityClick(entity)`, `nudge(dx, dz)`, `deselect()`.
-- [ ] Extend `BuilderInputAdapter`: handle `targetType: "entity"` (scene raycast); arrow-key dispatch to `tool.nudge`.
-- [ ] Add Select icon to `AuthoringPanel` (single shared button above tab content).
-- [ ] Wire selection outline (consider `THREE.OutlinePass`, or a simpler emissive tint).
-- [ ] Add Esc handler to deselect.
-- [ ] Add tests for the tool: selection state, eligibility, deselect on Esc.
-- [ ] Run `npm test`; confirm green.
-- [ ] Manual test: select a chair, nudge ±X / ±Z by 1m each, save, refresh, confirm offsets persisted.
-- [ ] Manual test: try to nudge into a wall — refusal toast appears.
-- [ ] Verify in browser.
+- [*] Bump `VERSION` to `V6_11_0`.
+- [*] Confirm/add `object3D.userData.entity` backref in `Entity`.
+- [*] Create `SelectTool` class with `onEntityClick(entity)`, `nudge(dx, dz)`, `deselect()`.
+- [*] Extend `BuilderInputAdapter`: handle `targetType: "entity"` (scene raycast); arrow-key dispatch to `tool.nudge`.
+- [*] Add Select icon to `AuthoringPanel` (single shared button above tab content).
+- [*] Wire selection outline (consider `THREE.OutlinePass`, or a simpler emissive tint).
+- [*] Add Esc handler to deselect.
+- [*] Add tests for the tool: selection state, eligibility, deselect on Esc.
+- [*] Run `npm test`; confirm green.
+- [*] Manual test: select a chair, nudge ±X / ±Z by 1m each, save, refresh, confirm offsets persisted.
+- [*] Manual test: try to nudge into a wall — refusal toast appears.
+- [*] Verify in browser.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- **Entity backref** lives at the *root* `object3D.userData.entity`, not on every descendant Mesh. Adapter raycast walks `intersectObjects(scene.children, true)` and then climbs each hit's parent chain until a `userData.entity` shows up. Ghost meshes, sub-grid overlays, and other root-level scene nodes don't have an entity backref and naturally fall through. Cheaper than seeding the ref on every Mesh and copes with grouped GLTF imports where the entity root is two or three Object3Ds up from the hit Mesh.
+- **Tool id is plain `"select"`**, not tab-prefixed. Mirrors the design's intent that the Select tile is shared across all three tabs. `App.buildToolFromId` short-circuits on the literal `"select"` string before falling into the `tab:slug` parser. The AuthoringPanel exposes `selectToolId` so the HTML binding stays decoupled from the literal.
+- **Panel button placement** added a new `.authoring-panel-global-tools` strip *above* the tab nav, inside the `<aside>`. Same chrome formula as the existing `.tool-tile`, one-pixel `--cozy-neon-dim` underline separating it from the tab strip. Active state mirrors the other tool tiles (`--cozy-neon` border + label). Only one tile lives there for now — when the future "move-player" or other panel-wide tools land, they'll slot into the same strip.
+- **Selection highlight** uses an emissive-channel boost (`emissive = 0x2a5a3a`, `emissiveIntensity = 0.6`) on cloned materials, not an `OutlinePass`. Reasons: post-processing is not currently wired into the renderer, and adding a composer just for selection would balloon the V6 scope; the KayKit GLTF models all use `MeshStandardMaterial` which has an emissive channel, so the look lands consistently. `MeshBasicMaterial` placeholders (missing-asset magenta wireframes) are skipped — they have no emissive, so the selection is silent for them rather than crashing. Materials are cloned per-selection and disposed on deselect to avoid mutating the shared cache.
+- **Arrow-key mapping** is fixed to world axes: ↑ = +Z (north), ↓ = -Z, ← = -X, → = +X. Matches the project's `+X east, +Z north` compass convention. Camera-relative nudging would feel more natural when the builder camera is orbited away from the default theta, but quantising the camera yaw to 90° steps is out of V6 scope. Browser-verify will judge whether the world-axis mapping is acceptable; if not, a camera-relative variant is a one-method swap.
+- **Arrow-key dispatch lives on the adapter, not the app**, so a non-SelectTool active tool never sees them. The branch in `onKeyDown` gates on `tool.targetType === "entity" && typeof tool.nudge === "function"` — tightly scoped so future entity-targeted tools can opt in cheaply without inheriting arrow-key behaviour they don't want. `event.repeat` is *allowed* for the arrow keys (Q/E/Esc still suppress repeats) — holding an arrow continues to nudge cell-by-cell, which is what arrow keys feel like outside this app.
+- **Esc + right-click both cancel SelectTool** via the existing `setTool(new NoopTool()) + onCancel` path. `SelectTool.deactivate()` calls `deselect()` first so the emissive swap unwinds. This is simpler than adding a separate "soft deselect that keeps the tool armed" path — if the user wants to keep selecting, they click another entity (re-selection swap is in the happy-path).
+- **Clicking empty floor** while SelectTool is active passes `entity = null` through to `onEntityClick`, which the tool interprets as a deselect (mirrors the design's "clicking elsewhere deselects"). Raycast against the floor plane is *not* short-circuited — the adapter just runs the scene raycast and gets a null entity if nothing under the cursor has a backref.
+- **Self-deselect on entity removal.** `SelectTool.nudge` reads `selected.world` before calling `editor.nudgeEntity`; if the entity was removed mid-selection (e.g. user paints over its cell with Floor Erase while a barrel is selected), the tool deselects and returns false. Avoids weird state where arrow keys mutate an orphan placement.
+- **Tests**: 12 new `SelectTool` tests (targetType + no ghost, click selects + highlights, ignore non-left, click null deselects, re-selection material swap, deselect restores, deactivate deselects, nudge delegates, nudge no-selection no-op, nudge on removed-entity self-deselects, skip MeshBasicMaterial). 8 new adapter tests (entity pointerdown dispatch + null fallback, four arrow-key directions, arrow inert for non-entity tools, Esc on entity tool cancels to NoopTool). Full suite **526 / 30**, all green.
+
+### Manual-test notes (filled in after browser verify)
+
+- **Floors leaked into the selection.** Floors are entities with a `GridPlacement`, so the original "any entity under cursor → highlight" logic happily selected the floor tile when the user clicked anywhere without decor. Fixed in [select-tool.js:46-58](../../scripts/modules/builder/tools/select-tool.js#L46-L58) by gating selection on `editor.isNudgeable(entity)` — non-nudgeable hits (floors, walls, minions, scene meshes without a backref) route through the same path as clicking empty space and clear any active selection. Two new tests cover the gate. Final suite count after this and the relocation/hint additions: **528 / 30**.
+- **Select moved from a panel-wide global strip to the Decor tab.** Earlier landing put a "Select" tile above the tab nav for cross-tab access, but it showed on Build/Minions too where it has no use. Relocated to the Decor tab tool row as the first entry ("Select Decor"), sitting next to "Remove Decor". Tool id stays as the literal `"select"`; `App.buildToolFromId` short-circuits on it before falling into the `tab:slug` parser, so the same id works wherever the AuthoringPanel surfaces it. Dropped `.authoring-panel-global-tools` + the `selectToolId` field from the view-model — neither has a remaining caller.
+- **Added a centre-top hint tray.** A second `ToastQueue` lives on `AppViewModel.hintQueue` and feeds a new `#hint-tray` positioned centre-top in [main.css](../../styles/main.css), kept apart from the top-right warning/error feed so teaching prompts don't compete with the user's reflexive glance for refusal messages. `SelectTool` fires `editor.hint("Use arrow keys to nudge decor.")` on a *new* selection (re-clicks of the already-selected entity don't re-fire); the hint auto-dismisses on the standard 4s timer. `WorldEditor` gained a thin `hint(message)` passthrough mirroring the existing `toast`.
 
 ---
 

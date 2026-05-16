@@ -28,6 +28,12 @@ class Entity
         this.object3D = object3D;
         this.components = new Map();
         this.world = null;
+
+        /* Backref consumed by `BuilderInputAdapter.raycastEntity` to resolve a
+         * mesh-level raycast hit up to its owning entity. THREE seeds
+         * `userData` to an empty object on every Object3D, so this assignment
+         * is always safe. */
+        this.object3D.userData.entity = this;
     }
 
     addComponent(component)

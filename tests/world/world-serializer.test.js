@@ -280,6 +280,30 @@ test("entity with zero offsets emits no xOffset / zOffset keys in the snapshot",
 });
 
 
+test("post-attach setOffset mutations survive a save/load round-trip", () =>
+{
+    // Mirrors the `WorldEditor.nudgeEntity` path: the decor is added first
+    // (offset=0), then `setOffset` updates the placement in-place. The
+    // serializer must pick up the post-attach offset, not the zero baseline.
+    const source = makeWorld();
+
+    const nudged = Entity.fromKind("decor.barrel", STUB_ASSETS);
+    const placement = nudged.addComponent(new GridPlacement(2, 3, 0));
+    source.addEntity(nudged);
+    placement.setOffset(1, -1);
+
+    const snapshot = WorldSerializer.toJSON(source);
+
+    const target = makeWorld();
+    WorldSerializer.fromJSONv2(target, snapshot, STUB_ASSETS);
+
+    const restored = Array.from(target.entities)[0];
+    const restoredPlacement = restored.getComponent(GridPlacement);
+    expect(restoredPlacement.xOffset).toBe(1);
+    expect(restoredPlacement.zOffset).toBe(-1);
+});
+
+
 /* WALK-GRID POPULATION ON LOAD ***********************************************/
 
 function footprintAssets()

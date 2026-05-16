@@ -610,3 +610,262 @@ test("removeDecor of a placeable directly leaves the surface intact", () =>
     expect([...world.entities].some(e => e.kind === "decor.candle.triple")).toBe(false);
     expect([...world.entities].some(e => e.kind === "decor.table")).toBe(true);
 });
+
+
+/******************************************************************************/
+/* NUDGE                                                                      */
+/******************************************************************************/
+
+function boxAabb(halfX, halfZ, halfY = 0.5)
+{
+    return new THREE.Box3(
+        new THREE.Vector3(-halfX, 0,      -halfZ),
+        new THREE.Vector3( halfX, halfY,   halfZ)
+    );
+}
+
+
+function makeNudgeAssets(kindMap = {}, aabbMap = {})
+{
+    const assets = makeAssets(kindMap);
+    assets.getAabb = (id) => aabbMap[id] || null;
+    return assets;
+}
+
+
+function setupForNudge({ kindMap = {}, aabbMap = {} } = {})
+{
+    const assets = makeNudgeAssets(kindMap, aabbMap);
+    const world = new World(new Grid(8, 8, 4), assets);
+    const viewModel = makeViewModel();
+    const editor = new WorldEditor({ world, assets, viewModel });
+    return { world, assets, viewModel, editor };
+}
+
+
+function findDecorEntity(world, kind)
+{
+    return [...world.entities].find(e => e.kind === kind);
+}
+
+
+const NUDGE_KIND_MAP = {
+    "decor.crate":   { kind: "decor.floor", displayName: "Crate" },
+    "decor.barrel":  { kind: "decor.floor", displayName: "Barrel" },
+    "decor.table":   { kind: "decor.floor", displayName: "Table", meta: { surface: { surfaceY: 0.85 } } },
+    "decor.candle":  { kind: "decor.floor", displayName: "Candle", meta: { placeableOnSurface: true } }
+};
+
+
+test("canNudge accepts a blocking decor entity within a clear neighbourhood", () =>
+{
+    const { editor } = setupForNudge({
+        kindMap: NUDGE_KIND_MAP,
+        aabbMap: { "decor.crate": boxAabb(0.5, 0.5) }
+    });
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.crate", 3, 3);
+    const crate = findDecorEntity(editor.world, "decor.crate");
+
+    expect(editor.canNudge(crate, 1, 0)).toBe(true);
+});
+
+
+test("nudgeEntity applies the delta to xOffset/zOffset and re-stamps the walk-grid", () =>
+{
+    const { editor, world } = setupForNudge({
+        kindMap: NUDGE_KIND_MAP,
+        aabbMap: { "decor.crate": boxAabb(0.5, 0.5) }
+    });
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.crate", 3, 3);
+    const crate = findDecorEntity(world, "decor.crate");
+    const placement = crate.getComponent(GridPlacement);
+
+    const oldStamp = [...placement.stampedSubCells];
+    expect(oldStamp.length).toBeGreaterThan(0);
+
+    expect(editor.nudgeEntity(crate, 1, 0)).toBe(true);
+    expect(placement.xOffset).toBe(1);
+    expect(placement.zOffset).toBe(0);
+
+    // Old footprint sub-cells now read walkable; the new footprint sub-cells
+    // are stamped. A 1m delta in +X must shift the stamp by exactly 1 sub-cell.
+    const newStamp = placement.stampedSubCells;
+    expect(newStamp.length).toBe(oldStamp.length);
+
+    const oldXs = oldStamp.map(c => c.sx).sort((a, b) => a - b);
+    const newXs = newStamp.map(c => c.sx).sort((a, b) => a - b);
+    expect(newXs[0] - oldXs[0]).toBe(1);
+
+    for(const sub of newStamp)
+    {
+        expect(world.walkGrid.isWalkable(sub.sx, sub.sz)).toBe(false);
+    }
+});
+
+
+test("nudgeEntity updates the entity's world position by the requested delta", () =>
+{
+    const { editor, world } = setupForNudge({
+        kindMap: NUDGE_KIND_MAP,
+        aabbMap: { "decor.crate": boxAabb(0.5, 0.5) }
+    });
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.crate", 3, 3);
+    const crate = findDecorEntity(world, "decor.crate");
+    const oldX = crate.object3D.position.x;
+    const oldZ = crate.object3D.position.z;
+
+    expect(editor.nudgeEntity(crate, 1, -1)).toBe(true);
+    expect(crate.object3D.position.x).toBe(oldX + 1);
+    expect(crate.object3D.position.z).toBe(oldZ - 1);
+});
+
+
+test("canNudge refuses when the new footprint would overlap another blocker", () =>
+{
+    const { editor, world } = setupForNudge({
+        kindMap: NUDGE_KIND_MAP,
+        aabbMap: { "decor.crate": boxAabb(0.5, 0.5), "decor.barrel": boxAabb(0.5, 0.5) }
+    });
+    editor.paintFloor(3, 3);
+    editor.paintFloor(4, 3);
+    editor.placeDecor("decor.crate",  3, 3);
+    editor.placeDecor("decor.barrel", 4, 3);
+
+    const crate = findDecorEntity(world, "decor.crate");
+
+    // Nudging +4m in X drops the crate squarely on top of the barrel's stamp.
+    expect(editor.canNudge(crate, 4, 0)).toBe(false);
+});
+
+
+test("nudgeEntity refusal emits a toast and leaves the walk-grid untouched", () =>
+{
+    const { editor, world, viewModel } = setupForNudge({
+        kindMap: NUDGE_KIND_MAP,
+        aabbMap: { "decor.crate": boxAabb(0.5, 0.5), "decor.barrel": boxAabb(0.5, 0.5) }
+    });
+    editor.paintFloor(3, 3);
+    editor.paintFloor(4, 3);
+    editor.placeDecor("decor.crate",  3, 3);
+    editor.placeDecor("decor.barrel", 4, 3);
+
+    const crate = findDecorEntity(world, "decor.crate");
+    const placement = crate.getComponent(GridPlacement);
+    const before = placement.stampedSubCells.map(c => ({ sx: c.sx, sz: c.sz }));
+
+    expect(editor.nudgeEntity(crate, 4, 0)).toBe(false);
+    expect(viewModel.toast).toHaveBeenCalledWith(expect.stringContaining("overlap"), "warning");
+
+    // Stamp unchanged and old footprint still claims the sub-grid.
+    expect(placement.stampedSubCells).toEqual(before);
+    for(const sub of before)
+    {
+        expect(world.walkGrid.isWalkable(sub.sx, sub.sz)).toBe(false);
+    }
+});
+
+
+test("nudgeEntity on a surface-placed decor doesn't touch the walk-grid", () =>
+{
+    const { editor, world } = setupForNudge({
+        kindMap: NUDGE_KIND_MAP,
+        aabbMap: {
+            "decor.table":  boxAabb(1, 1),
+            "decor.candle": boxAabb(0.25, 0.25)
+        }
+    });
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.table", 3, 3);
+    editor.placeDecor("decor.candle", 3, 3);
+
+    const candle = findDecorEntity(world, "decor.candle");
+    const placement = candle.getComponent(GridPlacement);
+
+    expect(placement.blocks).toBe(false);
+    expect(placement.surfaceY).toBeGreaterThan(0);
+    expect(placement.stampedSubCells).toEqual([]);
+
+    const refsBefore = Array.from(world.walkGrid.refcounts);
+
+    expect(editor.nudgeEntity(candle, 0.5, 0.5)).toBe(true);
+    expect(placement.xOffset).toBe(0.5);
+    expect(placement.zOffset).toBe(0.5);
+    expect(placement.stampedSubCells).toEqual([]);
+
+    expect(Array.from(world.walkGrid.refcounts)).toEqual(refsBefore);
+});
+
+
+test("canNudge / nudgeEntity reject floor entities", () =>
+{
+    const { editor, world } = setupForNudge();
+    editor.paintFloor(3, 3);
+    const floor = [...world.entities].find(e => e.kind === "floor.stone.basic");
+    expect(floor).toBeTruthy();
+
+    expect(editor.canNudge(floor, 1, 0)).toBe(false);
+    expect(editor.nudgeEntity(floor, 1, 0)).toBe(false);
+});
+
+
+test("canNudge / nudgeEntity reject wall.stone.* kinds", () =>
+{
+    const { editor, world } = setupForNudge();
+    editor.paintFloor(3, 3);
+
+    // wall.stone.* entities are tracer-derived; fabricate one with a
+    // GridPlacement to exercise the kind-prefix guard (the GridPlacement guard
+    // already rejects EdgePlacement-only walls).
+    const wall = new Entity("wall.stone.straight", new THREE.Object3D());
+    wall.addComponent(new GridPlacement(3, 3, 0));
+    world.entities.add(wall);
+
+    expect(editor.canNudge(wall, 1, 0)).toBe(false);
+    expect(editor.nudgeEntity(wall, 1, 0)).toBe(false);
+});
+
+
+test("canNudge / nudgeEntity reject entities lacking a GridPlacement", () =>
+{
+    const { editor } = setupForNudge();
+    const bare = new Entity("decor.crate", new THREE.Object3D());
+
+    expect(editor.canNudge(bare, 1, 0)).toBe(false);
+    expect(editor.nudgeEntity(bare, 1, 0)).toBe(false);
+});
+
+
+test("canNudge rejects non-finite deltas", () =>
+{
+    const { editor, world } = setupForNudge({
+        kindMap: NUDGE_KIND_MAP,
+        aabbMap: { "decor.crate": boxAabb(0.5, 0.5) }
+    });
+    editor.paintFloor(3, 3);
+    editor.placeDecor("decor.crate", 3, 3);
+    const crate = findDecorEntity(world, "decor.crate");
+
+    expect(editor.canNudge(crate, NaN, 0)).toBe(false);
+    expect(editor.canNudge(crate, 0, Infinity)).toBe(false);
+});
+
+
+test("canNudge agrees with nudgeEntity across happy + refusal paths", () =>
+{
+    const { editor, world } = setupForNudge({
+        kindMap: NUDGE_KIND_MAP,
+        aabbMap: { "decor.crate": boxAabb(0.5, 0.5), "decor.barrel": boxAabb(0.5, 0.5) }
+    });
+    editor.paintFloor(3, 3);
+    editor.paintFloor(4, 3);
+    editor.placeDecor("decor.crate",  3, 3);
+    editor.placeDecor("decor.barrel", 4, 3);
+
+    const crate = findDecorEntity(world, "decor.crate");
+
+    expect(editor.canNudge(crate,  1, 0)).toBe(true);
+    expect(editor.canNudge(crate,  4, 0)).toBe(false);
+});

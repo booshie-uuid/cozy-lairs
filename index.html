@@ -66,6 +66,10 @@
              data-bind="text: message, css: 'is-' + level"></div>
     </div>
 
+    <div id="hint-tray" data-bind="foreach: hints">
+        <div class="toast hint is-info" data-bind="text: message"></div>
+    </div>
+
     <div id="confirm-modal"
          data-bind="visible: confirmModal.visible, with: confirmModal">
         <div class="confirm-modal-backdrop"></div>
