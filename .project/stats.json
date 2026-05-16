@@ -1,34 +1,34 @@
 {
-  "generatedAt": "2026-05-14T13:16:31.895Z",
+  "generatedAt": "2026-05-16T15:20:19.461Z",
   "code": {
     "html": {
       "files": 5,
-      "eloc": 1709,
+      "eloc": 1714,
       "commentWords": 0
     },
     "javascript": {
-      "files": 121,
-      "eloc": 17367,
-      "commentWords": 13011
+      "files": 126,
+      "eloc": 19183,
+      "commentWords": 14656
     },
     "css": {
       "files": 4,
-      "eloc": 1956,
+      "eloc": 1989,
       "commentWords": 450
     }
   },
   "documentation": {
     "other": {
-      "files": 7,
-      "words": 3461
+      "files": 8,
+      "words": 5534
     },
     "designs": {
-      "files": 7,
-      "words": 13599
+      "files": 9,
+      "words": 17673
     },
     "plans": {
-      "files": 6,
-      "words": 48154
+      "files": 8,
+      "words": 57802
     },
     "reviews": {
       "files": 2,
