@@ -2,15 +2,8 @@
 /* EMITTER                                                                    */
 /******************************************************************************/
 
-/*
- * Direct subscriber base class — events are past-tense facts emitted from
- * the producer, never commands. Each subclass documents its event vocabulary
- * next to its definition.
- *
- * `Emitter.devSink` is a write-only instrumentation hook for the dev
- * console. Gameplay code cannot subscribe via this channel — it has no
- * subscribe API by design.
- */
+// `Emitter.devSink` is a write-only instrumentation hook for the dev console
+// — by design it has no subscribe API.
 
 class Emitter
 {

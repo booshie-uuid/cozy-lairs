@@ -2,12 +2,8 @@
 /* TRANSFORM                                                                  */
 /******************************************************************************/
 
-/*
- * Serialisation surface for the entity's Object3D position / rotation / scale.
- * Object3D's built-in JSON is too heavy (includes geometry + material data).
- * Rotation is stored as Euler [x, y, z] radians; the Euler order is assumed
- * to be the Three.js default "XYZ" and is not persisted.
- */
+// Rotation is stored as Euler [x, y, z] radians; the Three.js default
+// "XYZ" order is assumed and not persisted.
 
 class Transform
 {

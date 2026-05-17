@@ -9,14 +9,6 @@ import * as Errors from "./errors.js";
 /* ASSET MANAGER                                                              */
 /******************************************************************************/
 
-/*
- * Manifest-driven asset loading. Gameplay code only sees flat dot-id strings
- * (e.g. "wall.stone.straight") — file paths stay inside the manifest.
- *
- * Skinned-mesh clones go through SkeletonUtils.clone; the standard Three.js
- * clone shares skeletons across instances and breaks rigged characters.
- */
-
 const VALID_TIERS = new Set(["core", "world"]);
 const VALID_TYPES = new Set(["gltf"]);
 
@@ -326,6 +318,8 @@ class AssetManager
 
     cloneAsset(bundle)
     {
+        // SkeletonUtils.clone for skinned meshes — THREE.Object3D.clone
+        // shares skeletons across instances and breaks rigged characters.
         return bundle.hasSkinnedMesh ? SkeletonUtils.clone(bundle.root) : bundle.root.clone(true);
     }
 }

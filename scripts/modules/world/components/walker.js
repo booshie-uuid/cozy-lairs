@@ -6,41 +6,11 @@ import { Animator } from "./animator.js";
 /* WALKER                                                                     */
 /******************************************************************************/
 
-/*
- * Sub-cell path follower. `followPath([{sx, sz}, ...])` consumes the sub-cell
- * list and walks the entity from sub-cell-centre to sub-cell-centre via
- * straight lines, facing the direction of travel.
- *
- * Self-occupancy lives on the walk-grid as a refcount stamp: the walker holds
- * a +1 stamp on its current sub-cell, transferred (revert + apply) on each
- * boundary crossing. Other walkers see that stamp as a blocker via
- * `walkGrid.isWalkable`.
- *
- * Collision model: pre-check fires the moment the predicted next position
- * would land in a *different* sub-cell. If that sub-cell isn't walkable, the
- * walker doesn't advance into it — position stays put just shy of the
- * boundary, walker emits `blocked`, walker is still aligned with its
- * registered sub-cell. No look-ahead beyond the immediately-next sub-cell,
- * no snap-back.
- *
- * Events:
- *   "arrived"   — emitted when the path completes (or immediately for an
- *                 empty / single-cell path).
- *   "blocked"   — emitted when the walker tries to cross into an unwalkable
- *                 sub-cell.
- *   "displaced" — emitted when `teleportTo` shoves the walker to a new sub-cell.
- */
-
 const ARRIVE_EPSILON = 0.001;
 const TWO_PI = Math.PI * 2;
 
-/*
- * On block, if the walker is more than MESH_BUFFER metres from its
- * currentSubCell centre, set up a one-step mini-path back to the centre and
- * emit "blocked" only after arrival. Sub-cells are 1m, so the buffer is
- * smaller than the previous main-cell version — withdrawing a quarter-cell is
- * enough to keep walker meshes from visually overlapping at boundaries.
- */
+// On block, withdraw to the registered sub-cell centre if further than this
+// from it — far enough that walker meshes don't visually overlap at boundaries.
 const MESH_BUFFER = 0.25;
 
 
@@ -77,10 +47,8 @@ class Walker extends Emitter
             return;
         }
 
-        // Auto-register occupancy at the entity's current sub-cell. Without
-        // this, a freshly-spawned walker sits unstamped until its first
-        // followPath — other walkers planning paths see the spawn sub-cell as
-        // free and route through it.
+        // Stamp the spawn sub-cell so other walkers don't plan paths
+        // through it before the first followPath fires.
         const pos = this.entity.object3D.position;
         const { sx, sz } = world.walkGrid.worldToSub(pos.x, pos.z);
         if(world.walkGrid.isInBounds(sx, sz))
@@ -148,12 +116,8 @@ class Walker extends Emitter
             return;
         }
 
-        /*
-         * Don't force-snap to path[0]'s centre when the walker is already
-         * inside that sub-cell — at 1m sub-cells the snap is at most 0.5m
-         * but still visible. Re-register occupancy in place. If the walker
-         * is somewhere else (defensive), fall back to a snap.
-         */
+        // Don't force-snap to path[0]'s centre when the walker is already
+        // inside that sub-cell — the snap would be visible (up to 0.5m).
         const walkGrid = this.entity.world.walkGrid;
         const startCell = this.path[0];
         const physical  = walkGrid.worldToSub(this.entity.object3D.position.x, this.entity.object3D.position.z);
@@ -193,7 +157,7 @@ class Walker extends Emitter
         const o = this.entity.object3D;
         const walkGrid = this.entity.world.walkGrid;
 
-        // Drift detector: physical sub-cell vs registered sub-cell. Latched.
+        // Latched warning when physical sub-cell drifts from the stamp.
         if(this.currentSubCell)
         {
             const physical = walkGrid.worldToSub(o.position.x, o.position.z);
@@ -241,14 +205,7 @@ class Walker extends Emitter
         const newX = o.position.x + dirX * moveAmount;
         const newZ = o.position.z + dirZ * moveAmount;
 
-        /*
-         * Pre-check on sub-cell-boundary crossing only. As long as we're
-         * moving within the sub-cell we've already registered, no checks are
-         * needed — we own this sub-cell. The check fires the moment our
-         * predicted next position would land in a different sub-cell. If
-         * that sub-cell is blocked, we don't advance into it: position
-         * stays put and we trigger withdrawal.
-         */
+        // Pre-check only on boundary crossings — we own the cell we're in.
         const newCell = walkGrid.worldToSub(newX, newZ);
         const crossesCell = !this.currentSubCell
             || newCell.sx !== this.currentSubCell.sx
@@ -385,7 +342,7 @@ class Walker extends Emitter
 
         if(this.currentSubCell && this.currentSubCell.sx === sx && this.currentSubCell.sz === sz)
         {
-            return; // Already stamped here.
+            return;
         }
 
         if(this.currentSubCell)

@@ -2,18 +2,7 @@
 /* WALK-SEARCH                                                                */
 /******************************************************************************/
 
-/*
- * Small BFS helpers over a `WalkGrid`. Pulled out so the wander behaviour and
- * the V7 pickup-restore path can share one definition of "nearest free
- * sub-cell" without either pulling the other's imports in.
- */
-
-
-/*
- * 4-neighbour BFS from `start` over `walkGrid`, returning the first sub-cell
- * that satisfies `isTraversable(sx, sz)`. `start` may itself be returned if
- * it's already traversable. Returns null if no traversable cell is reachable.
- */
+// 4-neighbour BFS — `start` may itself be returned if traversable.
 function findNearestTraversable(walkGrid, start, isTraversable)
 {
     const visited = new Set();

@@ -36,9 +36,8 @@ class DecorPlaceTool extends Tool
         super();
         this.kind = kind;
         this.rotationStep = 0;
-        /* When set, gets first crack at every left-click. If it returns true
-         * (held-pickup consumed at the clicked cell), the regular place path
-         * is skipped — keeps single-shot pickup semantics from leaking out. */
+        // Returns true if a held pickup was consumed at the clicked cell,
+        // letting the normal place path short-circuit.
         this.consumePickup = consumePickup;
     }
 

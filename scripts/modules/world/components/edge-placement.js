@@ -6,22 +6,9 @@ import * as Footprint from "../footprint.js";
 /* EDGE PLACEMENT                                                             */
 /******************************************************************************/
 
-/*
- * Places an entity on one edge of cell (cx, cz). Rotation orients the asset
- * to face *into* the cell — for KayKit straight walls (decorated face on
- * +Z at default rotation), south=0, north=π, west=π/2, east=-π/2.
- *
- * `lengthOffset` shifts the placement along the edge axis (X for north/south,
- * Z for east/west). `originOffset` shifts along the asset's local +X to
- * compensate for assets whose origin is not at their visual centre — e.g.
- * `wall_half.gltf` has bounds X=0..2 (origin at one end), so pass -1 to
- * centre it on the requested position.
- *
- * Stamps the walk-grid on add via the footprint module's AABB primitive,
- * passing the pre-computed world transform (edge placements don't fit the
- * cell-centred cx/cz/rotationStep shape). Reverts on remove. Gated on the
- * world having both a walk-grid and an assets cache.
- */
+// `originOffset` shifts along the asset's local +X for assets whose
+// origin isn't at their visual centre — e.g. `wall_half.gltf` has
+// bounds X=0..2 with origin at one end, so pass -1 to centre it.
 
 const HALF_TURN = Math.PI;
 const QUARTER_TURN = Math.PI / 2;

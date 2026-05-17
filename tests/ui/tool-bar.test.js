@@ -184,8 +184,6 @@ test("isActive flips true on the button whose composed id matches selectedToolId
 
 test("isActive on Build follows selectedKind changes — armed kind matches even though selectedToolId path differs", () =>
 {
-    /* selectedToolId arrived from a catalogue click and carries the same
-     * `decor:build:<kind>` shape — confirms the composition lines up. */
     const { toolBar } = setup({
         activeTab:      "decor",
         selectedKind:   "decor.crate",

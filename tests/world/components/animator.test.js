@@ -170,17 +170,6 @@ test("update advances the mixer with the supplied dt", () =>
 
 /* CLIP TRACK FILTERING ********************************************************/
 
-/*
- * `filterClipForRoot` is internal to the module — exercised here by
- * constructing real THREE.AnimationClip + THREE.Object3D fixtures and
- * inspecting the clip handed to `mixer.clipAction` via the stub mixer.
- *
- * Background: KayKit Rig_Medium clips include tracks for nodes like
- * `handslotr` that some character meshes (Mannequin) lack. The filter
- * strips those tracks per-mount so PropertyBinding doesn't warn.
- */
-
-
 function makeAnimatorWithRoot(clipMap, animations, root)
 {
     const mixer = makeStubMixer();

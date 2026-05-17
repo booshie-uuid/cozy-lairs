@@ -6,12 +6,7 @@ import * as Errors from "./errors.js";
 /* RENDERER                                                                   */
 /******************************************************************************/
 
-/*
- * Wraps THREE.WebGLRenderer. `setActiveCamera` takes a THREE.Camera instance,
- * not a controller — controllers own their cameras and pass them through.
- * devicePixelRatio is clamped at 2× to avoid a 4K perf cliff.
- */
-
+// Clamp DPR at 2× to avoid the 4K perf cliff.
 const MAX_PIXEL_RATIO = 2;
 const CLEAR_COLOR = 0x0a0e14;
 

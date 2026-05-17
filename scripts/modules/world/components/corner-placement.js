@@ -6,17 +6,8 @@ import * as Footprint from "../footprint.js";
 /* CORNER PLACEMENT                                                           */
 /******************************************************************************/
 
-/*
- * Places an entity at a grid vertex (vx*S, 0, vz*S), where vertex coordinates
- * extend one past cell coordinates in each direction. KayKit's `wall_corner`
- * has arms extending in -X and +Z at default rotation (matches a SE room
- * corner); the rotation table below orients the other three corners.
- *
- * Corners stamp the walk-grid through the same footprint module GridPlacement
- * uses, dispatching to the wall-corner primitive (L-shape stamp at the two arm
- * tips). The manifest entry for wall.stone.corner carries
- * `meta.collision: "wall-corner"` so the dispatch lands on the right primitive.
- */
+// KayKit's `wall_corner` has arms in -X and +Z at default rotation
+// (matches an SE room corner) — the table below orients the rest.
 
 const QUARTER_TURN = Math.PI / 2;
 

@@ -8,40 +8,6 @@ import { PLAYER_MARKER }    from "../player-marker.js";
 /* FIRST PERSON CAMERA                                                        */
 /******************************************************************************/
 
-/*
- * Floor-locked first-person walker. Right-mouse-hold engages mouse-look via
- * Pointer Lock; WASD walks on the XZ plane at fixed eye height. The browser
- * may release the lock unilaterally (Escape, focus loss) — `pointerlockchange`
- * keeps internal state in sync when it does.
- *
- * Player avatar: when constructed with a `playerEntity`, the camera treats
- * that entity as the player's "body". On WASD movement the entity follows
- * the camera's XZ position. On `activate` the entity's mesh is hidden (so
- * the camera doesn't render the back of the player's own head) and the
- * camera snaps to the entity's current position (so toggling Builder→FP
- * resumes from wherever the player was last left). On `deactivate` the
- * mesh is shown again — the player's body stands idle in Builder view.
- *
- * Grid presence: `PLAYER_MARKER` occupies the player's current cell
- * regardless of camera mode (so other walkers and decor placement always
- * see the player as a blocker / displaceable). The marker registration is
- * managed by `App.spawnPlayer` initially; the camera updates it on
- * movement (WASD or `teleportPlayer`).
- *
- * Marker policy: the marker is only written to cells the player exclusively
- * occupies. While transiting a cell already owned by another occupant
- * (typically a walker — walking through walkers is allowed), no marker is
- * written and `lastCell` stays null. The walker keeps its registration; the
- * player passes through without leaving a footprint or triggering a
- * placement-on-player displacement.
- *
- * Collision: WASD movement is rejected if the destination cell isn't
- * walkable (`Grid.isWalkable` — handles decor blockers and out-of-room
- * cells uniformly). Per-axis check enables sliding along walls and decor.
- * Other walkers don't block the player (they're in `occupants`, not
- * `blockedCells`) — by design, walking through minions is fine.
- */
-
 const DEFAULT_EYE_HEIGHT = 1.7;
 const DEFAULT_WALK_SPEED = 4;
 const LOOK_SENSITIVITY = 0.0025;
@@ -60,12 +26,8 @@ class FirstPersonCamera extends CameraController
         this.walkSpeed = options.walkSpeed || DEFAULT_WALK_SPEED;
         this.grid = options.grid || null;
         this.playerEntity = options.playerEntity || null;
-        // Optional collision-resolver callback:
-        //   (currentX, currentZ, desiredX, desiredZ) → { x, z }
-        // Returns the position the player should actually end up at,
-        // accounting for walls (per-axis sliding), decor (circle
-        // depenetration), and any other obstacles the host wants to model.
-        // Without it, the camera moves freely to the desired position.
+        // (currentX, currentZ, desiredX, desiredZ) → { x, z }. Optional —
+        // without it the camera moves freely to the desired position.
         this.resolveCollision = options.resolveCollision || null;
 
         const initial = options.initialPosition || new THREE.Vector3(0, this.eyeHeight, 0);
@@ -78,11 +40,8 @@ class FirstPersonCamera extends CameraController
         this.pointerLocked = false;
         this.active = false;
 
-        // Marker registration is initialised by whoever spawns the player
-        // (App.spawnPlayer). The camera tracks the cell so it can clear
-        // and re-register on movement. `null` means the player isn't
-        // currently the marker owner — either pre-spawn or transiting
-        // another occupant's cell.
+        // `null` means the player isn't the marker owner — either
+        // pre-spawn or transiting another occupant's cell.
         this.lastCell = null;
         if(this.grid && this.playerEntity)
         {
@@ -110,8 +69,7 @@ class FirstPersonCamera extends CameraController
         this.input.on("pointermove",       this.onPointerMove);
         this.input.on("pointerlockchange", this.onPointerLockChange);
 
-        // Snap camera to the player's current position so toggling
-        // Builder→FP resumes from where the player was last left.
+        // Resume from where the player was last left in Builder mode.
         if(this.playerEntity)
         {
             const p = this.playerEntity.object3D.position;
@@ -144,8 +102,8 @@ class FirstPersonCamera extends CameraController
         }
 
         this.active = false;
-        // PLAYER_MARKER stays registered — the player is still "present"
-        // in Builder mode (just controlled by the god camera now).
+        // PLAYER_MARKER stays registered — the player is still present
+        // in Builder mode, just controlled by the god camera.
     }
 
     teleportPlayer(cell)
@@ -288,10 +246,8 @@ class FirstPersonCamera extends CameraController
 
         this.clearMarker();
 
-        // Don't clobber another occupant's claim. Walking through a walker
-        // is allowed (the player passes through without writing a marker);
-        // walking onto decor isn't possible (resolveCollision blocks it).
-        // If the cell is empty, take ownership.
+        // Walking through a walker is allowed — pass through without
+        // writing a marker rather than clobber the walker's claim.
         const existing = this.grid.getOccupant(cell.cx, cell.cz);
         if(existing !== null) { return; }
 

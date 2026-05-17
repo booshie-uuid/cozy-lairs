@@ -8,22 +8,6 @@ const ko = window.ko;
 /* DEV CONSOLE VIEW MODEL                                                     */
 /******************************************************************************/
 
-/*
- * Display state for the slide-in dev panel. Capture state lives on the
- * `DevConsole` itself (ring buffer + flush timer); this view-model only
- * holds what the DOM binds to. `filteredEvents` reverses the buffer so the
- * newest entries land at the top of the list.
- *
- * Regex parse failures fall back to "filter not applied" rather than
- * blocking the list — a typing user would see live regex errors otherwise.
- *
- * Event timestamps are stored as absolute `performance.now()` values; the
- * displayed format is "how long ago" derived against `nowMs`, which the
- * DevConsole ticks on its poll cadence. Relative-time formatting beats
- * raw ms-since-page-load because that number grows unbounded and blows
- * out the column width within minutes.
- */
-
 class DevConsoleViewModel
 {
     constructor()
@@ -95,8 +79,8 @@ class DevConsoleViewModel
         this.formatRelativeTime = timeMs => formatRelative(this.nowMs() - timeMs);
         this.formatAbsoluteTime = wallClockMs => formatAbsolute(wallClockMs);
 
-        // Filled in by the App on boot (after services exist). No-ops by
-        // default so the UI never throws if a button is clicked before bind.
+        // No-op defaults so the UI doesn't throw if a button fires
+        // before App.wireDevConsole replaces this slot.
         this.actions =
         {
             toggleCameraMode:     () => {},

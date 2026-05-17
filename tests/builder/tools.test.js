@@ -249,9 +249,8 @@ test("DecorPlaceTool sends the current rotationStep to placeDecor", () =>
 
 test("DecorPlaceTool with consumePickup that returns true skips the regular placeDecor call", () =>
 {
-    /* When a held pickup consumes the click, the tool must not also place
-     * a fresh entity — single-shot semantics depend on the consumer being
-     * the only thing that runs. */
+    // Single-shot pickup: consumer returning true must suppress the
+    // regular place path.
     const consumePickup = vi.fn(() => true);
     const tool = new DecorPlaceTool({ kind: "decor.crate", consumePickup });
     const { editor } = activate(tool);
@@ -508,8 +507,6 @@ test("NudgeTool.onEntityClick(null) deselects", () =>
 test("NudgeTool clicking a non-nudgeable entity (floor / wall) deselects rather than selecting", () =>
 {
     const tool = new NudgeTool();
-    /* Editor reports the entity as non-nudgeable — mimics how floors,
-     * walls, and minions are filtered out today. */
     const editor = makeStubEditor({ isNudgeable: vi.fn(() => false) });
     activate(tool, editor);
 
@@ -736,8 +733,6 @@ test("PickTool.onEntityClick skips non-pickupable entities", () =>
 
 test("PickTool.onEntityClick skips when editor.pickUpEntity returns null", () =>
 {
-    /* Defensive: even if a tool's eligibility predicate says yes, the editor
-     * has the final say (e.g. concurrent removal). */
     const onPicked = vi.fn();
     const editor = makeStubEditor({
         isPickupable: vi.fn(() => true),

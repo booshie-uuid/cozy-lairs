@@ -2,13 +2,6 @@
 /* TIME FORMAT                                                                */
 /******************************************************************************/
 
-/*
- * "How long ago" formatter for the dev console events list. Anything older
- * than a minute caps at ">1m" — the ring buffer is small enough that older
- * entries are unusual, and exact ages past a minute aren't useful for live
- * debugging.
- */
-
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
 

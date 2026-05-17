@@ -40,12 +40,6 @@ afterEach(() =>
 /* GLTF LOADER PATCH                                                          */
 /******************************************************************************/
 
-/*
- * The AssetManager uses an internal GLTFLoader instance. We replace its
- * `.load` method per-test to return canned scenes without touching the
- * filesystem. Each canned response is a Promise-resolving group.
- */
-
 function patchLoader(manager, builder)
 {
     manager.loader.load = (path, onLoad, onProgress, onError) =>

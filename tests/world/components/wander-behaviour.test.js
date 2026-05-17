@@ -70,9 +70,8 @@ let mathRandomSpy;
 
 beforeEach(() =>
 {
-    /* Deterministic but varying — a fixed `mockReturnValue` makes
-     * sampleInRadius always produce the same (zero) offset which is the
-     * walker's own cell; pickTarget would never return a valid target. */
+    // Deterministic but varying — a fixed mockReturnValue would make
+    // sampleInRadius always return the walker's own cell.
     let counter = 0;
     mathRandomSpy = vi.spyOn(Math, "random").mockImplementation(() =>
     {

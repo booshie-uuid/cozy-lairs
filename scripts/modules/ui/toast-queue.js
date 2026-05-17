@@ -2,18 +2,6 @@
 /* TOAST QUEUE                                                                */
 /******************************************************************************/
 
-/*
- * Push transient messages onto a sink (typically a `ko.observableArray`)
- * with auto-dismiss after a fixed timeout. The sink only needs `push(item)`
- * and `remove(predicate)`; tests pass a plain stub so the queue itself
- * stays node-runnable.
- *
- * Toast shape: { id, message, level }
- *   level ∈ { "info", "warning", "error" } — drives CSS variant
- *
- * `nextId` is monotonic per instance (used as KO foreach key).
- */
-
 const DEFAULT_DISMISS_MS = 4000;
 
 

@@ -2,20 +2,9 @@
 /* GAME LOOP                                                                  */
 /******************************************************************************/
 
-/*
- * Fixed-timestep simulation with variable-rate render. `onFixedUpdate(dt)`
- * fires N times per RAF (deterministic 60 Hz default), `onFrameUpdate(alpha)`
- * fires once with the interpolation alpha. The accumulator is capped at
- * MAX_ACCUMULATED_SECONDS so a backgrounded tab returning to focus doesn't
- * spawn thousands of catch-up ticks.
- *
- * Stats:
- *   `frameMs`     — rolling average frame duration over FRAME_WINDOW frames.
- *   `fps`         — derived from frameMs.
- *   `simTickRate` — observed fixed-update ticks/second, resampled every 1 s.
- */
-
 const DEFAULT_FIXED_DT = 1 / 60;
+// Cap the accumulator so a backgrounded tab returning to focus doesn't
+// spawn thousands of catch-up ticks.
 const MAX_ACCUMULATED_SECONDS = 0.25;
 const MS_PER_SECOND = 1000;
 const FRAME_WINDOW = 30;

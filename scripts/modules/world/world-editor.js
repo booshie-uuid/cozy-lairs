@@ -92,21 +92,17 @@ class WorldEditor
         if(grid.getOccupant(cx, cz) === PLAYER_MARKER) { return false; }
         if(this.walkerInMainCell(cx, cz))              { return false; }
 
-        // Surface-placement branch: if the kind opts in AND a surface
-        // already sits at this cell, allow the placement provided no
-        // other surface-placeable is already there (V5 one-per-surface
-        // rule, lifted when nudging arrives).
         const kindMeta = this.assets.getMeta(kind);
         if(kindMeta && kindMeta.placeableOnSurface)
         {
             const surface = this.findSurfaceAtCell(cx, cz);
             if(surface)
             {
+                // One placeable per surface.
                 return this.findSurfacePlaceablesAtCell(cx, cz).length === 0;
             }
         }
 
-        // Floor-placement branch: cell must not already be blocked.
         if(grid.blockedCells.has(grid.cellKey(cx, cz))) { return false; }
         return true;
     }
@@ -131,8 +127,8 @@ class WorldEditor
         if(!grid.isFloor(cx, cz))    { return false; }
         if(grid.getOccupant(cx, cz) === PLAYER_MARKER) { return false; }
 
-        // Walkers can share a main cell at different sub-cells; reject spawn
-        // only if the spawn sub-cell itself (main-cell centre) is blocked.
+        // Walkers can share a main cell at different sub-cells; only the
+        // spawn sub-cell (main-cell centre) needs to be clear.
         const base = walkGrid.mainToSub(cx, cz);
         const centreSx = base.sx + Math.floor(walkGrid.subsPerMain / 2);
         const centreSz = base.sz + Math.floor(walkGrid.subsPerMain / 2);
@@ -145,16 +141,6 @@ class WorldEditor
         return this.isMinionEntity(entity);
     }
 
-    /*
-     * Nudge predicate. Recomputes the entity's sub-grid footprint at the
-     * proposed offset and verifies every candidate sub-cell is in-bounds and
-     * unblocked by *other* entities. Comparison runs with the entity's own
-     * stamp temporarily reverted so it never collides with itself.
-     *
-     * Surface-placeables (`blocks: false` with non-zero `surfaceY`) don't
-     * stamp the sub-grid, so the overlap check short-circuits — eligibility
-     * is the only gate.
-     */
     canNudge(entity, deltaX, deltaZ)
     {
         if(!this.isNudgeable(entity))                           { return false; }
@@ -166,6 +152,8 @@ class WorldEditor
         const walkGrid = this.world.walkGrid;
         if(!walkGrid || !this.world.assets) { return true; }
 
+        // Revert the entity's own stamp so the overlap check doesn't
+        // collide it with itself.
         walkGrid.revertStamp(placement.stampedSubCells);
 
         const { subCells } = Footprint.computeFootprint({
@@ -253,9 +241,8 @@ class WorldEditor
 
         const surfaceY = this.getPlacementYFor(kind, cx, cz);
 
-        // Floor-placed decor blocks its cell. Surface-placed decor doesn't —
-        // the surface beneath it owns the blocking, so the cascade-on-surface-
-        // removal path can clear blockedCells exactly once.
+        // Surface-placed decor doesn't block — the surface beneath owns
+        // the blocking so the cascade-on-removal path clears it once.
         const blocks = (surfaceY === 0);
 
         const entity = Entity.fromKind(kind, this.assets);
@@ -289,9 +276,8 @@ class WorldEditor
     {
         if(!this.isPlacedDecor(entity)) { return false; }
 
-        // Cascade: removing a surface drops anything sitting on it. Cascade
-        // first so the placeables go before their support; matches the wall-
-        // decor cascade pattern in WallTracer.
+        // Removing a surface cascades to anything sitting on it —
+        // drop placeables first so they go before their support.
         const meta = this.assets.getMeta(entity.kind);
         if(meta && meta.surface)
         {
@@ -372,12 +358,6 @@ class WorldEditor
 
     /* PICKUP *****************************************************************/
 
-    /*
-     * Pickup eligibility. Floors, tracer walls, terrain blocks, and wall-decor
-     * (EdgePlacement) are excluded — the snapshot shape is GridPlacement-cell
-     * for decor and main-cell-from-position for minions. Wall decor pickup
-     * would need a different snapshot shape and is out of V7 scope.
-     */
     isPickupable(entity)
     {
         if(!entity || typeof entity.getComponent !== "function") { return false; }
@@ -405,12 +385,6 @@ class WorldEditor
         return snapshot;
     }
 
-    /*
-     * Fresh placement at a new cell — `rotationStep / xOffset / zOffset` reset
-     * to zero, matching the catalogue-tile placement convention. Routes
-     * through the standard `placeDecor` / `spawnMinion` paths so all the
-     * existing predicates fire (canPlaceDecor walker-in-cell check, etc).
-     */
     placeFromSnapshot(snapshot, cx, cz)
     {
         if(!snapshot) { return false; }
@@ -421,12 +395,6 @@ class WorldEditor
         return this.placeDecor(snapshot.kind, cx, cz, 0);
     }
 
-    /*
-     * Re-instantiate at the origin cell with preserved orientation / offset /
-     * surfaceY. Displaces any walkers currently occupying the target main cell
-     * via `Walker.teleportTo`. If the target cell can't accept the entity
-     * (floor was erased, etc.), drops the snapshot + toasts the audit message.
-     */
     restorePickup(snapshot)
     {
         if(!snapshot) { return false; }
@@ -466,9 +434,8 @@ class WorldEditor
     buildMinionEntity(kind)
     {
         const minion = Entity.fromKind(kind, this.assets);
-        // Transform first so it round-trips position: at load Walker reads
-        // object3D.position in onAddedToWorld, which must already be set by
-        // Transform.applyJSON. Component order is insertion order.
+        // Transform before Walker so applyJSON sets object3D.position
+        // before Walker reads it in onAddedToWorld.
         minion.addComponent(new Transform());
         minion.addComponent(new Walker({ speed: MINION_SPEED }));
 
@@ -484,10 +451,9 @@ class WorldEditor
 
     rehydrateMinion(entity)
     {
-        // Walker + Transform survive a save round-trip (both have toJSON);
-        // Animator and WanderBehaviour don't, so re-attach them and run
-        // their onAddedToWorld manually (the entity is already in the
-        // world by the time rehydration happens).
+        // Animator and WanderBehaviour have no toJSON, so re-attach and
+        // run their onAddedToWorld manually — the entity is already
+        // in the world by the time rehydration happens.
         if(!this.isMinionEntity(entity)) { return false; }
 
         if(!entity.hasComponent(Animator))
@@ -523,7 +489,7 @@ class WorldEditor
         for(const id of sources)
         {
             try { animations.push(...this.assets.getAnimations(id)); }
-            catch(_err) { /* missing rig source — fall back to rest pose */ }
+            catch(_err) { /* missing rig — fall back to rest pose */ }
         }
         return animations;
     }
@@ -549,9 +515,7 @@ class WorldEditor
             const placement = entity.getComponent(GridPlacement);
             if(!placement) { continue; }
             if(placement.cx !== cx || placement.cz !== cz) { continue; }
-            // Decor is anything with a GridPlacement that either blocks
-            // (floor decor + surfaces) or sits on a surface (surfaceY > 0).
-            // Excludes terrain blocks and floor entities.
+            // Exclude blocks and floors; decor blocks the cell or sits on a surface.
             if(this.isBlockEntity(entity)) { continue; }
             if(!placement.blocks && placement.surfaceY === 0) { continue; }
             found.push(entity);
@@ -701,12 +665,6 @@ class WorldEditor
         return entity.getComponent(Walker) !== undefined;
     }
 
-    /*
-     * Nudge eligibility. Entity must have a `GridPlacement` (the nudge
-     * substrate); floors are tile-aligned so they can't nudge; tracer-derived
-     * walls/corners are auto-placed and have no GridPlacement, but the kind
-     * check is belt-and-braces against any future manually-placed wall kinds.
-     */
     isNudgeable(entity)
     {
         if(!entity || typeof entity.getComponent !== "function") { return false; }
@@ -734,11 +692,6 @@ class WorldEditor
         return occupant.getComponent(Walker) !== undefined;
     }
 
-    /*
-     * Capture pickup state from an entity. Decor (GridPlacement) carries
-     * full rotation / offset / surfaceY; minions (Walker only) derive their
-     * origin cell from current world position and zero the rest.
-     */
     snapshotEntity(entity)
     {
         const placement = entity.getComponent(GridPlacement);
@@ -774,12 +727,6 @@ class WorldEditor
         catch { return false; }
     }
 
-    /*
-     * Move every walker whose `currentSubCell` lies inside main cell (cx, cz)
-     * to the nearest free sub-cell outside that main cell. Predicate filters
-     * out the source main cell so displacement always lands elsewhere — keeps
-     * the target main cell free for the entity being restored on top of it.
-     */
     displaceWalkersFromMainCell(cx, cz)
     {
         const walkGrid = this.world.walkGrid;
@@ -811,11 +758,6 @@ class WorldEditor
         }
     }
 
-    /*
-     * Walkers no longer register on the main grid — multiple walkers can
-     * occupy the same 4×4 main cell at different sub-cells, which a single-
-     * value main-grid slot can't represent. Scan world entities instead.
-     */
     walkerInMainCell(cx, cz)
     {
         const subsPerMain = this.world.walkGrid.subsPerMain;

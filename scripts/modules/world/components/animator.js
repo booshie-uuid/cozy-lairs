@@ -5,21 +5,6 @@ import * as THREE from "three";
 /* ANIMATOR                                                                   */
 /******************************************************************************/
 
-/*
- * Wraps a `THREE.AnimationMixer` and a state→clip map. `crossfade("walk")`
- * fades the named state in and the previous state out. Missing clips warn at
- * construction (when the bundle's animations don't contain the configured
- * name) and at crossfade time (when the requested state isn't in `actions`)
- * — never throw, since animation gaps shouldn't crash the demo.
- *
- * The constructor takes the bundle's `animations` array directly rather than
- * an `AssetManager` reference: keeps the component honest about exactly which
- * clips it knows about and decouples it from asset lifecycle.
- *
- * `mixerFactory` is injectable so tests can substitute a stub mixer; default
- * builds a real `THREE.AnimationMixer` rooted at the entity's Object3D.
- */
-
 const DEFAULT_FADE_MS = 200;
 
 
@@ -110,24 +95,14 @@ class Animator
 /* CLIP TRACK FILTERING                                                       */
 /******************************************************************************/
 
-/*
- * Animation clips from KayKit's rig libraries include tracks for nodes
- * that not every character mesh has — most notably `handslotr` /
- * `handslotl` (weapon-attachment slots present on the Skeleton_Minion
- * but not on the Mannequin). When `mixer.clipAction(clip)` binds those
- * tracks, `THREE.PropertyBinding` warns ("No target node found for
- * track: ...") on every load.
- *
- * To suppress the noise without touching the underlying clips (they're
- * shared across all entities of the same rig), we make a lightweight
- * per-mount copy of the clip with the unbindable tracks removed. Cheap
- * — clones don't dupe the keyframe data, just the track list.
- */
-
+// KayKit rig clips include tracks for optional nodes (`handslotr` /
+// `handslotl` weapon slots) that not every character mesh has. Without
+// filtering, THREE.PropertyBinding warns "No target node found for
+// track: ..." on every mount. Track-list clones are cheap — keyframe
+// data isn't duplicated.
 function filterClipForRoot(clip, root)
 {
-    // Defensive — test stubs may pass minimal `{ name }` objects with
-    // no tracks. Real KayKit clips always have a `tracks` array.
+    // Test stubs may pass minimal `{ name }` objects with no tracks.
     if(!Array.isArray(clip.tracks)) { return clip; }
 
     const usable = clip.tracks.filter(track =>

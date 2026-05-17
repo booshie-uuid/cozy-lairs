@@ -22,9 +22,7 @@ class MinionSpawnTool extends Tool
     {
         super();
         this.kind = kind;
-        /* Same single-shot pickup hook as `DecorPlaceTool` — if a held
-         * minion snapshot is being placed, the consumer handles the click
-         * and the regular spawn path doesn't fire. */
+        // Single-shot pickup hook — see DecorPlaceTool.
         this.consumePickup = consumePickup;
     }
 

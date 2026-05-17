@@ -7,14 +7,10 @@ import { test, expect, beforeAll } from "vitest";
 /* MINIMAL KO STUB                                                            */
 /******************************************************************************/
 
-/*
- * AuthoringPanel reads `window.ko` at module load. jsdom + Vitest don't run
- * the real knockout UMD reliably (the `var A = this || (0,eval)("this")`
- * dance lands on a module-private scope under ESM, so `A.ko` never makes it
- * to the real window). For unit-test purposes a small subset of KO is
- * enough — observables and pureComputed with the subscribe/notify semantics
- * the panel relies on.
- */
+// The real KO UMD doesn't initialise reliably under jsdom + ESM — its
+// `var A = this || (0,eval)("this")` bootstrap lands on a module-private
+// scope so `A.ko` never reaches the real window. Stub the subset the
+// panel touches: observables + pureComputed with subscribe/notify.
 
 function createKoStub()
 {

@@ -5,22 +5,6 @@ import { Emitter } from "../emitter.js";
 /* DEV CONSOLE                                                                */
 /******************************************************************************/
 
-/*
- * Captures every event flowing through `Emitter.emit` via the static
- * `devSink` slot, into a fixed-size ring buffer. Records are flushed to
- * the view-model's `eventsBuffer` observable on a poll timer (default 100 ms)
- * so high-frequency events (pointermove, fixedUpdate) don't trigger a KO
- * re-evaluation per emit.
- *
- *   record  is the dev sink; runs synchronously inside emit()
- *   flush   pushes the current snapshot into the view-model
- *   capture serialises the payload with class names replacing objects
- *
- * Re-entrancy: the dev sink itself never emits, but a logging handler in
- * gameplay code might (e.g. logging an error which triggers another emit).
- * `recording` short-circuits to keep the sink honest.
- */
-
 const DEFAULT_CAPACITY = 500;
 const DEFAULT_POLL_MS = 100;
 const PAYLOAD_PREVIEW_LIMIT = 240;
@@ -108,6 +92,8 @@ class DevConsole
 
     record(emitter, event, payload)
     {
+        // Re-entrancy guard: a gameplay handler that logs through Emitter
+        // would otherwise recurse into the sink it just triggered.
         if(this.recording) { return; }
         if(this.viewModel.isPaused()) { return; }
         if(this.isNoisy(event) && !this.viewModel.showNoisy()) { return; }

@@ -2,18 +2,6 @@
 /* FOOTPRINT                                                                  */
 /******************************************************************************/
 
-/*
- * Pure-function module: projects an entity's local AABB through its placement
- * transform onto the walk-grid, returning the list of sub-cells it occupies.
- *
- * Primitives are dispatched off `meta.collision` from the asset record:
- *   - `aabb` (default) — coverage-thresholded box stamp; rotation-aware.
- *   - `wall-corner`    — L-shape stamp for `wall.stone.corner`; arm tips only.
- *
- * Unknown primitive or missing AABB warns and falls back to an empty footprint
- * (entity blocks nothing rather than crashing the load).
- */
-
 const MIN_SUB_CELL_COVERAGE = 0.05;
 
 
@@ -105,21 +93,11 @@ function resolveWorldTransform(options, walkGrid)
 /* WALL-CORNER PRIMITIVE                                                      */
 /******************************************************************************/
 
-/*
- * Corner pieces are vertex-anchored: `vx, vz` are vertex coords on the main
- * grid; `corner` is one of SE / SW / NW / NE per `CornerPlacement`. Each
- * orientation stamps EIGHT sub-cells — the 2×2 junction block centred on the
- * vertex (1m wall thickness straddling each boundary, four quadrants total)
- * plus a 2-cell extension along each arm (one full sub-cell beyond the
- * junction on each arm's two-cell-wide thickness band).
- *
- * The previous 7-cell layout omitted the junction quadrant on the L's
- * convex (outer) side, which left an unstamped apex sub-cell that minions
- * could walk through — the very point where two wall sections meet.
- *
- * Deltas measured from the vertex sub-coord
- * `(vsx, vsz) = mainToSub(vx, vz)`.
- */
+// Each corner orientation stamps 8 sub-cells: the 2×2 junction block centred
+// on the vertex plus a 2-cell extension along each of the two arms. Deltas
+// are relative to the vertex sub-coord `mainToSub(vx, vz)`. Omitting the
+// junction quadrant on the convex side leaves an apex sub-cell minions can
+// walk through — make sure all four junction cells are present.
 
 const ARMS_BY_CORNER =
 {
@@ -181,9 +159,9 @@ function wallCornerStamp(options)
 /* INTERNAL                                                                   */
 /******************************************************************************/
 
+// Three.js Y-rotation: (x, z) → (x·cos(θ) + z·sin(θ), -x·sin(θ) + z·cos(θ)).
 function rotateYRadians(x, z, theta)
 {
-    /* Three.js Y-rotation: (x, z) → (x·cos(θ) + z·sin(θ), -x·sin(θ) + z·cos(θ)). */
     const cos = Math.cos(theta);
     const sin = Math.sin(theta);
     return { x: x * cos + z * sin, z: -x * sin + z * cos };

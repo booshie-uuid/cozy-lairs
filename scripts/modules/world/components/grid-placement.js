@@ -6,31 +6,6 @@ import * as Footprint from "../footprint.js";
 /* GRID PLACEMENT                                                             */
 /******************************************************************************/
 
-/*
- * Places an entity at the centre of cell (cx, cz) with a discrete Y-rotation
- * step (0..3 = 0/90/180/270°). Transform applied in `onAddedToWorld` because
- * cell size comes from the world's grid.
- *
- * Optional flags drive grid walkability:
- *   walkable: registers the cell in `grid.floorCells` on add, clears on remove.
- *   blocks:   registers the cell in `grid.blockedCells` on add, clears on remove.
- * Both default false.
- *
- * `surfaceY` lifts the entity off the cell floor — used when a decor is
- * placed on top of a surface (e.g. a candle on a table). Round-trips through
- * `toJSON` only when non-zero.
- *
- * `xOffset` / `zOffset` are free-axis nudge offsets within the cell. Default
- * 0. Emitted in `toJSON` only when non-zero so un-nudged saves keep the V5
- * byte shape.
- *
- * When the host world has a `walkGrid` AND an `assets` reference, every add /
- * remove (and `setOffset`) stamps/reverts the sub-grid via the footprint
- * module. Without either, the lifecycle silently skips stamping — Task 7
- * wires `walkGrid` + `assets` onto `World` so the gate disappears in
- * production.
- */
-
 const QUARTER_TURN = Math.PI / 2;
 
 
@@ -157,11 +132,8 @@ class GridPlacement
 
     stampWalkGrid(world)
     {
-        /* Floors and surface-placeables don't add their own blocker stamp.
-         * Floors are *walkable* (sub-grid baseline is "no blocker = walkable");
-         * surface-placeables sit on a surface entity that already stamps the
-         * cell. Only entities flagged `blocks: true` contribute to the
-         * sub-grid refcount. */
+        // Only `blocks: true` entries contribute to the refcount —
+        // surface-placeables sit on a surface that already stamps the cell.
         if(!this.blocks) { return; }
         if(!world.walkGrid || !world.assets) { return; }
 

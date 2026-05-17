@@ -5,17 +5,8 @@ const ko = window.ko;
 /* CONFIRM MODAL VIEW MODEL                                                   */
 /******************************************************************************/
 
-/*
- * Generic two-button confirmation modal. Callers populate via show(), the
- * modal exposes its visible / title / message / actionLabel state through
- * KO observables. The Cancel button is always present and labelled "Cancel";
- * the action button text varies per use ("Replace", "Reset", etc.).
- *
- * Reentrancy: show() while already visible overwrites the pending callback
- * and replaces the copy. The previous onConfirm is dropped; deliberate
- * because no use case overlaps and "open one, decide on the new one"
- * matches the user's mental model.
- */
+// Reentrant `show()` drops the previous onConfirm — "open one, decide on
+// the new one" matches the user's mental model.
 
 class ConfirmModalViewModel
 {

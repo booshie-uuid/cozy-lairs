@@ -9,8 +9,6 @@ import { Walker } from "../../../scripts/modules/world/components/walker.js";
 
 function spawn(speed = 1.5)
 {
-    /* World with default 4m main cells → 40×40 walk-grid of 1m sub-cells.
-     * Walker operates purely on the walk-grid; no main-grid setup needed. */
     const world  = new World(new Grid(10, 10, 4));
     const entity = new Entity("test", new THREE.Object3D());
     const walker = entity.addComponent(new Walker({ speed }));

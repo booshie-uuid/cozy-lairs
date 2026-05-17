@@ -308,8 +308,6 @@ test("post-attach setOffset mutations survive a save/load round-trip", () =>
 
 function footprintAssets()
 {
-    /* Real getAabb / getMeta entries for the kinds used in walk-grid tests.
-     * `get` throws — entities use a magenta placeholder via Renderable. */
     const aabb4x4   = { min: { x: -2,    y: 0, z: -2    }, max: { x:  2,    y: 0.15, z:  2    } };
     const aabb1Cube = { min: { x: -0.5,  y: 0, z: -0.5  }, max: { x:  0.5,  y: 1,    z:  0.5  } };
 

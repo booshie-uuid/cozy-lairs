@@ -5,13 +5,7 @@ const ko = window.ko;
 /* BINDINGS                                                                   */
 /******************************************************************************/
 
-/*
- * All `ko.bindingHandlers.*` registrations live here. Import once for side
- * effects before `ko.applyBindings`.
- */
-
-
-/* fadeOut: toggles `is-faded` class — transition lives in CSS. */
+// `fadeOut` toggles the `is-faded` class — the transition itself lives in CSS.
 ko.bindingHandlers.fadeOut =
 {
     update(element, valueAccessor)

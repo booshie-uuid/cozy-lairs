@@ -13,20 +13,9 @@ const ko = window.ko;
 /* APP VIEW MODEL                                                             */
 /******************************************************************************/
 
-/*
- * Root KO view-model bound to the page. Per-frame stats (FPS, draw calls)
- * deliberately live elsewhere — too noisy for KO subscribers on the main HUD.
- *
- * Minimum viewport is 1024×640. Below that, `viewportTooSmall` flips true
- * and the canvas is covered by an overlay (see #min-viewport-overlay).
- */
-
 const MIN_VIEWPORT_WIDTH  = 1024;
 const MIN_VIEWPORT_HEIGHT = 640;
 
-// How long the save-status chip stays visible after a save / autosave /
-// failure event before fading out. Tuned to be long enough to read but short
-// enough that the chip isn't a permanent fixture once the user moves on.
 const SAVE_STATUS_VISIBLE_MS = 3500;
 
 
@@ -55,9 +44,8 @@ class AppViewModel
         this.toasts = ko.observableArray([]);
         this.toastQueue = new ToastQueue(this.toasts);
 
-        /* Hints live in a separate centre-top tray so teaching-style prompts
-         * ("use arrow keys to nudge decor") don't compete with the warning /
-         * error feed that the user reflexively glances at top-right. */
+        // Hints use a separate tray so teaching prompts don't compete
+        // with the warning/error feed in the top-right toast lane.
         this.hints = ko.observableArray([]);
         this.hintQueue = new ToastQueue(this.hints);
 
@@ -72,7 +60,7 @@ class AppViewModel
         {
             const { width, height } = this.viewport();
             
-            if(width === 0 && height === 0) { return false; }   // pre-init / SSR
+            if(width === 0 && height === 0) { return false; }
             
             return width < MIN_VIEWPORT_WIDTH || height < MIN_VIEWPORT_HEIGHT;
         });
@@ -130,10 +118,8 @@ class AppViewModel
         });
         this.authoringPanel(panel);
 
-        /* Tool bar shares the panel's tab + kind state, so it lands as soon
-         * as the panel does. Verbose write into selectedToolId so the
-         * existing dispatch subscription in app.js does the actual setTool
-         * call — keeps the dispatch graph single-source. */
+        // Route through panel.selectedToolId so app.js's subscription is the
+        // single source of dispatch.
         this.toolBar(new ToolBarViewModel({
             authoringPanel: panel,
             cameraMode:     this.cameraMode,

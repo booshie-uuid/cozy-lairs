@@ -7,25 +7,6 @@ import * as SaveCodec  from "../world/save-codec.js";
 /* SAVE SERVICE                                                               */
 /******************************************************************************/
 
-/*
- * Wraps the File System Access API for desktop saves and falls back to a
- * download anchor on browsers that don't expose `showSaveFilePicker`. An
- * always-on `localStorage` autosave runs as a recovery net regardless of
- * primary-save availability.
- *
- *   saved          { size, mode: "fsa" | "download" }
- *   saveFailed     SaveError
- *   autosaved      { size, at }            — fires on each successful localStorage write
- *   loadRequested  { snapshot, fileName }  — fires after openFile decodes a snapshot
- *   loadFailed     SaveError               — fires if openFile / decode fails
- *
- * Snapshots produced by `getSnapshot()` are routed through `save-codec`:
- * `encodeForStorage` for `localStorage` (UTF-16 LZ blob); `encodeForFile` for
- * the picker / download (`{ "v": 2, "lz": "<base64>" }` JSON wrapper). On
- * boot, `loadFromAutosave` decodes via `decodeForStorage`; any decode failure
- * (legacy v1 strings included) silently clears the slot and returns null.
- */
-
 const AUTOSAVE_KEY = "cozy-lairs.autosave";
 const DEFAULT_AUTOSAVE_INTERVAL = 30000;
 const SUGGESTED_FILENAME = "cozy-lair.json";
@@ -164,10 +145,6 @@ class SaveService extends Emitter
 
     clearFileHandle()
     {
-        // Drop the cached FSA handle so the next save re-prompts the
-        // picker. Useful after a Load: the old handle pointed at a file
-        // unrelated to the freshly-loaded lair, so silently writing back
-        // to it would be confusing.
         this.handle = null;
     }
 
@@ -205,7 +182,6 @@ class SaveService extends Emitter
         }
         catch(err)
         {
-            // AbortError = user cancelled the picker; stay silent.
             if(err && err.name === "AbortError") { return; }
             this.emitLoadFailed("Couldn't open the chosen file.", err);
             return;
@@ -217,7 +193,7 @@ class SaveService extends Emitter
     async openViaInput()
     {
         const file = await this.promptFileViaInput();
-        if(!file) { return; }   // user cancelled the picker
+        if(!file) { return; }
         await this.handleOpenedFile(file);
     }
 
@@ -240,10 +216,9 @@ class SaveService extends Emitter
                 resolve(file);
             }, { once: true });
 
-            // No reliable cross-browser cancel event for <input type="file">.
-            // If the user dismisses the picker, the change event simply
-            // never fires; the input element lingers off-screen until the
-            // next openViaInput call replaces it. Acceptable.
+            // No reliable cross-browser cancel event for <input type="file">:
+            // dismissing the picker fires no event, so the off-screen input
+            // lingers until the next openViaInput call replaces it.
             document.body.appendChild(input);
             input.click();
         });
@@ -293,13 +268,12 @@ class SaveService extends Emitter
             await writable.write(encoded);
             await writable.close();
 
-            // File path is ASCII (base64 + JSON wrapper); byte count ≈ char count.
+            // ASCII payload (base64 + JSON wrapper); byte count ≈ char count.
             this.emit("saved", { size: encoded.length, mode: "fsa" });
         }
         catch(err)
         {
-            // User-cancelled picker is an AbortError — surface as saveFailed
-            // (the UI can choose to silence "AbortError" specifically).
+            // User-cancelled picker surfaces as AbortError on `cause`.
             this.emitSaveFailed("File save failed.", err);
         }
     }
@@ -342,7 +316,7 @@ class SaveService extends Emitter
         try
         {
             this.storage.setItem(AUTOSAVE_KEY, encoded);
-            // localStorage stores strings as UTF-16 → 2 bytes per char.
+            // localStorage stores UTF-16 — 2 bytes per char.
             const bytes = encoded.length * 2;
             this.lastAutosaveSize = bytes;
             this.lastAutosaveAt = Date.now();

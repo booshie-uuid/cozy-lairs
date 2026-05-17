@@ -7,20 +7,6 @@ import { CameraController } from "./camera-controller.js";
 /* BUILDER CAMERA                                                             */
 /******************************************************************************/
 
-/*
- * Orbit / pan / zoom camera anchored to a focus point on the floor plane.
- *
- *   left-mouse drag   — drag-pan via floor raycast (cursor stays anchored)
- *   right-mouse drag  — orbit (yaw + pitch around focus)
- *   wheel             — zoom (focus distance)
- *   W A S D           — pan focus along camera-relative XZ plane
- *
- * Current and target state are split: input writes targets, `frameUpdate`
- * lerps current toward target so motion is smooth regardless of input
- * cadence. Drag-pan bypasses damping (sets both directly) so the cursor
- * stays rigidly anchored to its initial floor hit.
- */
-
 const ORBIT_BUTTON = 2;
 const PAN_BUTTON = 0;
 const DAMPING = 0.18;
@@ -208,10 +194,8 @@ class BuilderCamera extends CameraController
 
     onWheel(event)
     {
-        /* Wheel events fire on the document. Ignore those that originated
-         * inside chrome (catalogue scroll, dev console scroll, etc.) — same
-         * canvas-target guard `onPointerDown` uses. Without this, scrolling
-         * the catalogue also zooms the world. */
+        // Wheel fires on the document — ignore events from chrome
+        // (catalogue scroll, dev console) so they don't also zoom the world.
         if(event.target && event.target.tagName !== "CANVAS") { return; }
 
         this.targetDistance = THREE.MathUtils.clamp(

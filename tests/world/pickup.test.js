@@ -98,8 +98,6 @@ test("isPickupable rejects floors, walls, terrain blocks, and non-entities", () 
     const floor = findByKind(world, "floor.stone.basic");
     expect(editor.isPickupable(floor)).toBe(false);
 
-    /* Fabricate wall + terrain entities (tracer-style) — they exist but
-     * are excluded by kind-prefix. */
     const wall = new Entity("wall.stone.straight", new THREE.Object3D());
     wall.addComponent(new GridPlacement(0, 0, 0));
     expect(editor.isPickupable(wall)).toBe(false);
@@ -246,8 +244,6 @@ test("restorePickup preserves xOffset/zOffset/surfaceY", () =>
 {
     const { editor, world } = setupWithFloors({ kindMap: KIND_MAP });
 
-    /* Build a snapshot manually so we don't have to round-trip nudges through
-     * a stamping walk-grid in this test. */
     const snapshot = {
         kind:         "decor.crate",
         originCx:     3,
@@ -271,8 +267,6 @@ test("restorePickup displaces a walker that occupies the origin main cell", () =
 {
     const { editor, world } = setupWithFloors({ kindMap: KIND_MAP });
 
-    /* Spawn a walker in main cell (3, 3). Walker's currentSubCell will land
-     * inside the central sub-cells of (3, 3) after onAddedToWorld. */
     editor.spawnMinion("character.minion", 3, 3);
     const walker = [...world.entities].find(e => e.getComponent(Walker));
     const walkerComp = walker.getComponent(Walker);

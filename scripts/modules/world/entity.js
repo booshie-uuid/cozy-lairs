@@ -7,19 +7,6 @@ import { Renderable } from "./components/renderable.js";
 /* ENTITY                                                                     */
 /******************************************************************************/
 
-/*
- * One Three.js Object3D plus a typed bag of components keyed by constructor
- * (`entity.getComponent(GridPlacement)`). `kind` is the manifest asset id
- * the save format keys on when reconstructing.
- *
- * Optional component lifecycle hooks:
- *   attach(entity)         — addComponent(); entity ref now available
- *   onAddedToWorld(world)  — world.addEntity(); world ref now available
- *   onRemovedFromWorld()   — world.removeEntity()
- *   update(dt)             — entity.update()
- *   toJSON()               — plain serialisable data
- */
-
 class Entity
 {
     constructor(kind, object3D)
@@ -29,10 +16,7 @@ class Entity
         this.components = new Map();
         this.world = null;
 
-        /* Backref consumed by `BuilderInputAdapter.raycastEntity` to resolve a
-         * mesh-level raycast hit up to its owning entity. THREE seeds
-         * `userData` to an empty object on every Object3D, so this assignment
-         * is always safe. */
+        // Backref so a mesh-level raycast hit can resolve up to the entity.
         this.object3D.userData.entity = this;
     }
 

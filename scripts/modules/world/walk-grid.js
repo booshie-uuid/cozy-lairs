@@ -5,18 +5,9 @@ import * as Errors from "../engine/errors.js";
 /* WALK-GRID                                                                  */
 /******************************************************************************/
 
-/*
- * Sub-grid for minion pathing and collision queries. Lives alongside the main
- * authoring `Grid` at a finer resolution (typically 1m sub-cells inside 4m
- * authoring cells, so 4 sub-cells span one main cell on each axis).
- *
- * Each sub-cell holds a refcount of blockers. A sub-cell is walkable iff its
- * refcount is 0. Multiple overlapping stamps compose: stamp/revert as a matched
- * pair from each blocker so removing one doesn't accidentally clear another.
- *
- * The walk-grid is derived state — it is rebuilt deterministically from
- * authored entities at load time and never persisted.
- */
+// Each sub-cell stores a blocker refcount and is walkable iff refcount is 0.
+// Multiple overlapping stamps compose, so every blocker MUST stamp/revert as
+// a matched pair — removing one stamp must not zero out another's count.
 
 const DEFAULT_SUB_CELL_SIZE = 1;
 const DEFAULT_SUBS_PER_MAIN = 4;

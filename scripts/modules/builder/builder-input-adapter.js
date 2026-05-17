@@ -128,8 +128,8 @@ class BuilderInputAdapter
         }
         else if(this.tool.targetType === "entity")
         {
-            /* Entity raycast: clicking empty floor is a valid "deselect"
-             * signal, so a null hit still routes through. The tool decides. */
+            // A null hit (clicking empty floor) still routes through —
+            // the tool treats it as a deselect signal.
             const entity = this.screenToEntity(event);
             this.tool.onEntityClick(entity, buttonName);
         }
@@ -163,13 +163,9 @@ class BuilderInputAdapter
         }
         else if(this.tool.targetType === "entity" && typeof this.tool.nudge === "function")
         {
-            /* Arrow keys nudge the active selection in 1m world-axis steps.
-             * +Z is north (per the project's compass convention) so ArrowUp
-             * decreases Z visually (camera looks down -Z by default). The
-             * actual mapping: up = +Z, down = -Z, left = -X, right = +X —
-             * matches the floor-plan compass since the builder camera looks
-             * down. `event.repeat` is allowed: holding an arrow continues to
-             * nudge cell-by-cell. */
+            // Arrow keys nudge by 1m. up=+Z, down=-Z, left=-X, right=+X —
+            // matches floor-plan compass since builder camera looks down.
+            // event.repeat is allowed so held arrows step cell-by-cell.
             if(event.code === "ArrowUp") { this.tool.nudge( 0,  1); }
             else if(event.code === "ArrowDown") { this.tool.nudge( 0, -1); }
             else if(event.code === "ArrowLeft") { this.tool.nudge(-1,  0); }
@@ -205,14 +201,6 @@ class BuilderInputAdapter
         return this.raycastNearestCellEdge();
     }
 
-    /*
-     * Raycasts the scene and walks up from the hit node looking for an
-     * `Entity` backref on `object3D.userData.entity` (seeded by the Entity
-     * constructor). Returns the owning entity or null on miss.
-     *
-     * No allow-list of entity roots — meshes without a backref (ghost meshes,
-     * sub-grid overlay, lighting helpers) are skipped during the parent walk.
-     */
     screenToEntity(event)
     {
         if(!this.setRaycastFromEvent(event)) { return null; }

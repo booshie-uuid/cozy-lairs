@@ -3,13 +3,8 @@ import * as Pathfinder  from "../../engine/pathfinding/index.js";
 import * as WalkSearch  from "../walk-search.js";
 
 
-/*
- * Wander target search radius, in sub-cells. 16 sub-cells = 4 main cells.
- * Big enough that the minion explores past immediate obstacles; small
- * enough that random picks predominantly land in the same connected
- * component as the walker (sampling globally drowns useful targets in a
- * sea of unreachable cells across the rest of the world).
- */
+// Local sample radius keeps random picks inside the walker's connected
+// component — global sampling drowns useful targets in unreachable cells.
 const SAMPLE_RADIUS   = 16;
 const SAMPLE_ATTEMPTS = 32;
 
@@ -17,24 +12,6 @@ const SAMPLE_ATTEMPTS = 32;
 /******************************************************************************/
 /* WANDER BEHAVIOUR                                                           */
 /******************************************************************************/
-
-/*
- * Picks random walkable destinations for a sibling `Walker`, separated by
- * brief idle pauses, with corner-cutting handled by `Pathfinder`. The walker
- * substrate is the sub-grid: targets are individual sub-cells, paths are
- * sub-cell waypoints, the pathfinder runs 4-neighbour BFS over the walk-grid.
- *
- * Constructor options:
- *   idleMin / idleMax       — seconds; pause range between trips.
- *   retryLimit              — re-rolls per kick before giving up and idling
- *                             again.
- *   minTargetDistance       — sub-cell Chebyshev distance. Targets within
- *                             this radius are excluded so the minion doesn't
- *                             pick adjacent sub-cells and twitch. At 1m
- *                             sub-cells, 12 ≈ 3 main cells away.
- *   pathfinder              — defaults to the shared `Pathfinder` module;
- *                             tests inject a stub.
- */
 
 
 class WanderBehaviour
@@ -124,12 +101,8 @@ class WanderBehaviour
         const currentSub = this.currentSubCell();
         const isTraversable = this.makeTraversablePredicate();
 
-        /*
-         * Self-rescue: if we ended up on an untraversable sub-cell (e.g. a
-         * blocker was placed on top of us, or a sub-grid bug stranded us),
-         * the walker's own stamp is on the cell, so the pathfinder sees it
-         * as blocked. Temporarily un-stamp before checking traversability.
-         */
+        // Walker's own stamp is on the cell, so checks must un-stamp
+        // first or the pathfinder sees the walker as a blocker.
         this.world.walkGrid.revertStamp([currentSub]);
         const startTraversable = isTraversable(currentSub.sx, currentSub.sz);
         this.world.walkGrid.applyStamp([currentSub]);
@@ -187,17 +160,10 @@ class WanderBehaviour
         return this.world.walkGrid.worldToSub(o.position.x, o.position.z);
     }
 
-    /*
-     * Composes walk-grid walkability with a main-grid floor check: minions
-     * may only path along sub-cells that sit inside a floor-marked main cell.
-     * Without the floor check the BFS would happily route a minion across
-     * empty void where there's no floor entity at all.
-     *
-     * Crucially, the main-grid `blocked` flag is NOT consulted here — the
-     * walk-grid already tracks blockers at sub-cell resolution. A barrel in
-     * a main cell stamps 4 sub-cells but leaves the other 12 walkable, so
-     * the pathfinder can route around it within the same main cell.
-     */
+    // Sub-cells must sit inside a floor-marked main cell; the main-grid
+    // `blocked` flag is NOT consulted — the walk-grid tracks blockers at
+    // sub-cell resolution and consulting `blocked` would forbid pathing
+    // around a partial-cell obstruction.
     makeTraversablePredicate()
     {
         const walkGrid = this.world.walkGrid;
@@ -213,20 +179,9 @@ class WanderBehaviour
         };
     }
 
-    /*
-     * Samples sub-cells within a bounded radius of the walker's current
-     * position rather than from the entire world's floor pool. Two reasons:
-     *   1. Random picks land in the walker's connected component with high
-     *      probability (a global sample would pile up picks in other rooms
-     *      that the pathfinder then fails to reach, burning retries).
-     *   2. Targets are visually plausible — minions wander in their
-     *      immediate surroundings rather than constantly aiming at the
-     *      far side of the map.
-     *
-     * Two passes: first prefer targets at or beyond `minTargetDistance` so
-     * the wander looks intentional; if none found, fall back to any
-     * traversable cell so a minion in a tiny pocket still gets to move.
-     */
+    // First pass prefers targets at or beyond `minTargetDistance` so the
+    // wander looks intentional; second pass accepts any traversable cell
+    // so a minion in a tiny pocket still gets to move.
     pickTarget(currentSub, isTraversable)
     {
         const walkGrid = this.world.walkGrid;

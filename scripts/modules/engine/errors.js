@@ -2,10 +2,8 @@
 /* ERRORS                                                                     */
 /******************************************************************************/
 
-/*
- * Project errors all inherit from `CozyLairsError`, so a single `instanceof`
- * check catches any project-thrown error.
- */
+// All project errors extend CozyLairsError so a single `instanceof` check
+// catches anything project-thrown.
 
 class CozyLairsError extends Error
 {

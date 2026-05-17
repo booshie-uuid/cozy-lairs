@@ -13,23 +13,11 @@ import * as SaveCodec from "./save-codec.js";
 /* WORLD SERIALIZER                                                           */
 /******************************************************************************/
 
-/*
- * Plain-object snapshot of the world's entities for save/load. v2 shape:
- *
- *   { v: 2,
- *     kinds:      [<kind-id>, ...],
- *     components: [<component-class-name>, ...],
- *     entities:   [[<kindIdx>, [[<compIdx>, {data}], ...]], ...] }
- *
- * Dictionary tables are built by first-use during toJSON; the codec layer
- * (save-codec.js) frames + (de)compresses the JSON. Side / corner enums are
- * stored as small integers via save-codec.encodeSide / encodeCorner.
- *
- * Renderable is auto-added by Entity.fromKind, so its entries in a snapshot
- * are skipped on load. Unknown kinds and unknown component classes are
- * collected into the result's `warnings` array, never thrown — the lair
- * loads minus the orphans.
- */
+// v2 snapshot shape:
+//   { v: 2,
+//     kinds:      [<kind-id>, ...],
+//     components: [<component-class-name>, ...],
+//     entities:   [[<kindIdx>, [[<compIdx>, {data}], ...]], ...] }
 
 const SCHEMA_VERSION = SaveCodec.SCHEMA_VERSION;
 
@@ -67,10 +55,8 @@ const COMPONENT_BUILDERS =
         const walker = entity.addComponent(new Walker({ speed: data.speed }));
         if(Array.isArray(data.path) && data.path.length > 0)
         {
-            // V6+ saves use sub-cell coords {sx, sz}. Older V5 saves used
-            // main-cell {cx, cz} — those are dropped on load (walker idles,
-            // wander re-plans on the new substrate). Mixing the two would
-            // require coord translation we don't need.
+            // V5 saves stored main-cell {cx, cz}; V6+ use sub-cell {sx, sz}.
+            // Drop legacy paths so the walker idles and re-plans cleanly.
             const sample = data.path[0];
             if(sample && typeof sample.sx === "number" && typeof sample.sz === "number")
             {

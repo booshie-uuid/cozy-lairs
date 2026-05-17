@@ -56,19 +56,11 @@ const DEV_TOGGLE_KEY = "Backquote";
 const PLAYER_KIND = "character.mannequin.medium";
 const PLAYER_SPAWN_CELL = { cx: 7, cz: 7 };
 
-// Kinds we never persist: the player avatar (no stateful component to
-// round-trip cleanly; always re-spawned on load) and the WallTracer's
-// derived walls + corners (regenerated from floor topology on load).
-//
-// IMPORTANT — if WallTracer ever gains additional auto-traced kinds (e.g.
-// a new wall style, decorative cornices, or any other derived geometry),
-// each new kind MUST be added here. Persisting tracer-produced entities
-// causes a load-time duplication bug: fromJSONv2 fires entityAdded for
-// each floor; the tracer reacts by building its set of walls / corners;
-// the snapshot's own walls / corners are then added on top, leaving two
-// complete sets. Wall index entries collapse correctly (array push); the
-// corner map overwrites and orphans one of each pair. See plan-v5
-// "Issues and Adjustments" for the full history.
+// Kinds excluded from persistence: the player avatar is re-spawned on
+// load; tracer-derived walls / corners are regenerated from floor
+// topology. Any new tracer-produced kind MUST be added here — persisting
+// them duplicates the geometry on load (tracer fires on each floor add,
+// then the snapshot adds its own walls on top).
 const SAVE_SKIP_KINDS =
 [
     PLAYER_KIND,
@@ -76,16 +68,12 @@ const SAVE_SKIP_KINDS =
     "wall.stone.half",
     "wall.stone.corner"
 ];
-// Approximate footprint radii for collision. Player can enter a cell
-// containing decor as long as the two circles don't overlap.
+
 const PLAYER_RADIUS = 0.5;
 const DECOR_RADIUS  = 0.7;
 
 const MANIFEST_PATH = "assets/manifest.json";
 
-// KayKit Rig_Medium clip names. The rig ships A/B (and sometimes C) variants
-// for many states — picking one variant per state. Full naming convention
-// captured in CLAUDE.md → "KayKit characters and animations are separate".
 const PLAYER_CLIPS = { idle: "Idle_A", walk: "Walking_A" };
 
 const SCENE_BACKGROUND = 0x1a0e2e;
@@ -253,9 +241,8 @@ class App
         this.diagMode = "off";
         this.walkGridChangeHandler = null;
 
-        // Component class refs exposed for dev-console use. Modules don't
-        // leak into global scope, so without this the dev console can't
-        // call entity.getComponent(Walker) etc. directly.
+        // Component class refs exposed so the dev console can call
+        // entity.getComponent(Walker) etc. — modules don't leak globally.
         this.types = { Walker, Animator, WanderBehaviour };
     }
 
@@ -312,8 +299,7 @@ class App
             const builder = this.cameraControllers.builder;
             if(builder) { builder.setPanEnabled(id === null); }
         });
-        /* Tab change while a pickup is held → restore the entity before the
-         * tool bar swaps to the new tab's vocabulary. */
+        // Tab swap reuses the pickup slot's tool wiring — restore first.
         this.viewModel.authoringPanel().activeTab.subscribe(() => this.cancelPickup());
 
         this.buildWorld();
@@ -334,10 +320,8 @@ class App
         this.buildLoop();
         this.wireCameraToggle();
         this.wireDevConsole();
-        /* TopMenu's save / load surface is wrapped so any held pickup is
-         * flushed back to the world before the persistence call fires.
-         * Otherwise the saved snapshot would be missing the held entity, or
-         * the freshly-loaded world would have a phantom pickup slot. */
+        // Flush any held pickup before save/load — otherwise the snapshot
+        // is missing the held entity or load leaves a phantom pickup slot.
         this.viewModel.installTopMenu({
             saveService:
             {
@@ -367,8 +351,8 @@ class App
         if(!next) { throw new Error(`Unknown camera mode: ${mode}`); }
         if(this.cameraController === next) { return; }
 
-        /* Any held pickup must land before the mode swap — the user can't
-         * place from a snapshot once the builder camera is gone. */
+        // Place tools are builder-only; a held pickup can't be placed
+        // once the camera swaps.
         this.cancelPickup();
 
         if(this.cameraController) { this.cameraController.deactivate(); }
@@ -386,9 +370,8 @@ class App
             }
             else
             {
-                // Clearing the panel's selected tool both fires the
-                // ghost-teardown path via the subscribe and keeps the
-                // active-tile highlight in sync with reality.
+                // Clearing selectedToolId fires the subscribe that tears
+                // down the ghost and keeps the tile highlight in sync.
                 const panel = this.viewModel.authoringPanel();
                 if(panel) { panel.selectedToolId(null); }
                 this.builderInputAdapter.uninstall();
@@ -516,11 +499,8 @@ class App
 
     resetLair()
     {
-        // Order matters: clear autosave first so a crash mid-rebuild leaves
-        // a clean slate; clearing the file handle so the next Ctrl+S
-        // re-prompts (the previous handle pointed at unrelated content).
-        // Discard any held pickup without restoring — the world it referenced
-        // is about to be replaced wholesale.
+        // Clear autosave before rebuilding so a crash mid-rebuild leaves
+        // a clean slate; drop the file handle so the next Ctrl+S re-prompts.
         this.discardPickup();
         this.saveService.clearAutosave();
         this.saveService.clearFileHandle();
@@ -530,10 +510,8 @@ class App
 
     applyAutosaveSnapshot(snapshot)
     {
-        // Skip the same kinds at load that getSnapshot skips on save: the
-        // player avatar and the tracer's derived walls + corners. Legacy
-        // snapshots from before the skip-list landed may still carry them
-        // — filter on load so a stale autosave still hydrates cleanly.
+        // skipKinds applied on load too — legacy snapshots may still
+        // carry the derived kinds that fromJSONv2 would now duplicate.
         const result = WorldSerializer.fromJSONv2(this.world, snapshot, this.assets, { skipKinds: SAVE_SKIP_KINDS });
         if(result.warnings.length > 0)
         {
@@ -543,10 +521,9 @@ class App
             );
         }
 
-        // Minions round-trip Walker + Transform but not Animator /
-        // WanderBehaviour (neither has toJSON). Reattach those so
-        // the resurrected minions resume idling + wandering instead
-        // of marching along their stale path.
+        // Animator / WanderBehaviour have no toJSON — reattach so
+        // restored minions resume idling and wandering instead of
+        // marching their stale path.
         for(const entity of Array.from(this.world.entities))
         {
             if(this.worldEditor.isMinionEntity(entity))
@@ -568,10 +545,10 @@ class App
     buildToolFromId(toolId)
     {
         if(!toolId) { return new NoopTool(); }
-        if(toolId === "select") { return new NudgeTool(); }   // legacy alias
+        if(toolId === "select") { return new NudgeTool(); }
 
-        // Tool IDs follow `tab:slug[:kind]` — split safely on the first
-        // two colons so kinds with dots (e.g. "decor.barrel") stay intact.
+        // Tool IDs follow `tab:slug[:kind]` — split on the first colon
+        // only so kinds with dots (e.g. "decor.barrel") stay intact.
         const firstColon = toolId.indexOf(":");
         const tab = toolId.slice(0, firstColon);
         const rest = toolId.slice(firstColon + 1);
@@ -580,7 +557,6 @@ class App
         {
             case "build":
             {
-                // V7 verb-based ids
                 if(rest === "build") { return new FloorPaintTool(); }
                 if(rest === "break") { return new FloorEraseTool(); }
                 if(rest.startsWith("build:"))
@@ -588,7 +564,6 @@ class App
                     return new BlockPlaceTool({ kind: rest.slice("build:".length) });
                 }
 
-                // Legacy ids — kept working until V8 sweep
                 if(rest === "paint")       { return new FloorPaintTool(); }
                 if(rest === "erase")       { return new FloorEraseTool(); }
                 if(rest === "block:erase") { return new BlockEraseTool(); }
@@ -602,7 +577,6 @@ class App
             }
             case "decor":
             {
-                // V7 verb-based ids
                 if(rest === "pick")  { return new PickTool({ onPicked: snapshot => this.armBuildForSnapshot("decor", snapshot) }); }
                 if(rest === "break") { return new DecorEraseTool(); }
                 if(rest === "nudge") { return new NudgeTool(); }
@@ -612,7 +586,6 @@ class App
                     return this.buildDecorPlaceTool(kind);
                 }
 
-                // Legacy ids
                 const [slug, ...kindParts] = rest.split(":");
                 const kind = kindParts.join(":");
                 if(slug === "erase") { return new DecorEraseTool(); }
@@ -625,7 +598,6 @@ class App
             }
             case "minion":
             {
-                // V7 verb-based ids
                 if(rest === "pick")  { return new PickTool({ onPicked: snapshot => this.armBuildForSnapshot("minion", snapshot) }); }
                 if(rest === "break") { return new MinionEraseTool(); }
                 if(rest.startsWith("build:"))
@@ -636,7 +608,6 @@ class App
                     });
                 }
 
-                // Legacy ids
                 const [slug, ...kindParts] = rest.split(":");
                 const kind = kindParts.join(":");
                 if(slug === "erase") { return new MinionEraseTool(); }
@@ -648,37 +619,19 @@ class App
         return new NoopTool();
     }
 
-    /*
-     * Routes decor build ids to the right tool class based on the asset's
-     * kind metadata: `decor.wall` → WallDecorPlaceTool, everything else
-     * (`decor.floor`, surface-placeables) → DecorPlaceTool. Keeps the dispatch
-     * id flat (`decor:build:<kind>`) — the wall-vs-floor distinction lives in
-     * the asset meta, not the id grammar.
-     */
     buildDecorPlaceTool(kind)
     {
         let assetKind = null;
         try { assetKind = this.assets.getKind(kind); } catch { assetKind = null; }
-        /* Wall decor isn't pickup-able in V7, so no consumePickup wiring there. */
         if(assetKind === "decor.wall") { return new WallDecorPlaceTool({ kind }); }
         return new DecorPlaceTool({ kind, consumePickup: this.makeConsumePickupHook() });
     }
 
-    /*
-     * Constructs a per-tool closure over `App.consumePickupAt` so the place
-     * tools don't need a direct App reference. Each tool gets its own closure
-     * instance, but they all dispatch through the same method.
-     */
     makeConsumePickupHook()
     {
         return (kind, cx, cz) => this.consumePickupAt(kind, cx, cz);
     }
 
-    /*
-     * Pick handler. Stashes the snapshot as the single-slot held inventory
-     * and arms a `<tab>:build:<kind>` tool. If a previous pickup is still
-     * held, restore it first — single-slot rule, no stacked holds.
-     */
     armBuildForSnapshot(tab, snapshot)
     {
         if(!snapshot) { return; }
@@ -687,13 +640,6 @@ class App
         this.setTool(`${tab}:build:${snapshot.kind}`);
     }
 
-    /*
-     * Cancel a held pickup — restores the entity to its origin cell (with
-     * preserved orientation/offset/surfaceY) via the editor. Idempotent: safe
-     * to call from every transition point (Esc, right-click, tab switch,
-     * mode toggle, save, load). When the world is being replaced (reset),
-     * use `discardPickup` instead to skip restoration.
-     */
     cancelPickup()
     {
         if(!this.pickedUp) { return; }
@@ -707,21 +653,14 @@ class App
         this.pickedUp = null;
     }
 
-    /*
-     * Place tools (DecorPlaceTool / MinionSpawnTool) call this on every left
-     * click. If a pickup snapshot of the matching kind is held, consume it
-     * via `placeFromSnapshot`, clear the slot, and disarm the tool — single-
-     * shot held semantics. Returns true to tell the tool the click was
-     * handled; false means fall through to regular place-tool behaviour.
-     */
     consumePickupAt(kind, cx, cz)
     {
         if(!this.pickedUp || this.pickedUp.kind !== kind) { return false; }
         const ok = this.worldEditor.placeFromSnapshot(this.pickedUp, cx, cz);
         if(!ok) { return false; }
         this.pickedUp = null;
-        /* Disarm via the panel observable so the subscription in App.start
-         * runs `setTool(null)` and re-enables camera pan in one path. */
+        // Disarm via the panel so the subscription in start() runs
+        // setTool(null) and re-enables camera pan in one path.
         const panel = this.viewModel.authoringPanel();
         if(panel) { panel.selectedToolId(null); }
         return true;
@@ -729,14 +668,6 @@ class App
 
     spawnPlayer()
     {
-        // Player avatar: a Mannequin model (visually distinct from the
-        // wandering minions) that stays still wherever the player last
-        // left them. No Walker, no WanderBehaviour — position is driven
-        // by FirstPersonCamera while in FP mode. PLAYER_MARKER occupies
-        // the grid cell so other walkers route around the player and
-        // decor placement-on-player triggers `world.playerDisplaceHandler`.
-        // Mannequin shares Rig_Medium with the skeleton minion, so the same
-        // clip-name map drives idle / walk animations.
         const animations =
         [
             ...this.assets.getAnimations(PLAYER_KIND),
@@ -753,9 +684,8 @@ class App
         this.world.addEntity(player);
         player.getComponent(Animator).crossfade("idle");
 
-        // Register player presence in the grid via the marker, regardless
-        // of camera mode. Other walkers route around this cell; decor
-        // placement on this cell triggers playerDisplaceHandler.
+        // Occupy the spawn cell with PLAYER_MARKER so walkers route around
+        // the player and decor-on-player triggers playerDisplaceHandler.
         this.world.grid.setOccupant(PLAYER_SPAWN_CELL.cx, PLAYER_SPAWN_CELL.cz, PLAYER_MARKER);
 
         this.player = player;
@@ -764,9 +694,8 @@ class App
     buildCameraControllers()
     {
         const S = this.world.grid.cellSize;
-        // Frame the whole grid (not just the starter room) — otherwise the
-        // outer rows of the build surface fall outside the initial frustum
-        // and the user can't click them without panning.
+        // Frame the whole grid, not the starter room — outer rows must be
+        // clickable without panning first.
         const gridCentre = new THREE.Vector3(
             this.world.grid.width * S / 2,
             0,
@@ -809,8 +738,8 @@ class App
             isTextInputFocused: () => this.isTextInputFocused(),
             onCancel:           () =>
             {
-                /* Restore any held pickup before clearing the tool — Esc /
-                 * right-click means "undo the in-flight action". */
+                // Esc / right-click means "undo the in-flight action" —
+                // restore the held pickup before clearing the tool.
                 this.cancelPickup();
                 const panel = this.viewModel.authoringPanel();
                 if(panel) { panel.selectedToolId(null); }
@@ -820,21 +749,11 @@ class App
 
     resolvePlayerCollision(currentX, currentZ, desiredX, desiredZ)
     {
-        // Hybrid model:
-        //  - Walls / non-floor cells: per-axis bbox check. Player's
-        //    bounding box (PLAYER_RADIUS in each direction) can't
-        //    overlap any non-floor cell. Per-axis check enables sliding
-        //    along axis-aligned walls.
-        //  - Decor: circle depenetration. If the player's circle would
-        //    overlap a decor circle, push the player tangentially out
-        //    so they slide around the obstacle instead of stopping dead.
-        //  - Other walkers: ignored (walking through minions is fine).
-        //
-        // After decor depenetration, re-check walls — if the push moved
-        // the player's bbox into a wall, revert to the wall-clamped
-        // position. Player will appear to "stick" near a decor item
-        // hugging a wall, but won't ever clip through walls.
-
+        // Walls use per-axis bbox clamping so the player slides along
+        // axis-aligned walls. Decor uses circle depenetration so the
+        // player slides around obstacles. Other walkers are ignored.
+        // After depenetration, re-check walls and revert if the push
+        // moved the bbox into one — wall safety wins over decor slide.
         let x = desiredX;
         if(this.bboxHitsNonFloor(x, currentZ)) { x = currentX; }
         let z = desiredZ;
@@ -857,8 +776,7 @@ class App
             if(distSq >= minDistSq) { continue; }
             if(distSq < 0.0001)
             {
-                // Player position essentially equals decor centre — push
-                // along +X arbitrarily.
+                // Player coincides with decor centre — pick an arbitrary axis.
                 x = decorX + minDist;
             }
             else
@@ -871,8 +789,6 @@ class App
 
         if(this.bboxHitsNonFloor(x, z))
         {
-            // Decor push violated wall buffer — fall back to wall-safe
-            // position (no decor slide this frame).
             return { x: wallSafeX, z: wallSafeZ };
         }
         return { x, z };
@@ -925,8 +841,7 @@ class App
 
         this.saveService.on("saveFailed", err =>
         {
-            // AbortError is the user closing the picker — surface as "Cancelled"
-            // rather than a scary failure.
+            // AbortError is the user closing the file picker.
             const cause = err && err.cause;
             const cancelled = cause && cause.name === "AbortError";
             const message = cancelled ? "Save cancelled" : `Save failed: ${err.message}`;
@@ -992,7 +907,6 @@ class App
             return;
         }
 
-        // Same minion-rehydration pass as auto-resume.
         for(const entity of Array.from(this.world.entities))
         {
             if(this.worldEditor.isMinionEntity(entity))
@@ -1002,9 +916,8 @@ class App
         }
         this.spawnPlayer();
 
-        // Drop the previous save's FSA handle — silently writing the
-        // freshly-loaded lair back to whatever file the user last saved
-        // is confusing. Next Ctrl+S re-prompts the picker.
+        // Drop the previous save's FSA handle so the next Ctrl+S re-prompts
+        // — silently writing back to whatever file was last saved is confusing.
         this.saveService.clearFileHandle();
 
         const skipped = result.skipped || 0;
@@ -1016,10 +929,8 @@ class App
 
     wireConfirmModal()
     {
-        // Escape cancels an open confirm modal. BuilderInputAdapter also
-        // listens for Escape to cancel the active tool, but that's a no-op
-        // when no tool is active (the typical state when a modal is up),
-        // so the two handlers cohabit without interference.
+        // BuilderInputAdapter also listens for Escape, but its tool-cancel
+        // is a no-op when no tool is active — typical state with a modal up.
         this.confirmModalEscapeHandler = event =>
         {
             if(event.code !== "Escape" || event.repeat)         { return; }
