@@ -61,6 +61,7 @@ function aabbStamp(options)
         const rotated = rotateYRadians(corner.x, corner.z, transform.rotationRadians);
         const wx = rotated.x + transform.x;
         const wz = rotated.z + transform.z;
+
         if(wx < worldMinX) { worldMinX = wx; }
         if(wx > worldMaxX) { worldMaxX = wx; }
         if(wz < worldMinZ) { worldMinZ = wz; }
@@ -164,6 +165,7 @@ function rotateYRadians(x, z, theta)
 {
     const cos = Math.cos(theta);
     const sin = Math.sin(theta);
+
     return { x: x * cos + z * sin, z: -x * sin + z * cos };
 }
 
@@ -209,7 +211,7 @@ function subCellsByCoverage(minX, minZ, maxX, maxZ, subCellSize)
 
 const STAMPERS =
 {
-    "aabb":        aabbStamp,
+    "aabb": aabbStamp,
     "wall-corner": wallCornerStamp
 };
 

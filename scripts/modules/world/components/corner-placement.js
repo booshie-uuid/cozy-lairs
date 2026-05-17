@@ -1,4 +1,4 @@
-import * as Errors        from "../../engine/errors.js";
+import * as Errors from "../../engine/errors.js";
 import * as WalkGridStamp from "../walk-grid-stamp.js";
 
 
@@ -28,9 +28,11 @@ class CornerPlacement
         {
             throw new Errors.PlacementError(`CornerPlacement: invalid corner "${corner}" (expected one of: ${Object.keys(ROTATION_BY_CORNER).join(", ")}).`);
         }
+
         this.vx = vx;
         this.vz = vz;
         this.corner = corner;
+
         this.entity = null;
         this.stampedSubCells = [];
     }
@@ -44,6 +46,7 @@ class CornerPlacement
     {
         const S = world.grid.cellSize;
         const o = this.entity.object3D;
+
         o.position.set(this.vx * S, 0, this.vz * S);
         o.rotation.y = ROTATION_BY_CORNER[this.corner];
 

@@ -4,8 +4,8 @@
 
 const SCHEMA_VERSION = 2;
 
-const SIDE_NAMES   = ["south", "north", "west", "east"];
-const SIDE_INDEX   = { south: 0, north: 1, west: 2, east: 3 };
+const SIDE_NAMES = ["south", "north", "west", "east"];
+const SIDE_INDEX = { south: 0, north: 1, west: 2, east: 3 };
 
 const CORNER_NAMES = ["NW", "NE", "SW", "SE"];
 const CORNER_INDEX = { NW: 0, NE: 1, SW: 2, SE: 3 };
@@ -114,7 +114,7 @@ function decodeForStorage(encoded)
 function encodeForFile(snapshot)
 {
     const innerJson = JSON.stringify(snapshot);
-    const innerLz   = lz().compressToBase64(innerJson);
+    const innerLz = lz().compressToBase64(innerJson);
 
     return JSON.stringify({ v: SCHEMA_VERSION, lz: innerLz });
 }

@@ -50,6 +50,7 @@ class Renderable
         }
 
         const meta = this.readMeta();
+
         if(typeof meta.scale === "number")   { mesh.scale.setScalar(meta.scale); }
         if(typeof meta.yOffset === "number") { mesh.position.y = meta.yOffset; }
         if(typeof meta.zOffset === "number") { mesh.position.z = meta.zOffset; }

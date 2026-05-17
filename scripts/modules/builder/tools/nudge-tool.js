@@ -7,7 +7,7 @@ import { Tool } from "./tool.js";
 /* NUDGE TOOL                                                                 */
 /******************************************************************************/
 
-const HIGHLIGHT_EMISSIVE  = 0x2a5a3a;
+const HIGHLIGHT_EMISSIVE = 0x2a5a3a;
 const HIGHLIGHT_INTENSITY = 0.6;
 
 
@@ -71,7 +71,9 @@ class NudgeTool extends Tool
     deselect()
     {
         if(!this.selected) { return; }
+
         this.restoreHighlight();
+
         this.selected = null;
         this.materialBackups = null;
     }
@@ -103,11 +105,13 @@ class NudgeTool extends Tool
     restoreHighlight()
     {
         if(!this.materialBackups) { return; }
+
         for(const { node, original, cloned } of this.materialBackups)
         {
             node.material = original;
             cloned.dispose();
         }
+
         this.materialBackups = null;
     }
 }

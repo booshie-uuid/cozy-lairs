@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
-import { Emitter }   from "../engine/emitter.js";
-import { WalkGrid }  from "./walk-grid.js";
+import { Emitter } from "../engine/emitter.js";
+import { WalkGrid } from "./walk-grid.js";
 
 
 /******************************************************************************/
@@ -16,10 +16,10 @@ class World extends Emitter
     constructor(grid, assets = null)
     {
         super();
-        this.grid     = grid;
-        this.assets   = assets;
+        this.grid = grid;
+        this.assets = assets;
         this.walkGrid = buildWalkGrid(grid);
-        this.scene    = new THREE.Scene();
+        this.scene = new THREE.Scene();
         this.entities = new Set();
         // Spatial index: cellKey → Set<Entity>. Populated by GridPlacement's
         // lifecycle hooks so `entitiesAtCell` is O(1). Replaces five
@@ -39,6 +39,7 @@ class World extends Emitter
         {
             throw new Error("World.setPlayerDisplaceHandler: argument must be a function or null.");
         }
+
         this.playerDisplaceHandler = fn;
     }
 
@@ -84,10 +85,12 @@ class World extends Emitter
     {
         // Snapshot before iterating — removeEntity mutates this.entities.
         const all = Array.from(this.entities);
+
         for(const entity of all)
         {
             this.removeEntity(entity);
         }
+
         // Defensive reset against a stale refcount from a placement bug
         // — without this a leaked count survives clear into the next load.
         this.walkGrid.clear();
@@ -109,6 +112,7 @@ class World extends Emitter
         const key = cellKey(cx, cz);
         const set = this.cellIndex.get(key);
         if(!set) { return; }
+
         set.delete(entity);
         if(set.size === 0) { this.cellIndex.delete(key); }
     }

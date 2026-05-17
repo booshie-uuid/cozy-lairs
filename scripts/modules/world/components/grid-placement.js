@@ -1,4 +1,4 @@
-import * as Errors        from "../../engine/errors.js";
+import * as Errors from "../../engine/errors.js";
 import * as WalkGridStamp from "../walk-grid-stamp.js";
 
 
@@ -64,7 +64,7 @@ class GridPlacement
         this.applyTransform(world);
 
         if(this.walkable) { world.grid.markFloor(this.cx, this.cz); }
-        if(this.blocks)   { world.grid.setBlocked(this.cx, this.cz); }
+        if(this.blocks) { world.grid.setBlocked(this.cx, this.cz); }
 
         world.indexEntityAtCell(this.entity, this.cx, this.cz);
 
@@ -74,7 +74,7 @@ class GridPlacement
     onRemovedFromWorld(world)
     {
         if(this.walkable) { world.grid.unmarkFloor(this.cx, this.cz); }
-        if(this.blocks)   { world.grid.clearBlocked(this.cx, this.cz); }
+        if(this.blocks) { world.grid.clearBlocked(this.cx, this.cz); }
 
         world.unindexEntityAtCell(this.entity, this.cx, this.cz);
 
@@ -109,11 +109,13 @@ class GridPlacement
     toJSON()
     {
         const json = { cx: this.cx, cz: this.cz, rotationStep: this.rotationStep };
-        if(this.walkable)        { json.walkable = true; }
-        if(this.blocks)          { json.blocks   = true; }
-        if(this.surfaceY !== 0)  { json.surfaceY = this.surfaceY; }
-        if(this.xOffset  !== 0)  { json.xOffset  = this.xOffset;  }
-        if(this.zOffset  !== 0)  { json.zOffset  = this.zOffset;  }
+
+        if(this.walkable) { json.walkable = true; }
+        if(this.blocks) { json.blocks = true; }
+        if(this.surfaceY !== 0) { json.surfaceY = this.surfaceY; }
+        if(this.xOffset !== 0) { json.xOffset = this.xOffset; }
+        if(this.zOffset !== 0) { json.zOffset = this.zOffset; }
+
         return json;
     }
 
@@ -124,6 +126,7 @@ class GridPlacement
     {
         const { x, z } = world.grid.cellToWorld(this.cx, this.cz);
         const o = this.entity.object3D;
+
         o.position.set(x + this.xOffset, this.surfaceY, z + this.zOffset);
         o.rotation.y = this.rotationStep * QUARTER_TURN;
     }

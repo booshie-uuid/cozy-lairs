@@ -29,10 +29,13 @@ function makeTranslucent(mesh, colour)
         if(node.isMesh && node.material)
         {
             const cloned = node.material.clone();
+
             cloned.transparent = true;
             cloned.opacity = GHOST_OPACITY;
             cloned.depthWrite = false;
+
             if(cloned.color) { cloned.color.setHex(colour); }
+
             node.material = cloned;
         }
     });
@@ -57,6 +60,7 @@ class Tool
         this.editor = editor;
         this.scene = scene;
         this.ghostMesh = this.buildGhost();
+
         if(this.ghostMesh)
         {
             this.ghostMesh.visible = false;
@@ -99,7 +103,9 @@ class Tool
     positionGhostAtCell(cx, cz, yOffset = 0)
     {
         if(!this.ghostMesh || !this.editor) { return; }
+
         const w = this.editor.world.grid.cellToWorld(cx, cz);
+
         this.ghostMesh.position.set(w.x, GHOST_Y + yOffset, w.z);
         this.ghostMesh.visible = true;
     }
@@ -187,16 +193,16 @@ class CellPlaceTool extends Tool
 
     /* Subclass hooks (no defaults — must override) ***************************/
 
-    validate(_cell)        { return false; }
-    positionGhost(_cell)   {}
-    commit(_cell)          {}
+    validate(_cell) { return false; }
+    positionGhost(_cell) {}
+    commit(_cell) {}
 }
 
 
 // Q/E rotation modulus shared by every place tool that supports rotation.
 function rotateStep(step, direction)
 {
-    if(direction === "cw")  { return (step + 1) % 4; }
+    if(direction === "cw") { return (step + 1) % 4; }
     if(direction === "ccw") { return (step + 3) % 4; }
     return step;
 }
@@ -267,8 +273,8 @@ class CellEraseTool extends Tool
 
     /* Subclass hooks (must override) *****************************************/
 
-    findTarget(_cell)        { return null; }
-    commitRemove(_target)    {}
+    findTarget(_cell) { return null; }
+    commitRemove(_target) {}
 }
 
 

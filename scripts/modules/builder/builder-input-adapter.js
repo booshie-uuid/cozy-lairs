@@ -39,8 +39,8 @@ class BuilderInputAdapter
 
         this.pointerMoveHandler = event => this.onPointerMove(event);
         this.pointerDownHandler = event => this.onPointerDown(event);
-        this.pointerUpHandler   = event => this.onPointerUp(event);
-        this.keydownHandler     = event => this.onKeyDown(event);
+        this.pointerUpHandler = event => this.onPointerUp(event);
+        this.keydownHandler = event => this.onKeyDown(event);
     }
 
 
@@ -65,8 +65,8 @@ class BuilderInputAdapter
         this.installed = true;
         this.input.on("pointermove", this.pointerMoveHandler);
         this.input.on("pointerdown", this.pointerDownHandler);
-        this.input.on("pointerup",   this.pointerUpHandler);
-        this.input.on("keydown",     this.keydownHandler);
+        this.input.on("pointerup", this.pointerUpHandler);
+        this.input.on("keydown", this.keydownHandler);
     }
 
     uninstall()
@@ -75,8 +75,8 @@ class BuilderInputAdapter
         this.installed = false;
         this.input.off("pointermove", this.pointerMoveHandler);
         this.input.off("pointerdown", this.pointerDownHandler);
-        this.input.off("pointerup",   this.pointerUpHandler);
-        this.input.off("keydown",     this.keydownHandler);
+        this.input.off("pointerup", this.pointerUpHandler);
+        this.input.off("keydown", this.keydownHandler);
         this.rightDownAt = null;
         this.setTool(new NoopTool());
     }
@@ -226,6 +226,7 @@ class BuilderInputAdapter
 
         const owners = new Map();
         const roots = [];
+
         for(const entity of entities)
         {
             roots.push(entity.object3D);
@@ -263,15 +264,15 @@ class BuilderInputAdapter
 
         const distSouth = localZ;
         const distNorth = S - localZ;
-        const distWest  = localX;
-        const distEast  = S - localX;
+        const distWest = localX;
+        const distEast = S - localX;
 
         const min = Math.min(distSouth, distNorth, distWest, distEast);
         let side;
-        if(min === distSouth)     { side = "south"; }
-        else if(min === distNorth){ side = "north"; }
+        if(min === distSouth) { side = "south"; }
+        else if(min === distNorth) { side = "north"; }
         else if(min === distWest) { side = "west"; }
-        else                      { side = "east"; }
+        else { side = "east"; }
 
         return { cx: cell.cx, cz: cell.cz, side };
     }
@@ -281,8 +282,8 @@ class BuilderInputAdapter
         if(!this.camera || !this.canvas) { return false; }
         const rect = this.canvas.getBoundingClientRect();
         if(rect.width <= 0 || rect.height <= 0) { return false; }
-        this.ndc.x =  ((event.x - rect.left) / rect.width)  * 2 - 1;
-        this.ndc.y = -((event.y - rect.top)  / rect.height) * 2 + 1;
+        this.ndc.x = ((event.x - rect.left) / rect.width) * 2 - 1;
+        this.ndc.y = -((event.y - rect.top) / rect.height) * 2 + 1;
         this.raycaster.setFromCamera(this.ndc, this.camera);
         return true;
     }

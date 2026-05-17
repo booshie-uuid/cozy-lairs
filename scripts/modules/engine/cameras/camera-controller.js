@@ -30,6 +30,7 @@ class CameraController
                 this.input.on(event, handler);
             }
         }
+
         this.onActivate();
     }
 
@@ -42,6 +43,7 @@ class CameraController
                 this.input.off(event, handler);
             }
         }
+
         this.onDeactivate();
     }
 
@@ -50,7 +52,7 @@ class CameraController
     onActivate() {}
     onDeactivate() {}
 
-    fixedUpdate(_dt)    {}
+    fixedUpdate(_dt) {}
     frameUpdate(_alpha) {}
 }
 

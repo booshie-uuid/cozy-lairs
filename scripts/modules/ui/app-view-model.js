@@ -1,9 +1,9 @@
-import { DevConsoleViewModel }  from "../engine/dev/dev-console-view-model.js";
-import { ToastQueue }           from "./toast-queue.js";
-import { AuthoringPanel }       from "./authoring-panel.js";
+import { DevConsoleViewModel } from "../engine/dev/dev-console-view-model.js";
+import { ToastQueue } from "./toast-queue.js";
+import { AuthoringPanel } from "./authoring-panel.js";
 import { ConfirmModalViewModel } from "./confirm-modal.js";
-import { TopMenuViewModel }     from "./top-menu.js";
-import { ToolBarViewModel }    from "./tool-bar.js";
+import { TopMenuViewModel } from "./top-menu.js";
+import { ToolBarViewModel } from "./tool-bar.js";
 
 
 const ko = window.ko;
@@ -13,7 +13,7 @@ const ko = window.ko;
 /* APP VIEW MODEL                                                             */
 /******************************************************************************/
 
-const MIN_VIEWPORT_WIDTH  = 1024;
+const MIN_VIEWPORT_WIDTH = 1024;
 const MIN_VIEWPORT_HEIGHT = 640;
 
 const SAVE_STATUS_VISIBLE_MS = 3500;
@@ -39,7 +39,7 @@ class AppViewModel
         // instead of a list since the chip renders one item, not a tray.
         this.saveStatusQueue = new ToastQueue(
         {
-            push:   toast => { this.saveStatus(toast.message); this.saveStatusVisible(true); },
+            push: toast => { this.saveStatus(toast.message); this.saveStatusVisible(true); },
             remove: _pred => { this.saveStatusVisible(false); }
         },
         { dismissMs: SAVE_STATUS_VISIBLE_MS });
@@ -129,8 +129,9 @@ class AppViewModel
         const panel = new AuthoringPanel({
             assets,
             catalogueIcons: this.catalogueIcons,
-            cameraMode:     this.cameraMode
+            cameraMode: this.cameraMode
         });
+
         this.authoringPanel(panel);
 
         // Route through panel.selectedToolId so app.js's subscription is the

@@ -151,7 +151,106 @@ positionGhostAtEdge(floorEdge)
 }
 ```
 
-Before finalising any function body of more than ~4 statements, walk it once as prose and identify the role-shifts. Each shift gets a blank line.
+**Concrete patterns that always need a blank line:**
+
+- **Guard clauses → main work.** Any `if(...) { return; }` at the top of a function is its own phase. Add a blank line after it before the real work begins.
+
+- **Setup state → loop/branch that consumes it.** Declaring a `Map` / `Set` / `[]` accumulator and then writing the `for` loop that fills it from a different source is two roles. Same for "build a small helper closure, then iterate."
+
+- **Object/clone creation → property configuration → final apply.** A run of `cloned.X = …; cloned.Y = …; cloned.Z = …` is one phase (configuring the clone) and deserves a blank line *before* it (separating it from the `const cloned = …` step) **and** *after* it (separating it from the conditional / assignment that publishes the clone).
+
+- **Compute one thing → apply it to another.** `const w = grid.cellToWorld(...)` is compute; `this.ghostMesh.position.set(...)` and `this.ghostMesh.visible = true` are apply. Blank line between them. The two `this.ghostMesh.*` lines stay together (same role: configure the ghost) — paragraphs don't fracture inside a single role.
+
+**Tight pair exception — compute + intrinsic check.** A `const x = compute(); if(!valid(x)) { return null; }` pair is *one* phase ("get a verified x"), not two. Keep the pair adjacent with no blank inside it, but a blank before and after the pair as a unit. Same for `const x = compute(); return x;` at the end of a function.
+
+```javascript
+// Avoid: every line glued together — no role-shifts visible
+positionGhostAtCell(cx, cz, yOffset = 0)
+{
+    if(!this.ghostMesh || !this.editor) { return; }
+    const w = this.editor.world.grid.cellToWorld(cx, cz);
+    this.ghostMesh.position.set(w.x, GHOST_Y + yOffset, w.z);
+    this.ghostMesh.visible = true;
+}
+
+// Prefer: guard, compute, apply — three phases, two blanks
+positionGhostAtCell(cx, cz, yOffset = 0)
+{
+    if(!this.ghostMesh || !this.editor) { return; }
+
+    const w = this.editor.world.grid.cellToWorld(cx, cz);
+
+    this.ghostMesh.position.set(w.x, GHOST_Y + yOffset, w.z);
+    this.ghostMesh.visible = true;
+}
+```
+
+```javascript
+// Avoid: clone → configure → conditional → publish, all run together
+if(node.isMesh && node.material)
+{
+    const cloned = node.material.clone();
+    cloned.transparent = true;
+    cloned.opacity = GHOST_OPACITY;
+    cloned.depthWrite = false;
+    if(cloned.color) { cloned.color.setHex(colour); }
+    node.material = cloned;
+}
+
+// Prefer: each role its own paragraph
+if(node.isMesh && node.material)
+{
+    const cloned = node.material.clone();
+
+    cloned.transparent = true;
+    cloned.opacity = GHOST_OPACITY;
+    cloned.depthWrite = false;
+
+    if(cloned.color) { cloned.color.setHex(colour); }
+
+    node.material = cloned;
+}
+```
+
+```javascript
+// Avoid: declarations glued to the loop that consumes them
+const owners = new Map();
+const roots = [];
+for(const entity of entities)
+{
+    roots.push(entity.object3D);
+    entity.object3D.traverse(node => owners.set(node, entity));
+}
+
+// Prefer: declare-then-loop is two phases
+const owners = new Map();
+const roots = [];
+
+for(const entity of entities)
+{
+    roots.push(entity.object3D);
+    entity.object3D.traverse(node => owners.set(node, entity));
+}
+```
+
+```javascript
+// OK: compute + intrinsic check stays tight as one phase; whole function is several phases
+screenToCell(event)
+{
+    if(!this.setRaycastFromEvent(event)) { return null; }
+
+    const hit = new THREE.Vector3();
+    const intersected = this.raycaster.ray.intersectPlane(FLOOR_PLANE, hit);
+
+    if(!intersected) { return null; }
+
+    const cell = this.grid.worldToCell(hit.x, hit.z);
+    if(!this.grid.isInBounds(cell.cx, cell.cz)) { return null; }
+    return cell;
+}
+```
+
+Before finalising any function body of more than ~4 statements, walk it once as prose and identify the role-shifts. Each shift gets a blank line. When in doubt, lean toward a break — the cost of an extra blank line is tiny; the cost of three different phases reading as one wall of text is real.
 
 ### The "Sensible" Line Rule
 

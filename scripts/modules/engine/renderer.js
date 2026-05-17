@@ -1,4 +1,4 @@
-import * as THREE  from "three";
+import * as THREE from "three";
 import * as Errors from "./errors.js";
 
 
@@ -81,6 +81,7 @@ class Renderer
     render()
     {
         if(!this.scene || !this.activeCamera) { return; }
+
         this.renderer.render(this.scene, this.activeCamera);
     }
 

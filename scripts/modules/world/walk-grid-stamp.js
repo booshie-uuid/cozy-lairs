@@ -20,11 +20,12 @@ function apply(world, footprintArgs)
 
     const { subCells } = Footprint.computeFootprint({
         ...footprintArgs,
-        assets:   world.assets,
+        assets: world.assets,
         walkGrid: world.walkGrid
     });
 
     world.walkGrid.applyStamp(subCells);
+
     return subCells;
 }
 
@@ -34,6 +35,7 @@ function apply(world, footprintArgs)
 function revert(world, stampedSubCells)
 {
     if(!world.walkGrid || stampedSubCells.length === 0) { return; }
+
     world.walkGrid.revertStamp(stampedSubCells);
 }
 

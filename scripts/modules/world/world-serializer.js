@@ -32,11 +32,11 @@ const COMPONENT_BUILDERS =
     GridPlacement: (entity, data) =>
     {
         const options = {};
-        if(data.walkable === true)            { options.walkable = true; }
-        if(data.blocks   === true)            { options.blocks   = true; }
+        if(data.walkable === true) { options.walkable = true; }
+        if(data.blocks === true) { options.blocks = true; }
         if(typeof data.surfaceY === "number") { options.surfaceY = data.surfaceY; }
-        if(typeof data.xOffset  === "number") { options.xOffset  = data.xOffset;  }
-        if(typeof data.zOffset  === "number") { options.zOffset  = data.zOffset;  }
+        if(typeof data.xOffset === "number") { options.xOffset = data.xOffset; }
+        if(typeof data.zOffset === "number") { options.zOffset = data.zOffset; }
         entity.addComponent(new GridPlacement(data.cx, data.cz, data.rotationStep, options));
     },
 
@@ -113,7 +113,7 @@ function fromJSONv2(world, snapshot, assets, options = {})
         return result;
     }
 
-    const kindList      = Array.isArray(snapshot.kinds)      ? snapshot.kinds      : [];
+    const kindList = Array.isArray(snapshot.kinds) ? snapshot.kinds : [];
     const componentList = Array.isArray(snapshot.components) ? snapshot.components : [];
 
     for(let i = 0; i < snapshot.entities.length; i++)

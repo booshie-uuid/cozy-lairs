@@ -70,7 +70,7 @@ const SAVE_SKIP_KINDS =
 ];
 
 const PLAYER_RADIUS = 0.5;
-const DECOR_RADIUS  = 0.7;
+const DECOR_RADIUS = 0.7;
 
 const MANIFEST_PATH = "assets/manifest.json";
 
@@ -103,9 +103,11 @@ const SUB_GRID_BLOCKER_INSET = 0.04;  // shrink the tile slightly so adjacent bl
 function buildRectGrid(grid, colour)
 {
     const S = grid.cellSize;
-    const W = grid.width  * S;
-    const D = grid.depth  * S;
+    const W = grid.width * S;
+    const D = grid.depth * S;
+
     const points = [];
+
     for(let i = 0; i <= grid.width; i++)
     {
         const x = i * S;
@@ -116,9 +118,11 @@ function buildRectGrid(grid, colour)
         const z = i * S;
         points.push(0, 0, z, W, 0, z);
     }
+
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
     const material = new THREE.LineBasicMaterial({ color: colour });
+
     return new THREE.LineSegments(geometry, material);
 }
 
@@ -128,7 +132,9 @@ function buildSubGridLines(walkGrid)
     const S = walkGrid.subCellSize;
     const W = walkGrid.width * S;
     const D = walkGrid.depth * S;
+
     const points = [];
+
     for(let i = 0; i <= walkGrid.width; i++)
     {
         const x = i * S;
@@ -139,6 +145,7 @@ function buildSubGridLines(walkGrid)
         const z = i * S;
         points.push(0, 0, z, W, 0, z);
     }
+
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
     const material = new THREE.LineBasicMaterial({
@@ -147,6 +154,7 @@ function buildSubGridLines(walkGrid)
         opacity:     SUB_GRID_LINE_OPACITY,
         depthWrite:  false
     });
+
     return new THREE.LineSegments(geometry, material);
 }
 
@@ -175,8 +183,10 @@ function refreshSubGridBlockerMesh(walkGrid, mesh)
 {
     const S = walkGrid.subCellSize;
     const half = S / 2;
+
     const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
     const reusable = new THREE.Matrix4();
+
     let count = 0;
 
     for(let sz = 0; sz < walkGrid.depth; sz++)
@@ -189,6 +199,7 @@ function refreshSubGridBlockerMesh(walkGrid, mesh)
                 mesh.setMatrixAt(index, hidden);
                 continue;
             }
+
             reusable.makeTranslation(sx * S + half, 0, sz * S + half);
             mesh.setMatrixAt(index, reusable);
             count += 1;
@@ -327,10 +338,10 @@ class App
         this.viewModel.installTopMenu({
             saveService:
             {
-                save:     () => { this.cancelPickup(); this.saveService.save(); },
+                save: () => { this.cancelPickup(); this.saveService.save(); },
                 openFile: () => { this.cancelPickup(); this.saveService.openFile(); }
             },
-            resetLair:    () => this.resetLair(),
+            resetLair: () => this.resetLair(),
             onToggleMode: () => this.toggleCameraMode()
         });
         this.setCameraMode("builder");
@@ -413,7 +424,7 @@ class App
         {
             this.input.off("keydown", this.confirmModalEscapeHandler);
         }
-        if(this.input)    { this.input.dispose(); }
+        if(this.input) { this.input.dispose(); }
         if(this.renderer) { this.renderer.dispose(); }
 
         if(this.canvasWrapper && this.contextMenuHandler)
@@ -504,6 +515,7 @@ class App
                 this.worldEditor.paintFloor(STARTER_ROOM.x0 + dx, STARTER_ROOM.z0 + dz);
             }
         }
+
         this.spawnPlayer();
     }
 
@@ -514,6 +526,7 @@ class App
         this.discardPickup();
         this.saveService.clearAutosave();
         this.saveService.clearFileHandle();
+
         this.world.clear();
         this.buildFreshWorld();
     }
@@ -548,6 +561,7 @@ class App
     setTool(toolId)
     {
         if(!this.builderInputAdapter) { return; }
+
         const tool = this.buildToolFromId(toolId);
         this.builderInputAdapter.setTool(tool);
     }
@@ -576,7 +590,7 @@ class App
             }
             case "decor":
             {
-                if(rest === "pick")  { return new PickTool({ onPicked: snapshot => this.armBuildForSnapshot("decor", snapshot) }); }
+                if(rest === "pick") { return new PickTool({ onPicked: snapshot => this.armBuildForSnapshot("decor", snapshot) }); }
                 if(rest === "break") { return new DecorEraseTool(); }
                 if(rest === "nudge") { return new NudgeTool(); }
                 if(rest.startsWith("build:"))
@@ -587,7 +601,7 @@ class App
             }
             case "minion":
             {
-                if(rest === "pick")  { return new PickTool({ onPicked: snapshot => this.armBuildForSnapshot("minion", snapshot) }); }
+                if(rest === "pick") { return new PickTool({ onPicked: snapshot => this.armBuildForSnapshot("minion", snapshot) }); }
                 if(rest === "break") { return new MinionEraseTool(); }
                 if(rest.startsWith("build:"))
                 {
@@ -607,6 +621,7 @@ class App
     {
         let assetKind = null;
         try { assetKind = this.assets.getKind(kind); } catch { assetKind = null; }
+
         if(assetKind === "decor.wall") { return new WallDecorPlaceTool({ kind }); }
         return new DecorPlaceTool({ kind, consumePickup: this.makeConsumePickupHook() });
     }
@@ -620,6 +635,7 @@ class App
     {
         if(!snapshot) { return; }
         if(this.pickedUp) { this.worldEditor.restorePickup(this.pickedUp); }
+
         this.pickedUp = snapshot;
         this.setTool(`${tab}:build:${snapshot.kind}`);
     }
@@ -627,8 +643,10 @@ class App
     cancelPickup()
     {
         if(!this.pickedUp) { return; }
+
         const snapshot = this.pickedUp;
         this.pickedUp = null;
+
         this.worldEditor.restorePickup(snapshot);
     }
 
@@ -640,13 +658,17 @@ class App
     consumePickupAt(kind, cx, cz)
     {
         if(!this.pickedUp || this.pickedUp.kind !== kind) { return false; }
+
         const ok = this.worldEditor.placeFromSnapshot(this.pickedUp, cx, cz);
         if(!ok) { return false; }
+
         this.pickedUp = null;
+
         // Disarm via the panel so the subscription in start() runs
         // setTool(null) and re-enables camera pan in one path.
         const panel = this.viewModel.authoringPanel();
         if(panel) { panel.selectedToolId(null); }
+
         return true;
     }
 
@@ -738,6 +760,7 @@ class App
         // moved the bbox into one — wall safety wins over decor slide.
         let x = desiredX;
         if(this.bboxHitsNonFloor(x, currentZ)) { x = currentX; }
+
         let z = desiredZ;
         if(this.bboxHitsNonFloor(x, z)) { z = currentZ; }
 
@@ -746,6 +769,7 @@ class App
 
         const minDist = PLAYER_RADIUS + DECOR_RADIUS;
         const minDistSq = minDist * minDist;
+
         for(const entity of this.world.entities)
         {
             const placement = entity.getComponent(GridPlacement);
@@ -756,6 +780,7 @@ class App
             const dz = z - decorZ;
             const distSq = dx * dx + dz * dz;
             if(distSq >= minDistSq) { continue; }
+
             if(distSq < 0.0001)
             {
                 // Player coincides with decor centre — pick an arbitrary axis.
@@ -782,6 +807,7 @@ class App
         const r = PLAYER_RADIUS;
         const c0 = grid.worldToCell(x - r, z - r);
         const c1 = grid.worldToCell(x + r, z + r);
+
         for(let cx = c0.cx; cx <= c1.cx; cx++)
         {
             for(let cz = c0.cz; cz <= c1.cz; cz++)
@@ -789,6 +815,7 @@ class App
                 if(!grid.isFloor(cx, cz)) { return true; }
             }
         }
+
         return false;
     }
 
@@ -896,6 +923,7 @@ class App
                 this.worldEditor.rehydrateMinion(entity);
             }
         }
+
         this.spawnPlayer();
 
         // Drop the previous save's FSA handle so the next Ctrl+S re-prompts
@@ -906,6 +934,7 @@ class App
         const summary = skipped > 0
             ? `Loaded ${result.loaded} entities from "${fileName}" (${skipped} skipped).`
             : `Loaded ${result.loaded} entities from "${fileName}".`;
+
         this.viewModel.toast(summary, skipped > 0 ? "warning" : "info");
     }
 
@@ -1045,8 +1074,8 @@ class App
         }
         this.diagMode = mode;
 
-        const showMain     = mode === "overlay";
-        const showSubGrid  = mode === "overlay" || mode === "sub-only";
+        const showMain = mode === "overlay";
+        const showSubGrid = mode === "overlay" || mode === "sub-only";
 
         if(this.diagGrid)        { this.diagGrid.visible        = showMain;    }
         if(this.subGridLines)    { this.subGridLines.visible    = showSubGrid; }

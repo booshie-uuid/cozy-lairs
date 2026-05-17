@@ -45,7 +45,7 @@ class ToolBarViewModel
         this.onSelectTool = onSelectTool;
 
         this.visibleTools = ko.pureComputed(() => this.computeVisibleTools());
-        this.isVisible    = ko.pureComputed(() =>
+        this.isVisible = ko.pureComputed(() =>
             this.cameraMode() === "builder" && !!this.authoringPanel);
     }
 
@@ -53,6 +53,7 @@ class ToolBarViewModel
     {
         const toolId = this.composeToolId(verb);
         if(!toolId) { return; }
+
         if(typeof this.onSelectTool === "function") { this.onSelectTool(toolId); }
     }
 
@@ -62,6 +63,7 @@ class ToolBarViewModel
     computeVisibleTools()
     {
         if(!this.authoringPanel) { return []; }
+
         const tab = this.authoringPanel.activeTab();
         const verbs = TAB_VERBS[tab] || [];
         const activeToolId = this.authoringPanel.selectedToolId();

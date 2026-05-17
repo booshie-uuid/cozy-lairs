@@ -1,6 +1,6 @@
-import * as THREE         from "three";
-import { GLTFLoader }      from "three/addons/loaders/GLTFLoader.js";
-import * as SkeletonUtils  from "three/addons/utils/SkeletonUtils.js";
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import * as SkeletonUtils from "three/addons/utils/SkeletonUtils.js";
 
 import * as Errors from "./errors.js";
 
@@ -63,6 +63,7 @@ class AssetManager
         this.validateManifest(json);
 
         this.index.clear();
+
         for(const entry of json.assets)
         {
             this.index.set(entry.id, this.normaliseEntry(entry));
@@ -71,9 +72,9 @@ class AssetManager
 
     normaliseEntry(entry)
     {
-        const kind        = typeof entry.kind        === "string" ? entry.kind        : null;
+        const kind = typeof entry.kind === "string" ? entry.kind : null;
         const displayName = typeof entry.displayName === "string" ? entry.displayName : null;
-        const meta        = entry.meta && typeof entry.meta === "object" ? entry.meta : {};
+        const meta = entry.meta && typeof entry.meta === "object" ? entry.meta : {};
 
         return { ...entry, kind, displayName, meta };
     }
@@ -110,6 +111,7 @@ class AssetManager
         {
             throw new Errors.AssetLoadError(`Asset id "${id}" is not in the manifest.`);
         }
+
         return this.loadEntry(entry, false);
     }
 
@@ -120,6 +122,7 @@ class AssetManager
         {
             throw new Errors.AssetLoadError(`Asset "${id}" is not loaded. Did you forget preloadCore()?`);
         }
+
         return this.cloneAsset(cached);
     }
 
@@ -130,6 +133,7 @@ class AssetManager
         {
             throw new Errors.AssetLoadError(`Asset "${id}" is not loaded. Did you forget preloadCore()?`);
         }
+
         return cached.animations;
     }
 
@@ -162,6 +166,7 @@ class AssetManager
     listByKind(kind)
     {
         const result = [];
+
         for(const entry of this.index.values())
         {
             if(entry.kind === kind)
@@ -169,6 +174,7 @@ class AssetManager
                 result.push({ id: entry.id, displayName: entry.displayName });
             }
         }
+
         return result;
     }
 
@@ -184,6 +190,7 @@ class AssetManager
         {
             throw new Errors.AssetLoadError(`Asset id "${id}" is not in the manifest.`);
         }
+
         return entry;
     }
 
@@ -214,6 +221,7 @@ class AssetManager
         }
 
         const seen = new Set();
+
         for(let i = 0; i < json.assets.length; i++)
         {
             const entry = json.assets[i];
@@ -248,10 +256,7 @@ class AssetManager
         }
 
         const inFlight = this.inFlight.get(entry.id);
-        if(inFlight)
-        {
-            return inFlight;
-        }
+        if(inFlight) { return inFlight; }
 
         const promise = new Promise((resolve, reject) =>
         {

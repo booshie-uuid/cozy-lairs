@@ -120,7 +120,7 @@ class Walker extends Emitter
         // inside that sub-cell — the snap would be visible (up to 0.5m).
         const walkGrid = this.entity.world.walkGrid;
         const startCell = this.path[0];
-        const physical  = walkGrid.worldToSub(this.entity.object3D.position.x, this.entity.object3D.position.z);
+        const physical = walkGrid.worldToSub(this.entity.object3D.position.x, this.entity.object3D.position.z);
 
         if(physical.sx === startCell.sx && physical.sz === startCell.sz)
         {
@@ -248,6 +248,7 @@ class Walker extends Emitter
     {
         this.completed = true;
         this.crossfadeAnimator("idle");
+
         if(this.withdrawing)
         {
             this.withdrawing = false;
@@ -273,6 +274,7 @@ class Walker extends Emitter
         const o = this.entity.object3D;
         const dx = centre.x - o.position.x;
         const dz = centre.z - o.position.z;
+
         if(dx * dx + dz * dz <= MESH_BUFFER * MESH_BUFFER)
         {
             this.completed = true;
@@ -332,6 +334,7 @@ class Walker extends Emitter
     snapToSubCell(cell)
     {
         const w = this.subCellCentre(cell.sx, cell.sz);
+
         this.entity.object3D.position.set(w.x, 0, w.z);
         this.stampSubCell(cell.sx, cell.sz);
     }
@@ -360,6 +363,7 @@ class Walker extends Emitter
         const o = this.entity.object3D;
         const dx = w.x - o.position.x;
         const dz = w.z - o.position.z;
+
         if(dx * dx + dz * dz > ARRIVE_EPSILON * ARRIVE_EPSILON)
         {
             this.targetRotation = Math.atan2(dx, dz);
@@ -370,8 +374,10 @@ class Walker extends Emitter
     {
         const o = this.entity.object3D;
         let delta = this.targetRotation - o.rotation.y;
-        while(delta >  Math.PI) { delta -= TWO_PI; }
+
+        while(delta > Math.PI) { delta -= TWO_PI; }
         while(delta < -Math.PI) { delta += TWO_PI; }
+
         const factor = 1 - Math.exp(-this.turnRate * dt);
         o.rotation.y += delta * factor;
     }

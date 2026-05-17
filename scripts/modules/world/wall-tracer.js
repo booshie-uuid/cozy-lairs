@@ -11,10 +11,10 @@ import * as Edges from "./edges.js";
 /******************************************************************************/
 
 const WALL_STRAIGHT_KIND = "wall.stone.straight";
-const WALL_HALF_KIND     = "wall.stone.half";
-const CORNER_KIND        = "wall.stone.corner";
+const WALL_HALF_KIND = "wall.stone.half";
+const CORNER_KIND = "wall.stone.corner";
 
-const HALF_OFFSET             = 1;
+const HALF_OFFSET = 1;
 const HALF_WALL_ORIGIN_OFFSET = -1;
 
 const CORNER_ORIENTATION =
@@ -36,14 +36,15 @@ class WallTracer
         this.corners = new Map();
 
         this.entityChangedHandler = entity => this.onEntityChanged(entity);
-        this.world.on("entityAdded",   this.entityChangedHandler);
+        this.world.on("entityAdded", this.entityChangedHandler);
         this.world.on("entityRemoved", this.entityChangedHandler);
     }
 
     dispose()
     {
-        this.world.off("entityAdded",   this.entityChangedHandler);
+        this.world.off("entityAdded", this.entityChangedHandler);
         this.world.off("entityRemoved", this.entityChangedHandler);
+
         this.walls.clear();
         this.corners.clear();
     }
@@ -51,10 +52,12 @@ class WallTracer
     getWallEntities()
     {
         const all = [];
+
         for(const entities of this.walls.values())
         {
             for(const entity of entities) { all.push(entity); }
         }
+
         return all;
     }
 
@@ -140,8 +143,8 @@ class WallTracer
         if(total !== 2) { return null; }
         if(!((hasN || hasS) && (hasE || hasW))) { return null; }
 
-        const verticalSide   = hasN ? "north" : "south";
-        const horizontalSide = hasE ? "east"  : "west";
+        const verticalSide = hasN ? "north" : "south";
+        const horizontalSide = hasE ? "east" : "west";
         return CORNER_ORIENTATION[`${verticalSide},${horizontalSide}`];
     }
 
@@ -175,7 +178,7 @@ class WallTracer
         }
 
         const placement = Edges.floorSideOf(this.world.grid, cx, cz, side);
-        const cornerLow  = this.corners.has(this.vertexKey(...Edges.endpointLow(placement.cx,  placement.cz, placement.side)));
+        const cornerLow = this.corners.has(this.vertexKey(...Edges.endpointLow(placement.cx, placement.cz, placement.side)));
         const cornerHigh = this.corners.has(this.vertexKey(...Edges.endpointHigh(placement.cx, placement.cz, placement.side)));
 
         const entities = this.buildWallEntities(placement.cx, placement.cz, placement.side, cornerLow, cornerHigh);
@@ -213,12 +216,15 @@ class WallTracer
     cascadeRemoveWallDecorAt(targetEdgeKey)
     {
         const toRemove = [];
+
         for(const entity of this.world.entities)
         {
             if(!this.isWallDecorEntity(entity)) { continue; }
+
             const ep = entity.getComponent(EdgePlacement);
             if(Edges.edgeKey(ep.cx, ep.cz, ep.side) === targetEdgeKey) { toRemove.push(entity); }
         }
+
         for(const entity of toRemove) { this.world.removeEntity(entity); }
     }
 
@@ -227,7 +233,7 @@ class WallTracer
         if(!entity || !entity.kind) { return false; }
         if(typeof entity.getComponent !== "function") { return false; }
         if(!entity.getComponent(EdgePlacement)) { return false; }
-        try   { return this.assets.getKind(entity.kind) === "decor.wall"; }
+        try { return this.assets.getKind(entity.kind) === "decor.wall"; }
         catch { return false; }
     }
 

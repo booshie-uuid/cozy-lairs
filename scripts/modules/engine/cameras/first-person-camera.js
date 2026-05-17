@@ -1,7 +1,7 @@
 import * as THREE from "three";
 
 import { CameraController } from "./camera-controller.js";
-import { PLAYER_MARKER }    from "../player-marker.js";
+import { PLAYER_MARKER } from "../player-marker.js";
 
 
 /******************************************************************************/
@@ -55,9 +55,9 @@ class FirstPersonCamera extends CameraController
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 500);
         this.applyTransform();
 
-        this.subscribe("pointerdown",       this.onPointerDown.bind(this));
-        this.subscribe("pointerup",         this.onPointerUp.bind(this));
-        this.subscribe("pointermove",       this.onPointerMove.bind(this));
+        this.subscribe("pointerdown", this.onPointerDown.bind(this));
+        this.subscribe("pointerup", this.onPointerUp.bind(this));
+        this.subscribe("pointermove", this.onPointerMove.bind(this));
         this.subscribe("pointerlockchange", this.onPointerLockChange.bind(this));
     }
 
@@ -70,6 +70,7 @@ class FirstPersonCamera extends CameraController
             this.position.x = p.x;
             this.position.z = p.z;
             this.position.y = this.eyeHeight;
+
             this.applyTransform();
             this.playerEntity.object3D.visible = false;
         }
@@ -98,7 +99,9 @@ class FirstPersonCamera extends CameraController
     teleportPlayer(cell)
     {
         if(!this.grid) { return; }
+
         const w = this.grid.cellToWorld(cell.cx, cell.cz);
+
         this.position.x = w.x;
         this.position.z = w.z;
         this.position.y = this.eyeHeight;
@@ -118,18 +121,18 @@ class FirstPersonCamera extends CameraController
         if(!this.active) { return; }
 
         let forwardInput = 0;
-        let rightInput   = 0;
+        let rightInput = 0;
 
         if(this.input.isDown("KeyW")) { forwardInput += 1; }
         if(this.input.isDown("KeyS")) { forwardInput -= 1; }
-        if(this.input.isDown("KeyD")) { rightInput   += 1; }
-        if(this.input.isDown("KeyA")) { rightInput   -= 1; }
+        if(this.input.isDown("KeyD")) { rightInput += 1; }
+        if(this.input.isDown("KeyA")) { rightInput -= 1; }
 
         if(forwardInput === 0 && rightInput === 0) { return; }
 
         const length = Math.sqrt(forwardInput * forwardInput + rightInput * rightInput);
         forwardInput /= length;
-        rightInput   /= length;
+        rightInput /= length;
 
         const sinY = Math.sin(this.yaw);
         const cosY = Math.cos(this.yaw);
@@ -157,6 +160,7 @@ class FirstPersonCamera extends CameraController
             this.position.x = desiredX;
             this.position.z = desiredZ;
         }
+
         this.position.y = this.eyeHeight;
 
         if(this.playerEntity)
@@ -196,9 +200,9 @@ class FirstPersonCamera extends CameraController
     {
         if(!this.pointerLocked) { return; }
 
-        this.yaw   -= event.dx * LOOK_SENSITIVITY;
+        this.yaw -= event.dx * LOOK_SENSITIVITY;
         this.pitch -= event.dy * LOOK_SENSITIVITY;
-        this.pitch  = THREE.MathUtils.clamp(this.pitch, -PITCH_LIMIT, PITCH_LIMIT);
+        this.pitch = THREE.MathUtils.clamp(this.pitch, -PITCH_LIMIT, PITCH_LIMIT);
     }
 
     onPointerLockChange(event)
@@ -221,6 +225,7 @@ class FirstPersonCamera extends CameraController
     syncMarker()
     {
         if(!this.grid) { return; }
+
         const cell = this.grid.worldToCell(this.position.x, this.position.z);
         if(!this.grid.isInBounds(cell.cx, cell.cz))
         {
@@ -247,10 +252,12 @@ class FirstPersonCamera extends CameraController
     clearMarker()
     {
         if(!this.grid || this.lastCell === null) { return; }
+
         if(this.grid.getOccupant(this.lastCell.cx, this.lastCell.cz) === PLAYER_MARKER)
         {
             this.grid.clearOccupant(this.lastCell.cx, this.lastCell.cz);
         }
+
         this.lastCell = null;
     }
 }

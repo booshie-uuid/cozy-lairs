@@ -36,7 +36,7 @@ class BuilderCamera extends CameraController
         this.targetFocus = focus.clone();
 
         this.theta = options.initialTheta !== undefined ? options.initialTheta : Math.PI * 0.25;
-        this.phi   = options.initialPhi   !== undefined ? options.initialPhi   : Math.PI * 0.32;
+        this.phi = options.initialPhi !== undefined ? options.initialPhi : Math.PI * 0.32;
         this.distance = distance;
 
         this.targetTheta = this.theta;
@@ -61,8 +61,8 @@ class BuilderCamera extends CameraController
 
         this.subscribe("pointerdown", this.onPointerDown.bind(this));
         this.subscribe("pointermove", this.onPointerMove.bind(this));
-        this.subscribe("pointerup",   this.onPointerUp.bind(this));
-        this.subscribe("wheel",       this.onWheel.bind(this));
+        this.subscribe("pointerup", this.onPointerUp.bind(this));
+        this.subscribe("wheel", this.onWheel.bind(this));
     }
 
     onDeactivate()
@@ -74,18 +74,18 @@ class BuilderCamera extends CameraController
     {
         const input = this.input;
         let forwardInput = 0;
-        let rightInput   = 0;
+        let rightInput = 0;
 
         if(input.isDown("KeyW")) { forwardInput += 1; }
         if(input.isDown("KeyS")) { forwardInput -= 1; }
-        if(input.isDown("KeyD")) { rightInput   += 1; }
-        if(input.isDown("KeyA")) { rightInput   -= 1; }
+        if(input.isDown("KeyD")) { rightInput += 1; }
+        if(input.isDown("KeyA")) { rightInput -= 1; }
 
         if(forwardInput === 0 && rightInput === 0) { return; }
 
         const length = Math.sqrt(forwardInput * forwardInput + rightInput * rightInput);
         forwardInput /= length;
-        rightInput   /= length;
+        rightInput /= length;
 
         const distScale = THREE.MathUtils.clamp(this.distance / 12, 0.5, 3.0);
         const speed = KEY_PAN_SPEED * dt * distScale;
@@ -109,6 +109,7 @@ class BuilderCamera extends CameraController
     {
         if(this.draggingButton !== -1) { return; }
         if(event.target && event.target.tagName !== "CANVAS") { return; }
+
         if(event.button === ORBIT_BUTTON)
         {
             this.draggingButton = ORBIT_BUTTON;
@@ -166,6 +167,7 @@ class BuilderCamera extends CameraController
             this.draggingButton = -1;
             return;
         }
+
         if(this.draggingButton !== -1 && !this.isDragButtonHeld(event.buttons))
         {
             this.draggingButton = -1;
@@ -174,7 +176,7 @@ class BuilderCamera extends CameraController
 
     isDragButtonHeld(buttons)
     {
-        if(this.draggingButton === PAN_BUTTON)   { return (buttons & 1) !== 0; }
+        if(this.draggingButton === PAN_BUTTON) { return (buttons & 1) !== 0; }
         if(this.draggingButton === ORBIT_BUTTON) { return (buttons & 2) !== 0; }
         return false;
     }
@@ -197,9 +199,10 @@ class BuilderCamera extends CameraController
 
     raycastFloor(clientX, clientY, out)
     {
-        this.ndc.x =  (clientX / window.innerWidth)  * 2 - 1;
+        this.ndc.x = (clientX / window.innerWidth) * 2 - 1;
         this.ndc.y = -(clientY / window.innerHeight) * 2 + 1;
         this.raycaster.setFromCamera(this.ndc, this.camera);
+
         return this.raycaster.ray.intersectPlane(this.floorPlane, out) !== null;
     }
 
@@ -212,7 +215,7 @@ class BuilderCamera extends CameraController
         this.tmpRight.crossVectors(this.tmpForward, WORLD_UP).normalize();
 
         this.targetFocus.addScaledVector(this.tmpForward, forwardAmount);
-        this.targetFocus.addScaledVector(this.tmpRight,   rightAmount);
+        this.targetFocus.addScaledVector(this.tmpRight, rightAmount);
     }
 
     applyTransform()

@@ -21,11 +21,13 @@ class BlockPlaceTool extends CellPlaceTool
         makeTranslucent(mesh, TINT_VALID);
 
         const meta = this.editor.assets.getMeta(this.kind);
-        if(typeof meta.scale === "number")   { mesh.scale.setScalar(meta.scale); }
+
+        if(typeof meta.scale === "number") { mesh.scale.setScalar(meta.scale); }
         if(typeof meta.yOffset === "number") { mesh.position.y = meta.yOffset; }
 
         const group = new THREE.Group();
         group.add(mesh);
+
         return group;
     }
 
@@ -37,6 +39,7 @@ class BlockPlaceTool extends CellPlaceTool
     positionGhost(cell)
     {
         this.positionGhostAtCell(cell.cx, cell.cz);
+
         // Block ghost sits on the ground — block-bits use meta.yOffset
         // inside the inner mesh to lift to mid-block height.
         this.ghostMesh.position.y = 0;

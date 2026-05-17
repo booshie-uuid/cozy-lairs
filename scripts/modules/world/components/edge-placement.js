@@ -1,4 +1,4 @@
-import * as Errors        from "../../engine/errors.js";
+import * as Errors from "../../engine/errors.js";
 import * as WalkGridStamp from "../walk-grid-stamp.js";
 
 
@@ -30,11 +30,13 @@ class EdgePlacement
         {
             throw new Errors.PlacementError(`EdgePlacement: invalid side "${side}" (expected one of: ${Object.keys(ROTATION_BY_SIDE).join(", ")}).`);
         }
+
         this.cx = cx;
         this.cz = cz;
         this.side = side;
         this.lengthOffset = lengthOffset;
         this.originOffset = originOffset;
+
         this.entity = null;
         this.stampedSubCells = [];
     }

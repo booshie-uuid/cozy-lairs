@@ -1,6 +1,6 @@
-import { Emitter }     from "./emitter.js";
-import * as Errors     from "./errors.js";
-import * as SaveCodec  from "../world/save-codec.js";
+import { Emitter } from "./emitter.js";
+import * as Errors from "./errors.js";
+import * as SaveCodec from "../world/save-codec.js";
 
 
 /******************************************************************************/
@@ -76,7 +76,7 @@ class SaveService extends Emitter
     startAutosave()
     {
         if(this.autosaveTimer !== null) { return; }
-        if(!this.storage)                { return; }
+        if(!this.storage) { return; }
 
         this.autosaveTimer = setInterval(() => this.writeAutosave(), this.autosaveIntervalMs);
     }
@@ -194,6 +194,7 @@ class SaveService extends Emitter
     {
         const file = await this.promptFileViaInput();
         if(!file) { return; }
+
         await this.handleOpenedFile(file);
     }
 
@@ -202,10 +203,10 @@ class SaveService extends Emitter
         return new Promise(resolve =>
         {
             const input = document.createElement("input");
-            input.type   = "file";
+            input.type = "file";
             input.accept = ".json,application/json";
             input.style.position = "fixed";
-            input.style.left     = "-9999px";
+            input.style.left = "-9999px";
 
             const cleanup = () => { if(input.parentNode) { input.parentNode.removeChild(input); } };
 

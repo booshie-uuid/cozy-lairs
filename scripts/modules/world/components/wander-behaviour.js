@@ -5,7 +5,7 @@ import * as WalkSearch  from "../walk-search.js";
 
 // Local sample radius keeps random picks inside the walker's connected
 // component — global sampling drowns useful targets in unreachable cells.
-const SAMPLE_RADIUS   = 16;
+const SAMPLE_RADIUS = 16;
 const SAMPLE_ATTEMPTS = 32;
 
 
@@ -69,6 +69,7 @@ class WanderBehaviour
             this.walker.off("blocked",   this.arrivedHandler);
             this.walker.off("displaced", this.arrivedHandler);
         }
+
         this.arrivedHandler = null;
         this.walker = null;
         this.world = null;
@@ -167,7 +168,7 @@ class WanderBehaviour
     makeTraversablePredicate()
     {
         const walkGrid = this.world.walkGrid;
-        const grid     = this.world.grid;
+        const grid = this.world.grid;
         const subsPerMain = walkGrid.subsPerMain;
 
         return (sx, sz) =>
@@ -190,7 +191,7 @@ class WanderBehaviour
         {
             const candidate = this.sampleInRadius(currentSub, SAMPLE_RADIUS);
             if(!walkGrid.isInBounds(candidate.sx, candidate.sz)) { continue; }
-            if(!isTraversable(candidate.sx, candidate.sz))       { continue; }
+            if(!isTraversable(candidate.sx, candidate.sz)) { continue; }
 
             const dx = Math.abs(candidate.sx - currentSub.sx);
             const dz = Math.abs(candidate.sz - currentSub.sz);
@@ -205,7 +206,7 @@ class WanderBehaviour
             const candidate = this.sampleInRadius(currentSub, SAMPLE_RADIUS);
             if(candidate.sx === currentSub.sx && candidate.sz === currentSub.sz) { continue; }
             if(!walkGrid.isInBounds(candidate.sx, candidate.sz)) { continue; }
-            if(!isTraversable(candidate.sx, candidate.sz))       { continue; }
+            if(!isTraversable(candidate.sx, candidate.sz)) { continue; }
             return candidate;
         }
 

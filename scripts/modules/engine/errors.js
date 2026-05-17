@@ -18,7 +18,7 @@ class CozyLairsError extends Error
 /* ASSETS *********************************************************************/
 
 class AssetLoadError extends CozyLairsError {}
-class ManifestError   extends CozyLairsError {}
+class ManifestError extends CozyLairsError {}
 
 
 /* PERSISTENCE ****************************************************************/
@@ -34,7 +34,7 @@ class WebGLUnavailableError extends CozyLairsError {}
 /* WORLD **********************************************************************/
 
 class GridBoundsError extends CozyLairsError {}
-class PlacementError  extends CozyLairsError {}
+class PlacementError extends CozyLairsError {}
 
 
 export

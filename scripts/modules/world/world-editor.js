@@ -43,39 +43,46 @@ class WorldEditor
     canPaintFloor(cx, cz)
     {
         const grid = this.world.grid;
+
         if(!grid.isInBounds(cx, cz)) { return false; }
         if(this.cellHasBlock(cx, cz)) { return false; }
+
         return true;
     }
 
     canPlaceBlock(_kind, cx, cz)
     {
         const grid = this.world.grid;
+
         if(!grid.isInBounds(cx, cz)) { return false; }
         if(grid.isFloor(cx, cz)) { return false; }
         if(grid.blockedCells.has(grid.cellKey(cx, cz))) { return false; }
+
         return true;
     }
 
     canEraseFloor(cx, cz)
     {
         const grid = this.world.grid;
+
         if(!grid.isInBounds(cx, cz)) { return false; }
-        if(!grid.isFloor(cx, cz))    { return false; }
+        if(!grid.isFloor(cx, cz)) { return false; }
 
         if(grid.getOccupant(cx, cz) === PLAYER_MARKER) { return false; }
-        if(this.walkerInMainCell(cx, cz))              { return false; }
+        if(this.walkerInMainCell(cx, cz)) { return false; }
+
         return true;
     }
 
     canPlaceDecor(kind, cx, cz)
     {
         const grid = this.world.grid;
+
         if(!grid.isInBounds(cx, cz)) { return false; }
-        if(!grid.isFloor(cx, cz))    { return false; }
+        if(!grid.isFloor(cx, cz)) { return false; }
 
         if(grid.getOccupant(cx, cz) === PLAYER_MARKER) { return false; }
-        if(this.walkerInMainCell(cx, cz))              { return false; }
+        if(this.walkerInMainCell(cx, cz)) { return false; }
 
         const kindMeta = this.assets.getMeta(kind);
         if(kindMeta && kindMeta.placeableOnSurface)
@@ -94,8 +101,9 @@ class WorldEditor
 
     canPlaceWallDecor(_kind, edge)
     {
-        if(!this.hasWallAtEdge(edge))      { return false; }
+        if(!this.hasWallAtEdge(edge)) { return false; }
         if(this.findWallDecorAtEdge(edge)) { return false; }
+
         return true;
     }
 
@@ -103,8 +111,9 @@ class WorldEditor
     {
         const grid = this.world.grid;
         const walkGrid = this.world.walkGrid;
+
         if(!grid.isInBounds(cx, cz)) { return false; }
-        if(!grid.isFloor(cx, cz))    { return false; }
+        if(!grid.isFloor(cx, cz)) { return false; }
         if(grid.getOccupant(cx, cz) === PLAYER_MARKER) { return false; }
 
         // Walkers can share a main cell at different sub-cells; only the
@@ -112,13 +121,15 @@ class WorldEditor
         const base = walkGrid.mainToSub(cx, cz);
         const centreSx = base.sx + Math.floor(walkGrid.subsPerMain / 2);
         const centreSz = base.sz + Math.floor(walkGrid.subsPerMain / 2);
+
         if(!walkGrid.isWalkable(centreSx, centreSz)) { return false; }
+
         return true;
     }
 
     canNudge(entity, deltaX, deltaZ)
     {
-        if(!this.isNudgeable(entity))                           { return false; }
+        if(!this.isNudgeable(entity)) { return false; }
         if(!Number.isFinite(deltaX) || !Number.isFinite(deltaZ)) { return false; }
 
         const placement = entity.getComponent(GridPlacement);
@@ -158,6 +169,7 @@ class WorldEditor
     paintFloor(cx, cz)
     {
         const grid = this.world.grid;
+
         if(!grid.isInBounds(cx, cz))
         {
             this.toast(`Can't paint floor — (${cx}, ${cz}) is out of bounds.`, "warning");
@@ -168,12 +180,14 @@ class WorldEditor
         const entity = Entity.fromKind(FLOOR_KIND, this.assets);
         entity.addComponent(new GridPlacement(cx, cz, 0, { walkable: true }));
         this.world.addEntity(entity);
+
         return true;
     }
 
     eraseFloor(cx, cz)
     {
         const grid = this.world.grid;
+
         if(!grid.isInBounds(cx, cz))
         {
             this.toast(`Can't erase floor — (${cx}, ${cz}) is out of bounds.`, "warning");
@@ -203,6 +217,7 @@ class WorldEditor
 
         const floor = this.findFloorAtCell(cx, cz);
         if(floor) { this.world.removeEntity(floor); }
+
         return true;
     }
 
@@ -223,6 +238,7 @@ class WorldEditor
         const entity = Entity.fromKind(kind, this.assets);
         entity.addComponent(new GridPlacement(cx, cz, rotationStep, { blocks, surfaceY }));
         this.world.addEntity(entity);
+
         return true;
     }
 
@@ -240,10 +256,12 @@ class WorldEditor
         }
 
         const { cx, cz, side } = this.floorSideOfEdge(edge);
+
         const entity = Entity.fromKind(kind, this.assets);
         entity.addComponent(new EdgePlacement(cx, cz, side));
         entity.userData = { ...(entity.userData || {}), rotationStep };
         this.world.addEntity(entity);
+
         return true;
     }
 
@@ -267,6 +285,7 @@ class WorldEditor
         }
 
         this.world.removeEntity(entity);
+
         return true;
     }
 
@@ -285,12 +304,14 @@ class WorldEditor
 
         const animator = minion.getComponent(Animator);
         if(animator) { animator.crossfade("idle"); }
+
         return true;
     }
 
     removeMinion(entity)
     {
         if(!this.isMinionEntity(entity)) { return false; }
+
         this.world.removeEntity(entity);
         return true;
     }
@@ -306,12 +327,14 @@ class WorldEditor
         const entity = Entity.fromKind(kind, this.assets);
         entity.addComponent(new GridPlacement(cx, cz, 0, { blocks: true }));
         this.world.addEntity(entity);
+
         return true;
     }
 
     removeBlock(entity)
     {
         if(!this.isBlockEntity(entity)) { return false; }
+
         this.world.removeEntity(entity);
         return true;
     }
@@ -327,6 +350,7 @@ class WorldEditor
 
         const placement = entity.getComponent(GridPlacement);
         placement.setOffset(placement.xOffset + deltaX, placement.zOffset + deltaZ);
+
         return true;
     }
 
@@ -337,12 +361,14 @@ class WorldEditor
     {
         if(!entity || typeof entity.getComponent !== "function") { return false; }
         if(!entity.kind) { return false; }
-        if(entity.kind.startsWith("floor."))      { return false; }
+
+        if(entity.kind.startsWith("floor.")) { return false; }
         if(entity.kind.startsWith("wall.stone.")) { return false; }
-        if(entity.kind.startsWith("terrain."))    { return false; }
+        if(entity.kind.startsWith("terrain.")) { return false; }
 
         if(entity.getComponent(GridPlacement)) { return true; }
-        if(entity.getComponent(Walker))        { return true; }
+        if(entity.getComponent(Walker)) { return true; }
+
         return false;
     }
 
@@ -357,12 +383,14 @@ class WorldEditor
 
         const snapshot = this.snapshotEntity(entity);
         this.world.removeEntity(entity);
+
         return snapshot;
     }
 
     placeFromSnapshot(snapshot, cx, cz)
     {
         if(!snapshot) { return false; }
+
         if(this.isMinionKind(snapshot.kind))
         {
             return this.spawnMinion(snapshot.kind, cx, cz);
@@ -461,11 +489,13 @@ class WorldEditor
     {
         const animations = [];
         const sources = [kind, ...MINION_RIG_LIBRARIES];
+
         for(const id of sources)
         {
             try { animations.push(...this.assets.getAnimations(id)); }
             catch(_err) { /* missing rig — fall back to rest pose */ }
         }
+
         return animations;
     }
 
@@ -482,15 +512,19 @@ class WorldEditor
     findDecorAtCell(cx, cz)
     {
         const found = [];
+
         for(const entity of this.world.entitiesAtCell(cx, cz))
         {
             const placement = entity.getComponent(GridPlacement);
             if(!placement) { continue; }
+
             // Exclude blocks and floors; decor blocks the cell or sits on a surface.
             if(this.isBlockEntity(entity)) { continue; }
             if(!placement.blocks && placement.surfaceY === 0) { continue; }
+
             found.push(entity);
         }
+
         return found;
     }
 
@@ -507,11 +541,13 @@ class WorldEditor
     findSurfacePlaceablesAtCell(cx, cz)
     {
         const found = [];
+
         for(const entity of this.world.entitiesAtCell(cx, cz))
         {
             const placement = entity.getComponent(GridPlacement);
             if(placement && placement.surfaceY > 0) { found.push(entity); }
         }
+
         return found;
     }
 
@@ -555,13 +591,17 @@ class WorldEditor
     findWallDecorAtEdge(edge)
     {
         const targetKey = Edges.edgeKey(edge.cx, edge.cz, edge.side);
+
         for(const entity of this.world.entities)
         {
             if(!this.isWallDecor(entity)) { continue; }
+
             const ep = entity.getComponent(EdgePlacement);
             if(!ep) { continue; }
+
             if(Edges.edgeKey(ep.cx, ep.cz, ep.side) === targetKey) { return entity; }
         }
+
         return null;
     }
 
@@ -573,9 +613,11 @@ class WorldEditor
     isPlacedDecor(entity)
     {
         if(!entity || typeof entity.getComponent !== "function") { return false; }
+
         const gp = entity.getComponent(GridPlacement);
         if(gp && (gp.blocks || gp.surfaceY > 0)) { return true; }
         if(this.isWallDecor(entity)) { return true; }
+
         return false;
     }
 
@@ -602,11 +644,12 @@ class WorldEditor
     isNudgeable(entity)
     {
         if(!entity || typeof entity.getComponent !== "function") { return false; }
-        if(!entity.kind)                                         { return false; }
-        if(!entity.getComponent(GridPlacement))                  { return false; }
+        if(!entity.kind) { return false; }
+        if(!entity.getComponent(GridPlacement)) { return false; }
 
-        if(entity.kind.startsWith("floor."))      { return false; }
+        if(entity.kind.startsWith("floor.")) { return false; }
         if(entity.kind.startsWith("wall.stone.")) { return false; }
+
         return true;
     }
 
@@ -615,7 +658,8 @@ class WorldEditor
         if(!entity || !entity.kind) { return false; }
         if(typeof entity.getComponent !== "function") { return false; }
         if(!entity.getComponent(GridPlacement)) { return false; }
-        try   { return this.assets.getKind(entity.kind) === "terrain.block"; }
+
+        try { return this.assets.getKind(entity.kind) === "terrain.block"; }
         catch { return false; }
     }
 
@@ -650,7 +694,7 @@ class WorldEditor
 
     isMinionKind(kind)
     {
-        try   { return this.assets.getKind(kind) === "character"; }
+        try { return this.assets.getKind(kind) === "character"; }
         catch { return false; }
     }
 
@@ -688,16 +732,19 @@ class WorldEditor
     walkerInMainCell(cx, cz)
     {
         const subsPerMain = this.world.walkGrid.subsPerMain;
+
         for(const entity of this.world.entities)
         {
             const walker = entity.getComponent(Walker);
             if(!walker || !walker.currentSubCell) { continue; }
+
             if(Math.floor(walker.currentSubCell.sx / subsPerMain) === cx
                && Math.floor(walker.currentSubCell.sz / subsPerMain) === cz)
             {
                 return entity;
             }
         }
+
         return null;
     }
 

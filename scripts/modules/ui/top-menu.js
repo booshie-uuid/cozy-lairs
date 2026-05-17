@@ -8,7 +8,7 @@ const ko = window.ko;
 const ICON_BASE = "assets/icons";
 
 const MODE_LABELS = {
-    builder:     "Build Mode",
+    builder: "Build Mode",
     firstPerson: "Explore Mode"
 };
 
@@ -18,8 +18,8 @@ class TopMenuViewModel
     constructor({ saveService, devConsole, cameraMode, confirmModal, resetLair, onToggleMode })
     {
         this.saveService = saveService;
-        this.devConsole  = devConsole;
-        this.cameraMode  = cameraMode;
+        this.devConsole = devConsole;
+        this.cameraMode = cameraMode;
         this.confirmModal = confirmModal;
         this.resetLair = resetLair;
         this.onToggleMode = onToggleMode;

@@ -29,7 +29,7 @@ function findPath(walkGrid, start, end, isTraversable)
     }
 
     if(!isTraversable(start.sx, start.sz)) { return null; }
-    if(!isTraversable(end.sx,   end.sz))   { return null; }
+    if(!isTraversable(end.sx, end.sz)) { return null; }
 
     if(start.sx === end.sx && start.sz === end.sz)
     {
@@ -37,11 +37,11 @@ function findPath(walkGrid, start, end, isTraversable)
     }
 
     const startKey = subKey(start.sx, start.sz);
-    const endKey   = subKey(end.sx,   end.sz);
+    const endKey = subKey(end.sx, end.sz);
 
     const cameFrom = new Map();
-    const visited  = new Set();
-    const queue    = [{ sx: start.sx, sz: start.sz, key: startKey }];
+    const visited = new Set();
+    const queue = [{ sx: start.sx, sz: start.sz, key: startKey }];
     visited.add(startKey);
 
     while(queue.length > 0)
@@ -59,8 +59,8 @@ function findPath(walkGrid, start, end, isTraversable)
             const nsz = current.sz + dsz;
             const nKey = subKey(nsx, nsz);
 
-            if(visited.has(nKey))         { continue; }
-            if(!isTraversable(nsx, nsz))  { continue; }
+            if(visited.has(nKey)) { continue; }
+            if(!isTraversable(nsx, nsz)) { continue; }
 
             visited.add(nKey);
             cameFrom.set(nKey, current);
@@ -76,12 +76,14 @@ function reconstructPath(cameFrom, endNode, startKey)
 {
     const path = [];
     let current = endNode;
+
     while(current.key !== startKey)
     {
         path.push({ sx: current.sx, sz: current.sz });
         current = cameFrom.get(current.key);
     }
     path.push({ sx: current.sx, sz: current.sz });
+
     path.reverse();
     return path;
 }
