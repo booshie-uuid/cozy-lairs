@@ -1,45 +1,26 @@
 import * as THREE from "three";
 
-import { Tool, TINT_VALID, TINT_INVALID, TINT_REMOVE } from "./tool.js";
+import
+{
+    Tool,
+    CellPlaceTool,
+    CellEraseTool,
+    TINT_VALID,
+    makeTranslucent,
+    rotateStep
+} from "./tool.js";
 
 
 /******************************************************************************/
 /* DECOR PLACE / ERASE + WALL DECOR PLACE TOOLS                               */
 /******************************************************************************/
 
-const GHOST_OPACITY = 0.5;
-
 const QUARTER_TURN = Math.PI / 2;
 
 
-function makeTranslucent(mesh, colour)
+class DecorPlaceTool extends CellPlaceTool
 {
-    mesh.traverse(node =>
-    {
-        if(node.isMesh && node.material)
-        {
-            const cloned = node.material.clone();
-            cloned.transparent = true;
-            cloned.opacity = GHOST_OPACITY;
-            cloned.depthWrite = false;
-            if(cloned.color) { cloned.color.setHex(colour); }
-            node.material = cloned;
-        }
-    });
-}
-
-
-class DecorPlaceTool extends Tool
-{
-    constructor({ kind, consumePickup = null })
-    {
-        super();
-        this.kind = kind;
-        this.rotationStep = 0;
-        // Returns true if a held pickup was consumed at the clicked cell,
-        // letting the normal place path short-circuit.
-        this.consumePickup = consumePickup;
-    }
+    get supportsRotation() { return true; }
 
     buildGhost()
     {
@@ -49,27 +30,24 @@ class DecorPlaceTool extends Tool
         return mesh;
     }
 
-    onCellHover(cell)
+    validate(cell)
     {
-        this.hoverCell = cell;
-        const valid = this.editor.canPlaceDecor(this.kind, cell.cx, cell.cz);
-        const surfaceY = this.editor.getPlacementYFor(this.kind, cell.cx, cell.cz);
-        this.positionGhostAtCell(cell.cx, cell.cz, surfaceY);
-        this.setGhostTint(valid);
+        return this.editor.canPlaceDecor(this.kind, cell.cx, cell.cz);
     }
 
-    onCellClick(cell, button)
+    positionGhost(cell)
     {
-        if(button !== "left") { return; }
-        if(this.consumePickup && this.consumePickup(this.kind, cell.cx, cell.cz)) { return; }
+        const surfaceY = this.editor.getPlacementYFor(this.kind, cell.cx, cell.cz);
+        this.positionGhostAtCell(cell.cx, cell.cz, surfaceY);
+    }
+
+    commit(cell)
+    {
         this.editor.placeDecor(this.kind, cell.cx, cell.cz, this.rotationStep);
     }
 
-    rotate(direction)
+    onRotationChanged()
     {
-        if(direction === "cw")       { this.rotationStep = (this.rotationStep + 1) % 4; }
-        else if(direction === "ccw") { this.rotationStep = (this.rotationStep + 3) % 4; }
-
         if(this.ghostMesh) { this.ghostMesh.rotation.y = this.rotationStep * QUARTER_TURN; }
     }
 }
@@ -102,13 +80,11 @@ class WallDecorPlaceTool extends Tool
 
     onWallEdgeHover(edge)
     {
-        this.hoverEdge = edge;
-        
         if(!this.ghostMesh) { return; }
 
         const valid = this.editor.canPlaceWallDecor(this.kind, edge);
         const floor = this.editor.floorSideOfEdge(edge);
-        
+
         this.positionGhostAtEdge(floor);
         this.setGhostTint(valid);
     }
@@ -119,10 +95,12 @@ class WallDecorPlaceTool extends Tool
         this.editor.placeWallDecor(this.kind, edge, this.rotationStep);
     }
 
+    // Wall decor's ghost rotation is set by the edge side, not rotationStep,
+    // so Q/E updates state but the ghost preview doesn't reorient. The
+    // placed entity still picks up the rotation.
     rotate(direction)
     {
-        if(direction === "cw")       { this.rotationStep = (this.rotationStep + 1) % 4; }
-        else if(direction === "ccw") { this.rotationStep = (this.rotationStep + 3) % 4; }
+        this.rotationStep = rotateStep(this.rotationStep, direction);
     }
 
     positionGhostAtEdge(floorEdge)
@@ -137,10 +115,10 @@ class WallDecorPlaceTool extends Tool
 
         switch(floorEdge.side)
         {
-            case "south": z = floorEdge.cz * S;       rotY = 0;            break;
-            case "north": z = (floorEdge.cz + 1) * S; rotY = Math.PI;      break;
-            case "west":  x = floorEdge.cx * S;       rotY = Math.PI / 2;  break;
-            case "east":  x = (floorEdge.cx + 1) * S; rotY = -Math.PI / 2; break;
+            case "south": z = floorEdge.cz * S;       rotY = 0;             break;
+            case "north": z = (floorEdge.cz + 1) * S; rotY = Math.PI;       break;
+            case "west":  x = floorEdge.cx * S;       rotY = QUARTER_TURN;  break;
+            case "east":  x = (floorEdge.cx + 1) * S; rotY = -QUARTER_TURN; break;
         }
 
         this.ghostMesh.position.set(x, 0, z);
@@ -150,43 +128,17 @@ class WallDecorPlaceTool extends Tool
 }
 
 
-class DecorEraseTool extends Tool
+class DecorEraseTool extends CellEraseTool
 {
-    buildGhost()
-    {
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const edges = new THREE.EdgesGeometry(geometry);
-        const material = new THREE.LineBasicMaterial({ color: TINT_REMOVE });
-        const lines = new THREE.LineSegments(edges, material);
-        geometry.dispose();
-        return lines;
-    }
-
-    onCellHover(cell)
-    {
-        this.hoverCell = cell;
-        const target = this.findDecorTarget(cell);
-        if(!target)
-        {
-            if(this.ghostMesh) { this.ghostMesh.visible = false; }
-            return;
-        }
-        this.snapToEntity(target);
-    }
-
-    onCellClick(cell, button)
-    {
-        if(button !== "left") { return; }
-        const target = this.findDecorTarget(cell);
-        if(!target) { return; }
-        this.editor.removeDecor(target);
-    }
-
-    findDecorTarget(cell)
+    findTarget(cell)
     {
         const decorList = this.editor.findDecorAtCell(cell.cx, cell.cz);
         if(decorList.length > 0) { return decorList[0]; }
 
+        // Cell-targeted erase can't read the edge under the cursor, so it
+        // falls back to scanning all four sides. First match wins — corner
+        // cells holding two wall-decor pieces always erase the NSEW-first
+        // hit rather than the side the cursor was on.
         for(const side of ["north", "south", "east", "west"])
         {
             const wd = this.editor.findWallDecorAtEdge({ cx: cell.cx, cz: cell.cz, side });
@@ -195,24 +147,9 @@ class DecorEraseTool extends Tool
         return null;
     }
 
-    snapToEntity(entity)
+    commitRemove(target)
     {
-        if(!this.ghostMesh) { return; }
-
-        const bbox = new THREE.Box3().setFromObject(entity.object3D);
-        const size = new THREE.Vector3();
-        const centre = new THREE.Vector3();
-
-        bbox.getSize(size);
-        bbox.getCenter(centre);
-
-        size.x = Math.max(size.x, 0.1);
-        size.y = Math.max(size.y, 0.1);
-        size.z = Math.max(size.z, 0.1);
-        
-        this.ghostMesh.scale.copy(size);
-        this.ghostMesh.position.copy(centre);
-        this.ghostMesh.visible = true;
+        this.editor.removeDecor(target);
     }
 }
 

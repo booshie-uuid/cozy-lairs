@@ -8,6 +8,17 @@ const ko = window.ko;
 /* DEV CONSOLE VIEW MODEL                                                     */
 /******************************************************************************/
 
+const NOOP_ACTIONS =
+{
+    toggleCameraMode:     () => {},
+    toggleDiagnosticGrid: () => {},
+    setDiagMode:          () => {},
+    dumpWorldJSON:        () => {},
+    forceSaveFailure:     () => {},
+    reloadManifest:       () => {}
+};
+
+
 class DevConsoleViewModel
 {
     constructor()
@@ -28,7 +39,6 @@ class DevConsoleViewModel
             { value: "overlay",  label: "Main + Sub"   },
             { value: "sub-only", label: "Sub-grid only" }
         ];
-        this.diagMode.subscribe(mode => this.actions.setDiagMode(mode));
 
         this.fps = ko.observable(0);
         this.frameMs = ko.observable(0);
@@ -79,17 +89,17 @@ class DevConsoleViewModel
         this.formatRelativeTime = timeMs => formatRelative(this.nowMs() - timeMs);
         this.formatAbsoluteTime = wallClockMs => formatAbsolute(wallClockMs);
 
-        // No-op defaults so the UI doesn't throw if a button fires
-        // before App.wireDevConsole replaces this slot.
-        this.actions =
-        {
-            toggleCameraMode:     () => {},
-            toggleDiagnosticGrid: () => {},
-            setDiagMode:          () => {},
-            dumpWorldJSON:        () => {},
-            forceSaveFailure:     () => {},
-            reloadManifest:       () => {}
-        };
+        // Stub until installActions runs — keeps UI buttons safe if the
+        // dev console is opened before App.wireDevConsole completes.
+        this.actions = NOOP_ACTIONS;
+    }
+
+    installActions(actions)
+    {
+        this.actions = actions;
+        // Subscribe AFTER actions are real — wiring against the stub
+        // would silently drop the first diagMode change.
+        this.diagMode.subscribe(mode => this.actions.setDiagMode(mode));
     }
 
     compileRegex(pattern)

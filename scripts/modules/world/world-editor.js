@@ -8,6 +8,7 @@ import { WanderBehaviour } from "./components/wander-behaviour.js";
 
 import * as Footprint      from "./footprint.js";
 import * as WalkSearch     from "./walk-search.js";
+import * as Edges          from "./edges.js";
 
 import { PLAYER_MARKER }   from "../engine/player-marker.js";
 
@@ -26,17 +27,6 @@ const MINION_RIG_LIBRARIES =
     "animations.rig-medium.general",
     "animations.rig-medium.movement"
 ];
-
-const SIDES = ["north", "south", "east", "west"];
-
-const OPPOSITE_SIDE =
-{
-    north: "south",
-    south: "north",
-    east:  "west",
-    west:  "east"
-};
-
 
 class WorldEditor
 {
@@ -65,11 +55,6 @@ class WorldEditor
         if(grid.isFloor(cx, cz)) { return false; }
         if(grid.blockedCells.has(grid.cellKey(cx, cz))) { return false; }
         return true;
-    }
-
-    canRemoveBlock(entity)
-    {
-        return this.isBlockEntity(entity);
     }
 
     canEraseFloor(cx, cz)
@@ -114,11 +99,6 @@ class WorldEditor
         return true;
     }
 
-    canRemoveDecor(entity)
-    {
-        return this.isPlacedDecor(entity);
-    }
-
     canSpawnMinion(_kind, cx, cz)
     {
         const grid = this.world.grid;
@@ -134,11 +114,6 @@ class WorldEditor
         const centreSz = base.sz + Math.floor(walkGrid.subsPerMain / 2);
         if(!walkGrid.isWalkable(centreSx, centreSz)) { return false; }
         return true;
-    }
-
-    canRemoveMinion(entity)
-    {
-        return this.isMinionEntity(entity);
     }
 
     canNudge(entity, deltaX, deltaZ)
@@ -496,13 +471,10 @@ class WorldEditor
 
     findFloorAtCell(cx, cz)
     {
-        for(const entity of this.world.entities)
+        for(const entity of this.world.entitiesAtCell(cx, cz))
         {
             const placement = entity.getComponent(GridPlacement);
-            if(placement && placement.walkable && placement.cx === cx && placement.cz === cz)
-            {
-                return entity;
-            }
+            if(placement && placement.walkable) { return entity; }
         }
         return null;
     }
@@ -510,11 +482,10 @@ class WorldEditor
     findDecorAtCell(cx, cz)
     {
         const found = [];
-        for(const entity of this.world.entities)
+        for(const entity of this.world.entitiesAtCell(cx, cz))
         {
             const placement = entity.getComponent(GridPlacement);
             if(!placement) { continue; }
-            if(placement.cx !== cx || placement.cz !== cz) { continue; }
             // Exclude blocks and floors; decor blocks the cell or sits on a surface.
             if(this.isBlockEntity(entity)) { continue; }
             if(!placement.blocks && placement.surfaceY === 0) { continue; }
@@ -536,12 +507,10 @@ class WorldEditor
     findSurfacePlaceablesAtCell(cx, cz)
     {
         const found = [];
-        for(const entity of this.world.entities)
+        for(const entity of this.world.entitiesAtCell(cx, cz))
         {
             const placement = entity.getComponent(GridPlacement);
-            if(!placement) { continue; }
-            if(placement.cx !== cx || placement.cz !== cz) { continue; }
-            if(placement.surfaceY > 0) { found.push(entity); }
+            if(placement && placement.surfaceY > 0) { found.push(entity); }
         }
         return found;
     }
@@ -562,11 +531,9 @@ class WorldEditor
 
     findBlockAtCell(cx, cz)
     {
-        for(const entity of this.world.entities)
+        for(const entity of this.world.entitiesAtCell(cx, cz))
         {
-            if(!this.isBlockEntity(entity)) { continue; }
-            const placement = entity.getComponent(GridPlacement);
-            if(placement && placement.cx === cx && placement.cz === cz) { return entity; }
+            if(this.isBlockEntity(entity)) { return entity; }
         }
         return null;
     }
@@ -580,60 +547,27 @@ class WorldEditor
     {
         const grid = this.world.grid;
         const here = grid.isFloor(edge.cx, edge.cz);
-        const { ncx, ncz } = this.neighbourCell(edge.cx, edge.cz, edge.side);
+        const { ncx, ncz } = Edges.neighbourCell(edge.cx, edge.cz, edge.side);
         const there = grid.isFloor(ncx, ncz);
         return here !== there;
     }
 
-    neighbourCell(cx, cz, side)
-    {
-        switch(side)
-        {
-            case "north": return { ncx: cx,     ncz: cz + 1 };
-            case "south": return { ncx: cx,     ncz: cz - 1 };
-            case "east":  return { ncx: cx + 1, ncz: cz     };
-            case "west":  return { ncx: cx - 1, ncz: cz     };
-        }
-        throw new Error(`WorldEditor.neighbourCell: invalid side "${side}".`);
-    }
-
     findWallDecorAtEdge(edge)
     {
-        const targetKey = this.canonicalEdgeKey(edge.cx, edge.cz, edge.side);
+        const targetKey = Edges.edgeKey(edge.cx, edge.cz, edge.side);
         for(const entity of this.world.entities)
         {
             if(!this.isWallDecor(entity)) { continue; }
             const ep = entity.getComponent(EdgePlacement);
             if(!ep) { continue; }
-            if(this.canonicalEdgeKey(ep.cx, ep.cz, ep.side) === targetKey) { return entity; }
+            if(Edges.edgeKey(ep.cx, ep.cz, ep.side) === targetKey) { return entity; }
         }
         return null;
     }
 
     floorSideOfEdge(edge)
     {
-        const grid = this.world.grid;
-        if(grid.isFloor(edge.cx, edge.cz)) { return edge; }
-        switch(edge.side)
-        {
-            case "north": return { cx: edge.cx,     cz: edge.cz + 1, side: "south" };
-            case "south": return { cx: edge.cx,     cz: edge.cz - 1, side: "north" };
-            case "east":  return { cx: edge.cx + 1, cz: edge.cz,     side: "west" };
-            case "west":  return { cx: edge.cx - 1, cz: edge.cz,     side: "east" };
-        }
-        return edge;
-    }
-
-    canonicalEdgeKey(cx, cz, side)
-    {
-        switch(side)
-        {
-            case "north": return `${cx},${cz},north`;
-            case "south": return `${cx},${cz - 1},north`;
-            case "east":  return `${cx},${cz},east`;
-            case "west":  return `${cx - 1},${cz},east`;
-        }
-        throw new Error(`WorldEditor.canonicalEdgeKey: invalid side "${side}".`);
+        return Edges.floorSideOf(this.world.grid, edge.cx, edge.cz, edge.side);
     }
 
     isPlacedDecor(entity)
@@ -683,13 +617,6 @@ class WorldEditor
         if(!entity.getComponent(GridPlacement)) { return false; }
         try   { return this.assets.getKind(entity.kind) === "terrain.block"; }
         catch { return false; }
-    }
-
-    isWalkerEntity(occupant)
-    {
-        if(!occupant || occupant === PLAYER_MARKER) { return false; }
-        if(typeof occupant.getComponent !== "function") { return false; }
-        return occupant.getComponent(Walker) !== undefined;
     }
 
     snapshotEntity(entity)

@@ -1,40 +1,20 @@
 import * as THREE from "three";
 
-import { Tool, TINT_VALID, TINT_INVALID, TINT_REMOVE } from "./tool.js";
+import
+{
+    CellPlaceTool,
+    CellEraseTool,
+    TINT_VALID,
+    makeTranslucent
+} from "./tool.js";
 
 
 /******************************************************************************/
 /* BLOCK PLACE / ERASE TOOLS                                                  */
 /******************************************************************************/
 
-const GHOST_OPACITY = 0.5;
-
-
-function makeTranslucent(mesh, colour)
+class BlockPlaceTool extends CellPlaceTool
 {
-    mesh.traverse(node =>
-    {
-        if(node.isMesh && node.material)
-        {
-            const cloned = node.material.clone();
-            cloned.transparent = true;
-            cloned.opacity = GHOST_OPACITY;
-            cloned.depthWrite = false;
-            if(cloned.color) { cloned.color.setHex(colour); }
-            node.material = cloned;
-        }
-    });
-}
-
-
-class BlockPlaceTool extends Tool
-{
-    constructor({ kind })
-    {
-        super();
-        this.kind = kind;
-    }
-
     buildGhost()
     {
         const mesh = this.editor.assets.get(this.kind);
@@ -49,79 +29,36 @@ class BlockPlaceTool extends Tool
         return group;
     }
 
-    onCellHover(cell)
+    validate(cell)
     {
-        this.hoverCell = cell;
-        const valid = this.editor.canPlaceBlock(this.kind, cell.cx, cell.cz);
-
-        this.positionGhostAtCell(cell.cx, cell.cz);
-        this.ghostMesh.position.y = 0;
-
-        this.setGhostTint(valid);
+        return this.editor.canPlaceBlock(this.kind, cell.cx, cell.cz);
     }
 
-    onCellClick(cell, button)
+    positionGhost(cell)
     {
-        if(button !== "left") { return; }
+        this.positionGhostAtCell(cell.cx, cell.cz);
+        // Block ghost sits on the ground — block-bits use meta.yOffset
+        // inside the inner mesh to lift to mid-block height.
+        this.ghostMesh.position.y = 0;
+    }
+
+    commit(cell)
+    {
         this.editor.placeBlock(this.kind, cell.cx, cell.cz);
     }
 }
 
 
-class BlockEraseTool extends Tool
+class BlockEraseTool extends CellEraseTool
 {
-    buildGhost()
+    findTarget(cell)
     {
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const edges = new THREE.EdgesGeometry(geometry);
-        const material = new THREE.LineBasicMaterial({ color: TINT_REMOVE });
-        const lines = new THREE.LineSegments(edges, material);
-
-        geometry.dispose();
-
-        return lines;
+        return this.editor.findBlockAtCell(cell.cx, cell.cz);
     }
 
-    onCellHover(cell)
+    commitRemove(target)
     {
-        this.hoverCell = cell;
-        const target = this.editor.findBlockAtCell(cell.cx, cell.cz);
-
-        if(!target)
-        {
-            if(this.ghostMesh) { this.ghostMesh.visible = false; }
-            return;
-        }
-
-        this.snapToEntity(target);
-    }
-
-    onCellClick(cell, button)
-    {
-        if(button !== "left") { return; }
-        const target = this.editor.findBlockAtCell(cell.cx, cell.cz);
-        if(!target) { return; }
         this.editor.removeBlock(target);
-    }
-
-    snapToEntity(entity)
-    {
-        if(!this.ghostMesh) { return; }
-        
-        const bbox = new THREE.Box3().setFromObject(entity.object3D);
-        const size = new THREE.Vector3();
-        const centre = new THREE.Vector3();
-
-        bbox.getSize(size);
-        bbox.getCenter(centre);
-
-        size.x = Math.max(size.x, 0.1);
-        size.y = Math.max(size.y, 0.1);
-        size.z = Math.max(size.z, 0.1);
-
-        this.ghostMesh.scale.copy(size);
-        this.ghostMesh.position.copy(centre);
-        this.ghostMesh.visible = true;
     }
 }
 

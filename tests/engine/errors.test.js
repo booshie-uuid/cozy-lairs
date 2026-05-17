@@ -1,6 +1,5 @@
 import { test, expect } from "vitest";
 import * as Errors from "../../scripts/modules/engine/errors.js";
-import * as Engine from "../../scripts/modules/engine/index.js";
 
 
 const SUBCLASS_NAMES = [
@@ -59,14 +58,3 @@ test("error stack is preserved when thrown", () =>
 });
 
 
-test("engine façade re-exports every error class plus Emitter", () =>
-{
-    expect(Engine.CozyLairsError).toBe(Errors.CozyLairsError);
-    expect(Engine.AssetLoadError).toBe(Errors.AssetLoadError);
-    expect(Engine.ManifestError).toBe(Errors.ManifestError);
-    expect(Engine.SaveError).toBe(Errors.SaveError);
-    expect(Engine.WebGLUnavailableError).toBe(Errors.WebGLUnavailableError);
-    expect(Engine.GridBoundsError).toBe(Errors.GridBoundsError);
-    expect(Engine.PlacementError).toBe(Errors.PlacementError);
-    expect(typeof Engine.Emitter).toBe("function");
-});

@@ -223,7 +223,9 @@ class App
         this.cameraControllers = {};
         this.tabHandler = null;
         this.saveHandler = null;
+        this.loadHandler = null;
         this.devToggleHandler = null;
+        this.confirmModalEscapeHandler = null;
         this.contextMenuHandler = null;
         this.resizeHandler = null;
         this.globalErrorHandler = null;
@@ -399,9 +401,17 @@ class App
         {
             this.input.off("keydown", this.saveHandler);
         }
+        if(this.input && this.loadHandler)
+        {
+            this.input.off("keydown", this.loadHandler);
+        }
         if(this.input && this.devToggleHandler)
         {
             this.input.off("keydown", this.devToggleHandler);
+        }
+        if(this.input && this.confirmModalEscapeHandler)
+        {
+            this.input.off("keydown", this.confirmModalEscapeHandler);
         }
         if(this.input)    { this.input.dispose(); }
         if(this.renderer) { this.renderer.dispose(); }
@@ -545,9 +555,8 @@ class App
     buildToolFromId(toolId)
     {
         if(!toolId) { return new NoopTool(); }
-        if(toolId === "select") { return new NudgeTool(); }
 
-        // Tool IDs follow `tab:slug[:kind]` — split on the first colon
+        // Tool IDs follow `tab:verb[:kind]` — split on the first colon
         // only so kinds with dots (e.g. "decor.barrel") stay intact.
         const firstColon = toolId.indexOf(":");
         const tab = toolId.slice(0, firstColon);
@@ -563,16 +572,6 @@ class App
                 {
                     return new BlockPlaceTool({ kind: rest.slice("build:".length) });
                 }
-
-                if(rest === "paint")       { return new FloorPaintTool(); }
-                if(rest === "erase")       { return new FloorEraseTool(); }
-                if(rest === "block:erase") { return new BlockEraseTool(); }
-
-                const [slug, ...kindParts] = rest.split(":");
-                if(slug === "block" && kindParts[0] === "place")
-                {
-                    return new BlockPlaceTool({ kind: kindParts.slice(1).join(":") });
-                }
                 break;
             }
             case "decor":
@@ -582,17 +581,7 @@ class App
                 if(rest === "nudge") { return new NudgeTool(); }
                 if(rest.startsWith("build:"))
                 {
-                    const kind = rest.slice("build:".length);
-                    return this.buildDecorPlaceTool(kind);
-                }
-
-                const [slug, ...kindParts] = rest.split(":");
-                const kind = kindParts.join(":");
-                if(slug === "erase") { return new DecorEraseTool(); }
-                if(slug === "place" && kind) { return this.buildDecorPlaceTool(kind); }
-                if(slug === "wall" && kindParts[0] === "place")
-                {
-                    return new WallDecorPlaceTool({ kind: kindParts.slice(1).join(":") });
+                    return this.buildDecorPlaceTool(rest.slice("build:".length));
                 }
                 break;
             }
@@ -607,11 +596,6 @@ class App
                         consumePickup: this.makeConsumePickupHook()
                     });
                 }
-
-                const [slug, ...kindParts] = rest.split(":");
-                const kind = kindParts.join(":");
-                if(slug === "erase") { return new MinionEraseTool(); }
-                if(slug === "spawn" && kind) { return new MinionSpawnTool({ kind }); }
                 break;
             }
         }
@@ -710,9 +694,7 @@ class App
             maxDistance:     80
         });
 
-        const playerStart = this.player
-            ? this.player.object3D.position.clone()
-            : centre.clone();
+        const playerStart = this.player.object3D.position.clone();
 
         this.cameraControllers.firstPerson = new FirstPersonCamera(this.input,
         {
@@ -955,7 +937,7 @@ class App
             }
         });
 
-        this.viewModel.dev.actions =
+        this.viewModel.dev.installActions(
         {
             toggleCameraMode:     () => this.toggleCameraMode(),
             toggleDiagnosticGrid: () => this.toggleDiagnosticGrid(),
@@ -963,7 +945,7 @@ class App
             dumpWorldJSON:        () => this.dumpWorldJSON(),
             forceSaveFailure:     () => this.forceSaveFailure(),
             reloadManifest:       () => this.reloadManifest()
-        };
+        });
 
         this.devConsole.install();
 
@@ -972,7 +954,7 @@ class App
         {
             if(event.code !== DEV_TOGGLE_KEY || event.repeat) { return; }
             if(this.isTextInputFocused())                     { return; }
-            this.devConsole.toggle();
+            this.viewModel.dev.toggleOpen();
         };
         this.input.on("keydown", this.devToggleHandler);
 
@@ -1047,12 +1029,6 @@ class App
 
     /* DEV CONSOLE ACTIONS ****************************************************/
 
-    toggleCameraMode()
-    {
-        const next = this.viewModel.cameraMode() === "builder" ? "firstPerson" : "builder";
-        this.setCameraMode(next);
-    }
-
     toggleDiagnosticGrid()
     {
         const next = this.diagMode === "off" ? "overlay" : "off";
@@ -1086,32 +1062,6 @@ class App
     {
         const snapshot = WorldSerializer.toJSON(this.world);
         console.log(JSON.stringify(snapshot, null, 2));
-    }
-
-    diagnoseWalkers()
-    {
-        const walkGrid = this.world.walkGrid;
-        const minions = [...this.world.entities].filter(e => e.getComponent(Walker));
-        console.log("=== Walker diagnostics ===");
-        for(let i = 0; i < minions.length; i++)
-        {
-            const minion = minions[i];
-            const walker = minion.getComponent(Walker);
-            const pos = minion.object3D.position;
-            const physical = walkGrid.worldToSub(pos.x, pos.z);
-            const reg = walker.currentSubCell
-                ? `(${walker.currentSubCell.sx}, ${walker.currentSubCell.sz})`
-                : "<null>";
-            const drift = walker.currentSubCell
-                && (physical.sx !== walker.currentSubCell.sx || physical.sz !== walker.currentSubCell.sz)
-                ? " ** DRIFT **" : "";
-            console.log(
-                `  #${i} pos=(${pos.x.toFixed(2)}, ${pos.z.toFixed(2)}) ` +
-                `physicalSub=(${physical.sx}, ${physical.sz}) ` +
-                `registered=${reg} ` +
-                `completed=${walker.completed}${drift}`
-            );
-        }
     }
 
     forceSaveFailure()

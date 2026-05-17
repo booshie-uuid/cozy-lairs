@@ -44,11 +44,6 @@ class Input extends Emitter
         this.preventDefaultCodes.add(code);
     }
 
-    allowDefaultFor(code)
-    {
-        this.preventDefaultCodes.delete(code);
-    }
-
     requestPointerLock(element)
     {
         if(element && typeof element.requestPointerLock === "function")

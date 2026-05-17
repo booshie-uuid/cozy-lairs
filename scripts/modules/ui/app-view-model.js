@@ -32,7 +32,18 @@ class AppViewModel
         this.cameraMode = ko.observable("builder");
         this.saveStatus = ko.observable("");
         this.saveStatusVisible = ko.observable(false);
-        this.saveStatusFadeTimer = null;
+
+        // Single-slot queue that drives the save-status chip — owns the
+        // dismiss timer so AppViewModel doesn't carry its own setTimeout
+        // bookkeeping. Custom sink writes to the chip's observables
+        // instead of a list since the chip renders one item, not a tray.
+        this.saveStatusQueue = new ToastQueue(
+        {
+            push:   toast => { this.saveStatus(toast.message); this.saveStatusVisible(true); },
+            remove: _pred => { this.saveStatusVisible(false); }
+        },
+        { dismissMs: SAVE_STATUS_VISIBLE_MS });
+
         this.catalogueIcons = ko.observable(new Map());
         this.authoringPanel = ko.observable(null);
         this.topMenu = ko.observable(null);
@@ -95,20 +106,24 @@ class AppViewModel
 
     flashSaveStatus(message)
     {
-        this.saveStatus(message);
-        this.saveStatusVisible(true);
-
-        if(this.saveStatusFadeTimer !== null)
-        {
-            clearTimeout(this.saveStatusFadeTimer);
-        }
-        this.saveStatusFadeTimer = setTimeout(() =>
-        {
-            this.saveStatusVisible(false);
-            this.saveStatusFadeTimer = null;
-        }, SAVE_STATUS_VISIBLE_MS);
+        // Clear before push so the prior message's timer doesn't fire
+        // after this message and hide the chip prematurely.
+        this.saveStatusQueue.clear();
+        this.saveStatusQueue.push(message, "info");
     }
 
+    // Deferred-install methods follow a uniform contract: each chrome
+    // surface that depends on a service constructed asynchronously is
+    // built here rather than in the constructor. The matching observable
+    // is null until install completes, so `with: surface` bindings
+    // collapse to nothing and KO's visibility checks see a falsy value.
+    // Surfaces with no async deps (confirmModal, dev) are constructed
+    // eagerly in the constructor; their dev console "actions" map is
+    // installed late via `dev.installActions(...)`.
+
+    // Gate: needs the loaded asset manager. App calls this after
+    // `assets.preloadCore()` resolves. Also constructs the tool bar
+    // since it depends on the panel for tab / kind state.
     installAuthoringPanel(assets)
     {
         const panel = new AuthoringPanel({
@@ -127,6 +142,10 @@ class AppViewModel
         }));
     }
 
+    // Gate: needs the save service (built after the world) and the
+    // pickup-aware save shim from App. Mode toggle + lair reset are
+    // closures owned by App; they exist from start() but invoke
+    // logic that depends on the world being built.
     installTopMenu({ saveService, resetLair, onToggleMode })
     {
         this.topMenu(new TopMenuViewModel({

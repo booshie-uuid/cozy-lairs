@@ -259,20 +259,6 @@ test("GridPlacement constructor rejects non-boolean flag values", () =>
 });
 
 
-test("GridPlacement.moveTo updates cx / cz; toJSON reflects the new cell", () =>
-{
-    const placement = new GridPlacement(2, 3, 1, { blocks: true });
-    placement.moveTo(7, 9);
-
-    expect(placement.cx).toBe(7);
-    expect(placement.cz).toBe(9);
-    // Other fields untouched
-    expect(placement.rotationStep).toBe(1);
-    expect(placement.blocks).toBe(true);
-    expect(placement.toJSON()).toEqual({ cx: 7, cz: 9, rotationStep: 1, blocks: true });
-});
-
-
 test("GridPlacement.surfaceY defaults to 0 when omitted from options", () =>
 {
     const placement = new GridPlacement(0, 0, 0);

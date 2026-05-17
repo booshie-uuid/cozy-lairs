@@ -21,8 +21,6 @@ class NudgeTool extends Tool
         this.materialBackups = null;
     }
 
-    buildGhost() { return null; }
-
     deactivate()
     {
         this.deselect();

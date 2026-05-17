@@ -47,11 +47,6 @@ class AuthoringPanel
         this.selectedToolId(`${tab}:build:${kind}`);
     }
 
-    isToolSelected(toolId)
-    {
-        return this.selectedToolId() === toolId;
-    }
-
     isKindSelected(kind)
     {
         return this.selectedKind() === kind;

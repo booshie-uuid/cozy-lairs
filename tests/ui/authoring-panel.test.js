@@ -153,15 +153,6 @@ test("isKindSelected returns true only for the currently armed kind", () =>
 });
 
 
-test("isToolSelected matches against the currently active tool id", () =>
-{
-    const { panel } = setup();
-    panel.selectedToolId("decor:nudge");
-    expect(panel.isToolSelected("decor:nudge")).toBe(true);
-    expect(panel.isToolSelected("decor:pick")).toBe(false);
-});
-
-
 test("legacy *Tools constants are no longer fields on the panel", () =>
 {
     const { panel } = setup();

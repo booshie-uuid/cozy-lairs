@@ -183,7 +183,7 @@ Right-click       →  Click-vs-drag distinguished by movement threshold (4px).
 Q/E               →  tool.rotate("ccw" | "cw")  →  rotationStep += ±1 (mod 4)
 ```
 
-Tool IDs use `tab:slug[:kind]` format (e.g. `build:paint`, `decor:place:decor.barrel`, `build:block:place:block.gravel`). Each tool sets `this.targetType` to `"cell"` / `"wallEdge"` / `"none"`; the adapter dispatches accordingly.
+Tool IDs use `tab:verb[:kind]` format (e.g. `build:build`, `decor:build:decor.barrel`, `minion:pick`). Verbs are `build`, `break`, `pick`, `nudge`. Each tool sets `this.targetType` to `"cell"` / `"wallEdge"` / `"entity"` / `"none"`; the adapter dispatches accordingly.
 
 `WorldEditor` is the only writer of authored content. Every mutation method returns `true`/`false`; predicate methods (`canX`) mirror the gates so ghost tinting is consistent with the actual outcome. Active-attempt refusals emit a toast; hover refusals just tint red.
 

@@ -3,6 +3,8 @@ import { GridPlacement }   from "./components/grid-placement.js";
 import { EdgePlacement }   from "./components/edge-placement.js";
 import { CornerPlacement } from "./components/corner-placement.js";
 
+import * as Edges from "./edges.js";
+
 
 /******************************************************************************/
 /* WALL TRACER                                                                */
@@ -14,16 +16,6 @@ const CORNER_KIND        = "wall.stone.corner";
 
 const HALF_OFFSET             = 1;
 const HALF_WALL_ORIGIN_OFFSET = -1;
-
-const SIDES = ["north", "south", "east", "west"];
-
-const OPPOSITE_SIDE =
-{
-    north: "south",
-    south: "north",
-    east:  "west",
-    west:  "east"
-};
 
 const CORNER_ORIENTATION =
 {
@@ -158,7 +150,7 @@ class WallTracer
 
     retraceCellWalls(cx, cz)
     {
-        for(const side of SIDES)
+        for(const side of Edges.SIDES)
         {
             this.retraceWallAt(cx, cz, side);
         }
@@ -166,7 +158,7 @@ class WallTracer
 
     retraceWallAt(cx, cz, side)
     {
-        const key = this.edgeKey(cx, cz, side);
+        const key = Edges.edgeKey(cx, cz, side);
         const shouldExist = this.edgeHasWall(cx, cz, side);
 
         const existing = this.walls.get(key);
@@ -182,9 +174,9 @@ class WallTracer
             return;
         }
 
-        const placement = this.floorSideOf(cx, cz, side);
-        const cornerLow  = this.corners.has(this.vertexKey(...this.endpointLow(placement.cx,  placement.cz, placement.side)));
-        const cornerHigh = this.corners.has(this.vertexKey(...this.endpointHigh(placement.cx, placement.cz, placement.side)));
+        const placement = Edges.floorSideOf(this.world.grid, cx, cz, side);
+        const cornerLow  = this.corners.has(this.vertexKey(...Edges.endpointLow(placement.cx,  placement.cz, placement.side)));
+        const cornerHigh = this.corners.has(this.vertexKey(...Edges.endpointHigh(placement.cx, placement.cz, placement.side)));
 
         const entities = this.buildWallEntities(placement.cx, placement.cz, placement.side, cornerLow, cornerHigh);
         for(const entity of entities) { this.world.addEntity(entity); }
@@ -218,14 +210,14 @@ class WallTracer
 
     /* HELPERS ****************************************************************/
 
-    cascadeRemoveWallDecorAt(edgeKey)
+    cascadeRemoveWallDecorAt(targetEdgeKey)
     {
         const toRemove = [];
         for(const entity of this.world.entities)
         {
             if(!this.isWallDecorEntity(entity)) { continue; }
             const ep = entity.getComponent(EdgePlacement);
-            if(this.edgeKey(ep.cx, ep.cz, ep.side) === edgeKey) { toRemove.push(entity); }
+            if(Edges.edgeKey(ep.cx, ep.cz, ep.side) === targetEdgeKey) { toRemove.push(entity); }
         }
         for(const entity of toRemove) { this.world.removeEntity(entity); }
     }
@@ -241,75 +233,15 @@ class WallTracer
 
     edgeHasWall(cx, cz, side)
     {
-        const here = this.isFloor(cx, cz);
-        const { ncx, ncz } = this.neighbourCell(cx, cz, side);
-        const there = this.isFloor(ncx, ncz);
+        const here = this.world.grid.isFloor(cx, cz);
+        const { ncx, ncz } = Edges.neighbourCell(cx, cz, side);
+        const there = this.world.grid.isFloor(ncx, ncz);
         return here !== there;
-    }
-
-    isFloor(cx, cz)
-    {
-        return this.world.grid.isFloor(cx, cz);
-    }
-
-    neighbourCell(cx, cz, side)
-    {
-        switch(side)
-        {
-            case "north": return { ncx: cx,     ncz: cz + 1 };
-            case "south": return { ncx: cx,     ncz: cz - 1 };
-            case "east":  return { ncx: cx + 1, ncz: cz     };
-            case "west":  return { ncx: cx - 1, ncz: cz     };
-        }
-        throw new Error(`WallTracer.neighbourCell: invalid side "${side}".`);
-    }
-
-    floorSideOf(cx, cz, side)
-    {
-        if(this.isFloor(cx, cz)) { return { cx, cz, side }; }
-        const { ncx, ncz } = this.neighbourCell(cx, cz, side);
-        return { cx: ncx, cz: ncz, side: OPPOSITE_SIDE[side] };
-    }
-
-    endpointLow(cx, cz, side)
-    {
-        switch(side)
-        {
-            case "north": return [cx,     cz + 1];
-            case "south": return [cx,     cz    ];
-            case "east":  return [cx + 1, cz    ];
-            case "west":  return [cx,     cz    ];
-        }
-        throw new Error(`WallTracer.endpointLow: invalid side "${side}".`);
-    }
-
-    endpointHigh(cx, cz, side)
-    {
-        switch(side)
-        {
-            case "north": return [cx + 1, cz + 1];
-            case "south": return [cx + 1, cz    ];
-            case "east":  return [cx + 1, cz + 1];
-            case "west":  return [cx,     cz + 1];
-        }
-        throw new Error(`WallTracer.endpointHigh: invalid side "${side}".`);
     }
 
     vertexKey(vx, vz)
     {
         return `${vx},${vz}`;
-    }
-
-    edgeKey(cx, cz, side)
-    {
-        switch(side)
-        {
-            case "north": return `${cx},${cz},north`;
-            case "south": return `${cx},${cz - 1},north`;
-            case "east":  return `${cx},${cz},east`;
-            case "west":  return `${cx - 1},${cz},east`;
-        }
-        throw new Error(`WallTracer.edgeKey: invalid side "${side}".`);
     }
 }
 

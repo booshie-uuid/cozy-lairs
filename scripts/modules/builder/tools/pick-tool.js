@@ -14,11 +14,6 @@ class PickTool extends Tool
         this.onPicked = onPicked;
     }
 
-    buildGhost() { return null; }
-
-
-    /* HOOKS ******************************************************************/
-
     onEntityClick(entity, button)
     {
         if(button !== "left") { return; }

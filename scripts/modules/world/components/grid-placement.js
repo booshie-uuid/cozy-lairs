@@ -1,5 +1,5 @@
-import * as Errors    from "../../engine/errors.js";
-import * as Footprint from "../footprint.js";
+import * as Errors        from "../../engine/errors.js";
+import * as WalkGridStamp from "../walk-grid-stamp.js";
 
 
 /******************************************************************************/
@@ -66,6 +66,8 @@ class GridPlacement
         if(this.walkable) { world.grid.markFloor(this.cx, this.cz); }
         if(this.blocks)   { world.grid.setBlocked(this.cx, this.cz); }
 
+        world.indexEntityAtCell(this.entity, this.cx, this.cz);
+
         this.stampWalkGrid(world);
     }
 
@@ -74,13 +76,9 @@ class GridPlacement
         if(this.walkable) { world.grid.unmarkFloor(this.cx, this.cz); }
         if(this.blocks)   { world.grid.clearBlocked(this.cx, this.cz); }
 
-        this.revertWalkGrid(world);
-    }
+        world.unindexEntityAtCell(this.entity, this.cx, this.cz);
 
-    moveTo(cx, cz)
-    {
-        this.cx = cx;
-        this.cz = cz;
+        this.revertWalkGrid(world);
     }
 
     setOffset(xOffset, zOffset)
@@ -135,28 +133,20 @@ class GridPlacement
         // Only `blocks: true` entries contribute to the refcount —
         // surface-placeables sit on a surface that already stamps the cell.
         if(!this.blocks) { return; }
-        if(!world.walkGrid || !world.assets) { return; }
 
-        const { subCells } = Footprint.computeFootprint({
+        this.stampedSubCells = WalkGridStamp.apply(world, {
             kind:         this.entity.kind,
             cx:           this.cx,
             cz:           this.cz,
             rotationStep: this.rotationStep,
             xOffset:      this.xOffset,
-            zOffset:      this.zOffset,
-            assets:       world.assets,
-            walkGrid:     world.walkGrid
+            zOffset:      this.zOffset
         });
-
-        this.stampedSubCells = subCells;
-        world.walkGrid.applyStamp(subCells);
     }
 
     revertWalkGrid(world)
     {
-        if(!world.walkGrid || this.stampedSubCells.length === 0) { return; }
-
-        world.walkGrid.revertStamp(this.stampedSubCells);
+        WalkGridStamp.revert(world, this.stampedSubCells);
         this.stampedSubCells = [];
     }
 }

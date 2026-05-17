@@ -54,11 +54,6 @@ class DevConsole
         }
     }
 
-    toggle()
-    {
-        this.viewModel.isOpen(!this.viewModel.isOpen());
-    }
-
     setOpen(open)
     {
         this.viewModel.isOpen(!!open);

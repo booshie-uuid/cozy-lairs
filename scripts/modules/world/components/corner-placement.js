@@ -1,5 +1,5 @@
-import * as Errors    from "../../engine/errors.js";
-import * as Footprint from "../footprint.js";
+import * as Errors        from "../../engine/errors.js";
+import * as WalkGridStamp from "../walk-grid-stamp.js";
 
 
 /******************************************************************************/
@@ -65,26 +65,17 @@ class CornerPlacement
 
     stampWalkGrid(world)
     {
-        if(!world.walkGrid || !world.assets) { return; }
-
-        const { subCells } = Footprint.computeFootprint({
-            kind:     this.entity.kind,
-            vx:       this.vx,
-            vz:       this.vz,
-            corner:   this.corner,
-            assets:   world.assets,
-            walkGrid: world.walkGrid
+        this.stampedSubCells = WalkGridStamp.apply(world, {
+            kind:   this.entity.kind,
+            vx:     this.vx,
+            vz:     this.vz,
+            corner: this.corner
         });
-
-        this.stampedSubCells = subCells;
-        world.walkGrid.applyStamp(subCells);
     }
 
     revertWalkGrid(world)
     {
-        if(!world.walkGrid || this.stampedSubCells.length === 0) { return; }
-
-        world.walkGrid.revertStamp(this.stampedSubCells);
+        WalkGridStamp.revert(world, this.stampedSubCells);
         this.stampedSubCells = [];
     }
 }

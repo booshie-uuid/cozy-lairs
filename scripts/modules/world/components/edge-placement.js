@@ -1,5 +1,5 @@
-import * as Errors    from "../../engine/errors.js";
-import * as Footprint from "../footprint.js";
+import * as Errors        from "../../engine/errors.js";
+import * as WalkGridStamp from "../walk-grid-stamp.js";
 
 
 /******************************************************************************/
@@ -112,24 +112,15 @@ class EdgePlacement
 
     stampWalkGrid(world, transform)
     {
-        if(!world.walkGrid || !world.assets) { return; }
-
-        const { subCells } = Footprint.computeFootprint({
+        this.stampedSubCells = WalkGridStamp.apply(world, {
             kind:           this.entity.kind,
-            assets:         world.assets,
-            walkGrid:       world.walkGrid,
             worldTransform: transform
         });
-
-        this.stampedSubCells = subCells;
-        world.walkGrid.applyStamp(subCells);
     }
 
     revertWalkGrid(world)
     {
-        if(!world.walkGrid || this.stampedSubCells.length === 0) { return; }
-
-        world.walkGrid.revertStamp(this.stampedSubCells);
+        WalkGridStamp.revert(world, this.stampedSubCells);
         this.stampedSubCells = [];
     }
 }

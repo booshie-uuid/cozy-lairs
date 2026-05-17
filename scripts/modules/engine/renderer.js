@@ -8,7 +8,6 @@ import * as Errors from "./errors.js";
 
 // Clamp DPR at 2× to avoid the 4K perf cliff.
 const MAX_PIXEL_RATIO = 2;
-const CLEAR_COLOR = 0x0a0e14;
 
 
 class Renderer
@@ -31,7 +30,6 @@ class Renderer
             antialias: true,
             alpha:     false
         });
-        this.renderer.setClearColor(CLEAR_COLOR, 1);
 
         this.scene = null;
         this.activeCamera = null;

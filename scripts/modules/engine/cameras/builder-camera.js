@@ -24,8 +24,7 @@ class BuilderCamera extends CameraController
 {
     constructor(input, options = {})
     {
-        super();
-        this.input = input;
+        super(input);
 
         const focus = options.initialFocus || new THREE.Vector3(0, 0, 0);
         const distance = options.initialDistance || 12;
@@ -60,26 +59,14 @@ class BuilderCamera extends CameraController
         this.camera = new THREE.PerspectiveCamera(55, 1, 0.1, 500);
         this.applyTransform();
 
-        this.onPointerDown = this.onPointerDown.bind(this);
-        this.onPointerMove = this.onPointerMove.bind(this);
-        this.onPointerUp = this.onPointerUp.bind(this);
-        this.onWheel = this.onWheel.bind(this);
+        this.subscribe("pointerdown", this.onPointerDown.bind(this));
+        this.subscribe("pointermove", this.onPointerMove.bind(this));
+        this.subscribe("pointerup",   this.onPointerUp.bind(this));
+        this.subscribe("wheel",       this.onWheel.bind(this));
     }
 
-    activate()
+    onDeactivate()
     {
-        this.input.on("pointerdown", this.onPointerDown);
-        this.input.on("pointermove", this.onPointerMove);
-        this.input.on("pointerup",   this.onPointerUp);
-        this.input.on("wheel",       this.onWheel);
-    }
-
-    deactivate()
-    {
-        this.input.off("pointerdown", this.onPointerDown);
-        this.input.off("pointermove", this.onPointerMove);
-        this.input.off("pointerup",   this.onPointerUp);
-        this.input.off("wheel",       this.onWheel);
         this.draggingButton = -1;
     }
 

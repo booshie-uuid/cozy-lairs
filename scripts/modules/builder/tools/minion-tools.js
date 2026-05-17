@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-import { Tool, TINT_VALID, TINT_INVALID, TINT_REMOVE } from "./tool.js";
+import { Tool, CellPlaceTool, CellEraseTool, TINT_VALID, GHOST_OPACITY } from "./tool.js";
 
 import { Walker } from "../../world/components/walker.js";
 
@@ -9,23 +9,13 @@ import { Walker } from "../../world/components/walker.js";
 /* MINION SPAWN / ERASE TOOLS                                                 */
 /******************************************************************************/
 
-const GHOST_OPACITY = 0.5;
-
 const PLACEHOLDER_RADIUS = 0.6;
 const PLACEHOLDER_HEIGHT = 1.8;
 const PLACEHOLDER_SEGMENTS = 12;
 
 
-class MinionSpawnTool extends Tool
+class MinionSpawnTool extends CellPlaceTool
 {
-    constructor({ kind, consumePickup = null })
-    {
-        super();
-        this.kind = kind;
-        // Single-shot pickup hook — see DecorPlaceTool.
-        this.consumePickup = consumePickup;
-    }
-
     buildGhost()
     {
         const geometry = new THREE.CylinderGeometry(
@@ -42,62 +32,32 @@ class MinionSpawnTool extends Tool
         return mesh;
     }
 
-    onCellHover(cell)
+    validate(cell)
     {
-        this.hoverCell = cell;
-        const valid = this.editor.canSpawnMinion(this.kind, cell.cx, cell.cz);
-        this.positionGhostAtCell(cell.cx, cell.cz);
-        this.ghostMesh.position.y = PLACEHOLDER_HEIGHT / 2;
-        this.setGhostTint(valid);
+        return this.editor.canSpawnMinion(this.kind, cell.cx, cell.cz);
     }
 
-    onCellClick(cell, button)
+    positionGhost(cell)
     {
-        if(button !== "left") { return; }
-        if(this.consumePickup && this.consumePickup(this.kind, cell.cx, cell.cz)) { return; }
+        this.positionGhostAtCell(cell.cx, cell.cz);
+        // Placeholder cylinder is centred at its midpoint — lift to stand
+        // on the floor regardless of the cell's surface offset.
+        this.ghostMesh.position.y = PLACEHOLDER_HEIGHT / 2;
+    }
+
+    commit(cell)
+    {
         this.editor.spawnMinion(this.kind, cell.cx, cell.cz);
     }
 }
 
 
-class MinionEraseTool extends Tool
+class MinionEraseTool extends CellEraseTool
 {
-    buildGhost()
-    {
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const edges = new THREE.EdgesGeometry(geometry);
-        const material = new THREE.LineBasicMaterial({ color: TINT_REMOVE });
-        const lines = new THREE.LineSegments(edges, material);
-
-        geometry.dispose();
-        
-        return lines;
-    }
-
-    onCellHover(cell)
-    {
-        this.hoverCell = cell;
-        const target = this.findMinionAtCell(cell.cx, cell.cz);
-        if(!target)
-        {
-            if(this.ghostMesh) { this.ghostMesh.visible = false; }
-            return;
-        }
-        this.snapToEntity(target);
-    }
-
-    onCellClick(cell, button)
-    {
-        if(button !== "left") { return; }
-        const target = this.findMinionAtCell(cell.cx, cell.cz);
-        if(!target) { return; }
-        this.editor.removeMinion(target);
-    }
-
-    findMinionAtCell(cx, cz)
+    findTarget(cell)
     {
         const grid = this.editor.world.grid;
-        const occupant = grid.getOccupant(cx, cz);
+        const occupant = grid.getOccupant(cell.cx, cell.cz);
         if(occupant && typeof occupant.getComponent === "function" && occupant.getComponent(Walker))
         {
             return occupant;
@@ -107,29 +67,14 @@ class MinionEraseTool extends Tool
         {
             if(!entity.getComponent(Walker)) { continue; }
             const physical = grid.worldToCell(entity.object3D.position.x, entity.object3D.position.z);
-            if(physical.cx === cx && physical.cz === cz) { return entity; }
+            if(physical.cx === cell.cx && physical.cz === cell.cz) { return entity; }
         }
         return null;
     }
 
-    snapToEntity(entity)
+    commitRemove(target)
     {
-        if(!this.ghostMesh) { return; }
-
-        const bbox = new THREE.Box3().setFromObject(entity.object3D);
-        const size = new THREE.Vector3();
-        const centre = new THREE.Vector3();
-
-        bbox.getSize(size);
-        bbox.getCenter(centre);
-
-        size.x = Math.max(size.x, 0.1);
-        size.y = Math.max(size.y, 0.1);
-        size.z = Math.max(size.z, 0.1);
-
-        this.ghostMesh.scale.copy(size);
-        this.ghostMesh.position.copy(centre);
-        this.ghostMesh.visible = true;
+        this.editor.removeMinion(target);
     }
 }
 
@@ -141,7 +86,6 @@ class NoopTool extends Tool
         super();
         this.targetType = "none";
     }
-    buildGhost() { return null; }
 }
 
 

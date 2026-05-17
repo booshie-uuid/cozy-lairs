@@ -8,6 +8,9 @@ import { WalkGrid }  from "./walk-grid.js";
 /* WORLD                                                                      */
 /******************************************************************************/
 
+const EMPTY_SET = new Set();
+
+
 class World extends Emitter
 {
     constructor(grid, assets = null)
@@ -18,6 +21,15 @@ class World extends Emitter
         this.walkGrid = buildWalkGrid(grid);
         this.scene    = new THREE.Scene();
         this.entities = new Set();
+        // Spatial index: cellKey → Set<Entity>. Populated by GridPlacement's
+        // lifecycle hooks so `entitiesAtCell` is O(1). Replaces five
+        // linear scans over `entities` that WorldEditor used to do.
+        this.cellIndex = new Map();
+        // Reserved for the future MovePlayerTool. V3's decor builder used
+        // to invoke this when placing on PLAYER_MARKER; V4 replaced that
+        // path with canPlaceDecor refusing the placement. The setter
+        // stays wired so the MovePlayerTool can land without changing
+        // World's shape.
         this.playerDisplaceHandler = null;
     }
 
@@ -79,6 +91,34 @@ class World extends Emitter
         // Defensive reset against a stale refcount from a placement bug
         // — without this a leaked count survives clear into the next load.
         this.walkGrid.clear();
+        this.cellIndex.clear();
+    }
+
+    /* CELL INDEX *************************************************************/
+
+    indexEntityAtCell(entity, cx, cz)
+    {
+        const key = cellKey(cx, cz);
+        let set = this.cellIndex.get(key);
+        if(!set) { set = new Set(); this.cellIndex.set(key, set); }
+        set.add(entity);
+    }
+
+    unindexEntityAtCell(entity, cx, cz)
+    {
+        const key = cellKey(cx, cz);
+        const set = this.cellIndex.get(key);
+        if(!set) { return; }
+        set.delete(entity);
+        if(set.size === 0) { this.cellIndex.delete(key); }
+    }
+
+    // Iterable over entities anchored at (cx, cz) via GridPlacement.
+    // Returns a stable empty set when the cell has nothing — callers
+    // can `for...of` without a null check.
+    entitiesAtCell(cx, cz)
+    {
+        return this.cellIndex.get(cellKey(cx, cz)) || EMPTY_SET;
     }
 
     update(dt)
@@ -92,6 +132,11 @@ class World extends Emitter
 
 
 /* INTERNAL *******************************************************************/
+
+function cellKey(cx, cz)
+{
+    return `${cx},${cz}`;
+}
 
 function buildWalkGrid(grid)
 {

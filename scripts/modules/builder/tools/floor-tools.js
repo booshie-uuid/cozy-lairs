@@ -1,14 +1,11 @@
 import * as THREE from "three";
 
-import { Tool, TINT_VALID, TINT_INVALID, TINT_REMOVE } from "./tool.js";
+import { Tool, TINT_VALID, TINT_INVALID, TINT_REMOVE, FLOOR_OVERLAY_OPACITY } from "./tool.js";
 
 
 /******************************************************************************/
 /* FLOOR PAINT / ERASE TOOLS                                                  */
 /******************************************************************************/
-
-const GHOST_OPACITY = 0.45;
-
 
 function buildCellOverlay(cellSize, initialColour)
 {
@@ -17,7 +14,7 @@ function buildCellOverlay(cellSize, initialColour)
     const material = new THREE.MeshBasicMaterial({
         color:        initialColour,
         transparent:  true,
-        opacity:      GHOST_OPACITY,
+        opacity:      FLOOR_OVERLAY_OPACITY,
         depthWrite:   false,
         side:         THREE.DoubleSide
     });
@@ -35,7 +32,6 @@ class FloorPaintTool extends Tool
 
     onCellHover(cell)
     {
-        this.hoverCell = cell;
         this.positionGhostAtCell(cell.cx, cell.cz);
 
         const grid = this.editor.world.grid;
@@ -62,7 +58,6 @@ class FloorEraseTool extends Tool
 
     onCellHover(cell)
     {
-        this.hoverCell = cell;
         this.positionGhostAtCell(cell.cx, cell.cz);
         const colour = this.editor.canEraseFloor(cell.cx, cell.cz) ? TINT_REMOVE : TINT_INVALID;
         this.setGhostColour(colour);

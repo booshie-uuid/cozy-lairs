@@ -19,8 +19,7 @@ class FirstPersonCamera extends CameraController
 {
     constructor(input, options = {})
     {
-        super();
-        this.input = input;
+        super(input);
         this.lockTarget = options.lockTarget || null;
         this.eyeHeight = options.eyeHeight || DEFAULT_EYE_HEIGHT;
         this.walkSpeed = options.walkSpeed || DEFAULT_WALK_SPEED;
@@ -56,19 +55,14 @@ class FirstPersonCamera extends CameraController
         this.camera = new THREE.PerspectiveCamera(70, 1, 0.1, 500);
         this.applyTransform();
 
-        this.onPointerDown = this.onPointerDown.bind(this);
-        this.onPointerUp = this.onPointerUp.bind(this);
-        this.onPointerMove = this.onPointerMove.bind(this);
-        this.onPointerLockChange = this.onPointerLockChange.bind(this);
+        this.subscribe("pointerdown",       this.onPointerDown.bind(this));
+        this.subscribe("pointerup",         this.onPointerUp.bind(this));
+        this.subscribe("pointermove",       this.onPointerMove.bind(this));
+        this.subscribe("pointerlockchange", this.onPointerLockChange.bind(this));
     }
 
-    activate()
+    onActivate()
     {
-        this.input.on("pointerdown",       this.onPointerDown);
-        this.input.on("pointerup",         this.onPointerUp);
-        this.input.on("pointermove",       this.onPointerMove);
-        this.input.on("pointerlockchange", this.onPointerLockChange);
-
         // Resume from where the player was last left in Builder mode.
         if(this.playerEntity)
         {
@@ -83,13 +77,8 @@ class FirstPersonCamera extends CameraController
         this.active = true;
     }
 
-    deactivate()
+    onDeactivate()
     {
-        this.input.off("pointerdown",       this.onPointerDown);
-        this.input.off("pointerup",         this.onPointerUp);
-        this.input.off("pointermove",       this.onPointerMove);
-        this.input.off("pointerlockchange", this.onPointerLockChange);
-
         if(this.pointerLocked)
         {
             this.input.exitPointerLock();
