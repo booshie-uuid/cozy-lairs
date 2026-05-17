@@ -27,10 +27,10 @@ import * as WorldSerializer  from "./modules/world/world-serializer.js";
 import { IconRenderer }         from "./modules/builder/icon-renderer.js";
 import { BuilderInputAdapter }  from "./modules/builder/builder-input-adapter.js";
 
-import { FloorPaintTool, FloorEraseTool }                  from "./modules/builder/tools/floor-tools.js";
+import { FloorPaintTool, BuildEraseTool }                  from "./modules/builder/tools/floor-tools.js";
 import { DecorPlaceTool, DecorEraseTool, WallDecorPlaceTool } from "./modules/builder/tools/decor-tools.js";
 import { MinionSpawnTool, MinionEraseTool, NoopTool }      from "./modules/builder/tools/minion-tools.js";
-import { BlockPlaceTool, BlockEraseTool }                  from "./modules/builder/tools/block-tools.js";
+import { BlockPlaceTool }                                  from "./modules/builder/tools/block-tools.js";
 import { NudgeTool }                                       from "./modules/builder/tools/nudge-tool.js";
 import { PickTool }                                        from "./modules/builder/tools/pick-tool.js";
 
@@ -383,10 +383,10 @@ class App
             }
             else
             {
-                // Clearing selectedToolId fires the subscribe that tears
-                // down the ghost and keeps the tile highlight in sync.
+                // Clearing the panel's selection fires the subscribe that
+                // tears down the ghost and keeps the tile highlight in sync.
                 const panel = this.viewModel.authoringPanel();
-                if(panel) { panel.selectedToolId(null); }
+                if(panel) { panel.cancelSelection(); }
                 this.builderInputAdapter.uninstall();
             }
         }
@@ -581,7 +581,7 @@ class App
             case "build":
             {
                 if(rest === "build") { return new FloorPaintTool(); }
-                if(rest === "break") { return new FloorEraseTool(); }
+                if(rest === "break") { return new BuildEraseTool(); }
                 if(rest.startsWith("build:"))
                 {
                     return new BlockPlaceTool({ kind: rest.slice("build:".length) });
@@ -667,7 +667,7 @@ class App
         // Disarm via the panel so the subscription in start() runs
         // setTool(null) and re-enables camera pan in one path.
         const panel = this.viewModel.authoringPanel();
-        if(panel) { panel.selectedToolId(null); }
+        if(panel) { panel.cancelSelection(); }
 
         return true;
     }
@@ -746,7 +746,7 @@ class App
                 // restore the held pickup before clearing the tool.
                 this.cancelPickup();
                 const panel = this.viewModel.authoringPanel();
-                if(panel) { panel.selectedToolId(null); }
+                if(panel) { panel.cancelSelection(); }
             }
         });
     }

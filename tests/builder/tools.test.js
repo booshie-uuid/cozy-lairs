@@ -1,9 +1,9 @@
 import { test, expect, vi } from "vitest";
 import * as THREE from "three";
 
-import { Tool, TINT_VALID, TINT_INVALID, TINT_REMOVE } from "../../scripts/modules/builder/tools/tool.js";
+import { TINT_VALID, TINT_INVALID } from "../../scripts/modules/builder/tools/tool.js";
 
-import { FloorPaintTool, FloorEraseTool } from "../../scripts/modules/builder/tools/floor-tools.js";
+import { FloorPaintTool, BuildEraseTool } from "../../scripts/modules/builder/tools/floor-tools.js";
 
 import {
     DecorPlaceTool,
@@ -50,6 +50,10 @@ function makeStubEditor(overrides = {})
         paintFloor:         vi.fn(() => true),
         canEraseFloor:      vi.fn(() => true),
         eraseFloor:         vi.fn(() => true),
+        findBlockAtCell:    vi.fn(() => null),
+        findFloorAtCell:    vi.fn(() => null),
+        isBlockEntity:      vi.fn(() => false),
+        removeBlock:        vi.fn(() => true),
         canPlaceDecor:      vi.fn(() => true),
         placeDecor:         vi.fn(() => true),
         canPlaceWallDecor:  vi.fn(() => true),
@@ -166,36 +170,78 @@ test("FloorPaintTool tints red when canPaintFloor returns false (OOB)", () =>
 });
 
 
-test("FloorEraseTool tints amber on an erasable floor cell", () =>
-{
-    const tool = new FloorEraseTool();
-    activate(tool);
-    tool.onCellHover({ cx: 1, cz: 1 });
-    expect(tool.ghostMesh.material.color.getHex()).toBe(TINT_REMOVE);
-});
+/******************************************************************************/
+/* BUILD ERASE                                                                */
+/******************************************************************************/
 
-
-test("FloorEraseTool tints red when canEraseFloor returns false", () =>
+test("BuildEraseTool hides the ghost when no block or floor is at the cell", () =>
 {
-    const tool = new FloorEraseTool();
-    const editor = makeStubEditor({ canEraseFloor: vi.fn(() => false) });
+    const tool = new BuildEraseTool();
+    const editor = makeStubEditor({
+        findBlockAtCell: vi.fn(() => null),
+        canEraseFloor:   vi.fn(() => false),
+        findFloorAtCell: vi.fn(() => null)
+    });
     activate(tool, editor);
+
     tool.onCellHover({ cx: 1, cz: 1 });
-    expect(tool.ghostMesh.material.color.getHex()).toBe(TINT_INVALID);
+    expect(tool.ghostMesh.visible).toBe(false);
 });
 
 
-/******************************************************************************/
-/* FLOOR ERASE                                                                */
-/******************************************************************************/
-
-test("FloorEraseTool dispatches to eraseFloor on left-click", () =>
+test("BuildEraseTool dispatches to removeBlock when a block is at the cell", () =>
 {
-    const tool = new FloorEraseTool();
-    const { editor } = activate(tool);
+    const block = new Entity("terrain.block.gravel", new THREE.Object3D());
+    const editor = makeStubEditor({
+        findBlockAtCell: vi.fn(() => block),
+        isBlockEntity:   vi.fn(entity => entity === block)
+    });
+    const tool = new BuildEraseTool();
+    activate(tool, editor);
 
-    tool.onCellClick({ cx: 2, cz: 2 }, "left");
-    expect(editor.eraseFloor).toHaveBeenCalledWith(2, 2);
+    tool.onCellClick({ cx: 1, cz: 1 }, "left");
+
+    expect(editor.removeBlock).toHaveBeenCalledWith(block);
+    expect(editor.eraseFloor).not.toHaveBeenCalled();
+});
+
+
+test("BuildEraseTool dispatches to eraseFloor when only a floor is at the cell", () =>
+{
+    const floor = {
+        kind:         "floor.stone.basic",
+        object3D:     new THREE.Object3D(),
+        getComponent: () => ({ cx: 2, cz: 3 })
+    };
+    const editor = makeStubEditor({
+        findBlockAtCell: vi.fn(() => null),
+        canEraseFloor:   vi.fn(() => true),
+        findFloorAtCell: vi.fn(() => floor)
+    });
+    const tool = new BuildEraseTool();
+    activate(tool, editor);
+
+    tool.onCellClick({ cx: 2, cz: 3 }, "left");
+
+    expect(editor.eraseFloor).toHaveBeenCalledWith(2, 3);
+    expect(editor.removeBlock).not.toHaveBeenCalled();
+});
+
+
+test("BuildEraseTool ignores left-click when nothing is at the cell", () =>
+{
+    const tool = new BuildEraseTool();
+    const editor = makeStubEditor({
+        findBlockAtCell: vi.fn(() => null),
+        canEraseFloor:   vi.fn(() => false),
+        findFloorAtCell: vi.fn(() => null)
+    });
+    activate(tool, editor);
+
+    tool.onCellClick({ cx: 0, cz: 0 }, "left");
+
+    expect(editor.eraseFloor).not.toHaveBeenCalled();
+    expect(editor.removeBlock).not.toHaveBeenCalled();
 });
 
 

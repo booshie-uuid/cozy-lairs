@@ -1,10 +1,11 @@
 import * as THREE from "three";
 
-import { Tool, TINT_VALID, TINT_INVALID, TINT_REMOVE, FLOOR_OVERLAY_OPACITY } from "./tool.js";
+import { Tool, CellEraseTool, TINT_VALID, TINT_INVALID, FLOOR_OVERLAY_OPACITY } from "./tool.js";
+import { GridPlacement } from "../../world/components/grid-placement.js";
 
 
 /******************************************************************************/
-/* FLOOR PAINT / ERASE TOOLS                                                  */
+/* FLOOR PAINT / BUILD ERASE TOOLS                                            */
 /******************************************************************************/
 
 function buildCellOverlay(cellSize, initialColour)
@@ -48,27 +49,38 @@ class FloorPaintTool extends Tool
 }
 
 
-class FloorEraseTool extends Tool
+// Build-tab erase tool — handles both blocks and floors. Blocks and
+// floors are mutually exclusive per cell (canPlaceBlock refuses on a
+// floor, canPaintFloor refuses on a block), so at most one target exists.
+class BuildEraseTool extends CellEraseTool
 {
-    buildGhost()
+    findTarget(cell)
     {
-        const cellSize = this.editor.world.grid.cellSize;
-        return buildCellOverlay(cellSize, TINT_REMOVE);
+        const block = this.editor.findBlockAtCell(cell.cx, cell.cz);
+        if(block) { return block; }
+
+        if(this.editor.canEraseFloor(cell.cx, cell.cz))
+        {
+            return this.editor.findFloorAtCell(cell.cx, cell.cz);
+        }
+
+        return null;
     }
 
-    onCellHover(cell)
+    commitRemove(target)
     {
-        this.positionGhostAtCell(cell.cx, cell.cz);
-        const colour = this.editor.canEraseFloor(cell.cx, cell.cz) ? TINT_REMOVE : TINT_INVALID;
-        this.setGhostColour(colour);
-    }
+        if(this.editor.isBlockEntity(target))
+        {
+            this.editor.removeBlock(target);
+            return;
+        }
 
-    onCellClick(cell, button)
-    {
-        if(button !== "left") { return; }
-        this.editor.eraseFloor(cell.cx, cell.cz);
+        // Floor entity — route through eraseFloor so the decor-cascade /
+        // walker / player guards run, rather than removing it directly.
+        const placement = target.getComponent(GridPlacement);
+        this.editor.eraseFloor(placement.cx, placement.cz);
     }
 }
 
 
-export { FloorPaintTool, FloorEraseTool };
+export { FloorPaintTool, BuildEraseTool };

@@ -47,6 +47,16 @@ class AuthoringPanel
         this.selectedToolId(`${tab}:build:${kind}`);
     }
 
+    // Right-click / Escape / camera-mode cancel — clear *both* selections
+    // so the next press of the Build verb reverts to its default tool
+    // (e.g. FloorPaintTool on the Build tab) rather than re-arming the
+    // last catalogue kind.
+    cancelSelection()
+    {
+        this.selectedKind(null);
+        this.selectedToolId(null);
+    }
+
     isKindSelected(kind)
     {
         return this.selectedKind() === kind;

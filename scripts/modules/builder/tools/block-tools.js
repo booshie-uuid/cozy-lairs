@@ -3,15 +3,18 @@ import * as THREE from "three";
 import
 {
     CellPlaceTool,
-    CellEraseTool,
     TINT_VALID,
     makeTranslucent
 } from "./tool.js";
 
 
 /******************************************************************************/
-/* BLOCK PLACE / ERASE TOOLS                                                  */
+/* BLOCK PLACE TOOL                                                           */
 /******************************************************************************/
+
+// Block erase is handled by BuildEraseTool (floor-tools.js) — that tool
+// dispatches block-or-floor removal from the build-tab break action, so
+// a dedicated BlockEraseTool would be dead code.
 
 class BlockPlaceTool extends CellPlaceTool
 {
@@ -52,18 +55,4 @@ class BlockPlaceTool extends CellPlaceTool
 }
 
 
-class BlockEraseTool extends CellEraseTool
-{
-    findTarget(cell)
-    {
-        return this.editor.findBlockAtCell(cell.cx, cell.cz);
-    }
-
-    commitRemove(target)
-    {
-        this.editor.removeBlock(target);
-    }
-}
-
-
-export { BlockPlaceTool, BlockEraseTool };
+export { BlockPlaceTool };
