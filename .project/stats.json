@@ -1,26 +1,26 @@
 {
-  "generatedAt": "2026-05-16T15:20:19.461Z",
+  "generatedAt": "2026-05-17T13:46:37.497Z",
   "code": {
     "html": {
       "files": 5,
-      "eloc": 1714,
-      "commentWords": 0
+      "eloc": 1729,
+      "commentWords": 34
     },
     "javascript": {
-      "files": 126,
-      "eloc": 19183,
-      "commentWords": 14656
+      "files": 134,
+      "eloc": 20047,
+      "commentWords": 11042
     },
     "css": {
       "files": 4,
-      "eloc": 1989,
-      "commentWords": 450
+      "eloc": 2067,
+      "commentWords": 571
     }
   },
   "documentation": {
     "other": {
-      "files": 8,
-      "words": 5534
+      "files": 9,
+      "words": 5687
     },
     "designs": {
       "files": 9,
@@ -28,11 +28,11 @@
     },
     "plans": {
       "files": 8,
-      "words": 57802
+      "words": 61607
     },
     "reviews": {
-      "files": 2,
-      "words": 6219
+      "files": 3,
+      "words": 11028
     }
   }
 }
