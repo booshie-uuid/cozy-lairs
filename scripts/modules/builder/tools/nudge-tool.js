@@ -103,11 +103,14 @@ class NudgeTool extends Tool
         this.materialBackups = [];
         entity.object3D.traverse(node =>
         {
-            if(!node.isMesh || !node.material)   { return; }
+            if(!node.isMesh || !node.material) { return; }
+
             const original = node.material;
-            if(!original.emissive)               { return; }
+
+            if(!original.emissive) { return; }
 
             const cloned = original.clone();
+            
             cloned.emissive = new THREE.Color(HIGHLIGHT_EMISSIVE);
             cloned.emissiveIntensity = HIGHLIGHT_INTENSITY;
 

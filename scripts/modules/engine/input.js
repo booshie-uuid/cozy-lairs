@@ -197,7 +197,8 @@ class Input extends Emitter
         {
             deltaX: event.deltaX,
             deltaY: event.deltaY,
-            deltaZ: event.deltaZ
+            deltaZ: event.deltaZ,
+            target: event.target
         });
     }
 

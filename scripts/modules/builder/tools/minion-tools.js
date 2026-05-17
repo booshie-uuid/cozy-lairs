@@ -70,7 +70,9 @@ class MinionEraseTool extends Tool
         const edges = new THREE.EdgesGeometry(geometry);
         const material = new THREE.LineBasicMaterial({ color: TINT_REMOVE });
         const lines = new THREE.LineSegments(edges, material);
+
         geometry.dispose();
+        
         return lines;
     }
 
@@ -115,14 +117,18 @@ class MinionEraseTool extends Tool
     snapToEntity(entity)
     {
         if(!this.ghostMesh) { return; }
+
         const bbox = new THREE.Box3().setFromObject(entity.object3D);
         const size = new THREE.Vector3();
         const centre = new THREE.Vector3();
+
         bbox.getSize(size);
         bbox.getCenter(centre);
+
         size.x = Math.max(size.x, 0.1);
         size.y = Math.max(size.y, 0.1);
         size.z = Math.max(size.z, 0.1);
+
         this.ghostMesh.scale.copy(size);
         this.ghostMesh.position.copy(centre);
         this.ghostMesh.visible = true;

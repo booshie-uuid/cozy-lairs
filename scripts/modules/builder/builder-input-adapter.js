@@ -154,7 +154,7 @@ class BuilderInputAdapter
     onKeyDown(event)
     {
         if(this.isTextInputFocused()) { return; }
-        if(event.code === "KeyQ" && !event.repeat)      { this.tool.rotate("ccw"); }
+        if(event.code === "KeyQ" && !event.repeat) { this.tool.rotate("ccw"); }
         else if(event.code === "KeyE" && !event.repeat) { this.tool.rotate("cw"); }
         else if(event.code === "Escape" && !event.repeat)
         {
@@ -170,9 +170,9 @@ class BuilderInputAdapter
              * matches the floor-plan compass since the builder camera looks
              * down. `event.repeat` is allowed: holding an arrow continues to
              * nudge cell-by-cell. */
-            if(event.code === "ArrowUp")         { this.tool.nudge( 0,  1); }
-            else if(event.code === "ArrowDown")  { this.tool.nudge( 0, -1); }
-            else if(event.code === "ArrowLeft")  { this.tool.nudge(-1,  0); }
+            if(event.code === "ArrowUp") { this.tool.nudge( 0,  1); }
+            else if(event.code === "ArrowDown") { this.tool.nudge( 0, -1); }
+            else if(event.code === "ArrowLeft") { this.tool.nudge(-1,  0); }
             else if(event.code === "ArrowRight") { this.tool.nudge( 1,  0); }
         }
     }
@@ -186,10 +186,12 @@ class BuilderInputAdapter
 
         const hit = new THREE.Vector3();
         const intersected = this.raycaster.ray.intersectPlane(FLOOR_PLANE, hit);
+
         if(!intersected) { return null; }
 
         const cell = this.grid.worldToCell(hit.x, hit.z);
         if(!this.grid.isInBounds(cell.cx, cell.cz)) { return null; }
+        
         return cell;
     }
 

@@ -208,6 +208,12 @@ class BuilderCamera extends CameraController
 
     onWheel(event)
     {
+        /* Wheel events fire on the document. Ignore those that originated
+         * inside chrome (catalogue scroll, dev console scroll, etc.) — same
+         * canvas-target guard `onPointerDown` uses. Without this, scrolling
+         * the catalogue also zooms the world. */
+        if(event.target && event.target.tagName !== "CANVAS") { return; }
+
         this.targetDistance = THREE.MathUtils.clamp(
             this.targetDistance * (1 + event.deltaY * ZOOM_SPEED),
             this.minDistance,

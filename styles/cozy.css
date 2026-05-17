@@ -483,35 +483,34 @@
 {
     padding:    14px;
     overflow-y: auto;
+
+    /* Firefox scrollbar tinting. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--cozy-neon-dim) var(--cozy-purple-deep);
 }
 
-.authoring-panel-tools
+/* WebKit / Chromium scrollbar tinting — matches the cozy chrome palette. */
+.authoring-panel-content::-webkit-scrollbar
 {
-    display:       flex;
-    flex-wrap:     wrap;
-    gap:           8px;
-    margin-bottom: 14px;
+    width: 10px;
 }
 
-.tool-tile
+.authoring-panel-content::-webkit-scrollbar-track
 {
-    padding:        8px 12px;
-    border-radius:  8px;
-    border:         2px solid var(--cozy-neon-dim);
-    background:     var(--cozy-purple);
-    color:          var(--cozy-text);
-    font-family:    var(--cozy-font-body);
-    font-size:      0.85rem;
-    cursor:         pointer;
-    transition:     border-color 120ms ease, background 120ms ease;
+    background:    var(--cozy-purple-deep);
+    border-radius: 6px;
 }
 
-.tool-tile:hover { background: var(--cozy-purple-deep); }
-
-.tool-tile.is-active
+.authoring-panel-content::-webkit-scrollbar-thumb
 {
-    border-color: var(--cozy-neon);
-    color:        var(--cozy-neon);
+    background:    var(--cozy-neon-dim);
+    border-radius: 6px;
+    border:        2px solid var(--cozy-purple-deep);
+}
+
+.authoring-panel-content::-webkit-scrollbar-thumb:hover
+{
+    background: var(--cozy-neon);
 }
 
 .authoring-panel-catalogue
@@ -519,6 +518,17 @@
     display:        grid;
     grid-template-columns: repeat(3, 1fr);
     gap:            8px;
+}
+
+/* Visible break between adjacent catalogue sections (e.g. floor decor vs wall
+ * decor in the Decor tab) so the tile grid doesn't read as one continuous
+ * group. Adjacent sibling so the first catalogue in a tab stays flush to the
+ * top edge of the panel content. */
+.authoring-panel-catalogue + .authoring-panel-catalogue
+{
+    margin-top:    14px;
+    padding-top:   14px;
+    border-top:    1px solid var(--cozy-neon-dim);
 }
 
 .catalogue-tile

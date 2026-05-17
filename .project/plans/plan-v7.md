@@ -259,8 +259,8 @@ Land the bottom-edge horizontal tool bar that reads the active tab + selected ki
 - [*] Add `#tool-bar` styles to `cozy.css` (chrome formula, layout per resolved Open Question #2).
 - [*] Add `tests/ui/tool-bar.test.js` (see Expected Outcomes).
 - [*] Run `npm test`; confirm green.
-- [ ] Manual test: switch tabs, confirm tool bar updates; click each tool, confirm dispatch lands; click catalogue tile, confirm Build highlights.
-- [ ] Verify in browser.
+- [*] Manual test: switch tabs, confirm tool bar updates; click each tool, confirm dispatch lands; click catalogue tile, confirm Build highlights.
+- [*] Verify in browser.
 
 ### Decisions
 
@@ -346,15 +346,29 @@ Eliminate the "chrome flashes during asset download" bug. Every post-load chrome
 
 ### Steps
 
-- [ ] Bump `VERSION` to `V7_8_0`.
-- [ ] Edit `index.html` visibility predicates for the four surfaces above.
-- [ ] Sweep for any CSS rule that assumes chrome is mounted at boot — adjust if any.
-- [ ] Manual test: throttle network to Slow 3G in DevTools, reload. Confirm loading overlay alone is visible; chrome appears after the fade. No size-flash on the min-viewport overlay during initial measurement.
-- [ ] Verify in browser.
+- [*] Bump `VERSION` to `V7_8_0`.
+- [*] Edit `index.html` visibility predicates for the four surfaces above.
+- [*] Sweep for any CSS rule that assumes chrome is mounted at boot — adjust if any.
+- [*] Manual test: throttle network to Slow 3G in DevTools, reload. Confirm loading overlay alone is visible; chrome appears after the fade. No size-flash on the min-viewport overlay during initial measurement.
+- [*] Verify in browser.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- **`#top-menu` predicate is `visible: isReady() && topMenu()`** — both the readiness flag *and* the topMenu observable being installed. The existing `with: topMenu` already hides children when topMenu is null, but the explicit `visible:` gate also collapses the wrapper `<header>` so the chrome's chunky shadow doesn't ghost-render during the boot window.
+- **`#authoring-panel` predicate adds `isReady()` as the first conjunct** of the existing `visible: authoringPanel() && authoringPanel().isVisible()`. Short-circuit ordering matters — `isReady()` is the cheapest check (one observable read) and it returns false during the longest stretch (asset preload), so evaluating it first keeps the predicate inexpensive while booting.
+- **`#tool-bar` mirrors the authoring panel** — same `isReady()` first, then the toolBar-specific gate.
+- **`#min-viewport-overlay` predicate is `visible: isReady() && viewportTooSmall()`** — the original sub-1024-wide flash during initial measurement was the most visible boot artefact. The min-viewport overlay now stays gated by the loading screen even when the window is genuinely too small; user can resize before the loading overlay finishes and the warning won't appear at all.
+- **No CSS sweep needed.** None of the gated surfaces have rules that affect siblings (positioning is `fixed`, not flow-relative), so a hidden surface doesn't shift any other layout. KO's `visible:false` sets `display: none` which removes them from layout entirely.
+- **`#save-status-chip` and `#hud` left un-gated.** Both are positioned absolutely; the chip is hidden by default (opacity 0) and only flashes via `.is-visible`. No boot-time visibility — no gate needed.
+- **`#controls-overlay` already gated** via the existing `controlsVisible = isReady() && !controlsDismissed()` computed in `AppViewModel`. No template change.
+- **`#loading-overlay`** is the inverse — its `fadeOut: isReady` is the seam that drives every other surface to appear. The fade-in for the chrome happens implicitly through the visibility flip; no second animation needed (deferred polish per the design's "functional first" answer).
+- **Inline `style="display: none"` added to every gated chrome surface** because KO's `visible:` binding only takes effect *after* `ko.applyBindings` runs. Between page load and bindings evaluation, elements with chrome CSS (`display: flex`, background, border) render as visible boxes. KO's `visible:true` writes `style.display = ''` which restores the CSS default, so inline `display:none` is the right baseline — cleanly overridden when the predicate flips true. Applied to `#top-menu`, `#authoring-panel`, `#tool-bar`, `#min-viewport-overlay`, `#confirm-modal`, `#controls-overlay`, `#fps-chip`.
+- **`foreach` template-element flash.** After the first display-none pass, two empty toast-styled pills still flashed before the load bar — `#toast-tray` and `#hint-tray` each used `<div data-bind="foreach: items"><div class="toast">…</div></div>`. The inner `<div class="toast">` is a real DOM node with full chrome styling that sits in the document until KO interprets the binding.
+- **Virtual `<!-- ko foreach -->` bindings don't fix the flash.** First-pass attempt swapped both trays to virtual-binding form on the (mistaken) assumption that the markers turned the inner template virtual. They don't — the comment nodes are just KO markers, the inner `<div>` between them is still a real, parsed, styled DOM element. User caught the flash still happening on cold reload.
+- **Final fix: `<script type="text/html">` templates.** Browsers don't render `<script>` element contents regardless of attributes, so a chrome-styled template inside one can't flash. Both trays now bind via `template: { name: '<id>-template', foreach: items }` to a sibling `<script type="text/html" id="...-template">` that holds the actual item markup. Standard KO templating idiom and the canonical answer for this exact problem.
+- Other `foreach`es in the document (catalogue tiles inside `#authoring-panel`, tabs nav, dev console event list) are inside a `display: none` parent or have no chrome on the template element, so their template flashes are contained.
+- **Codified the visibility contract in CLAUDE.md** ("Chrome visibility contract — every conditional surface starts hidden") so future chrome surfaces don't re-introduce the same boot flash. Three rules: `isReady` in every visibility predicate, inline `display: none` as the baseline, virtual `<!-- ko foreach -->` for any chrome-styled template list.
+- **Audited every chrome element in `index.html`** rather than patching individually. The audit table covers `canvas-wrapper`, `top-menu`, `hud`, `fatal-overlay`, `min-viewport-overlay`, `toast-tray`, `hint-tray`, `confirm-modal`, `controls-overlay`, `loading-overlay`, `authoring-panel`, `tool-bar`, `dev-console`, `fps-chip` — three real bugs identified, all fixed in this task. Other surfaces (`#dev-console` via `translateX(100%)`, `#hud > #save-status-chip` via `opacity: 0`, `#fatal-overlay` via the `hidden` attribute) have non-display baselines that already keep them invisible without the inline rule.
 
 ---
 
@@ -379,16 +393,23 @@ Add ~6-8 new KayKit decor.floor entries to the manifest so the Decor catalogue o
 
 ### Steps
 
-- [ ] Bump `VERSION` to `V7_9_0`.
-- [ ] Survey `assets/kaykit/dungeon-remastered/models/gltf/` for unused decor models suitable for the floor category. Aim for variety (containers, furniture, props).
-- [ ] Add 6-8 entries to `assets/manifest.json` per the schema. Pick `displayName`s that fit the cozy-villain aesthetic.
-- [ ] Confirm `IconRenderer` boot-time pass produces thumbnails for all entries.
-- [ ] Manual test: switch to Decor tab, scroll the catalogue, confirm every new tile renders + the scrollbar appears and scrolls smoothly.
-- [ ] Verify in browser.
+- [*] Bump `VERSION` to `V7_9_0`.
+- [*] Survey `assets/kaykit/dungeon-remastered/models/gltf/` for unused decor models suitable for the floor category. Aim for variety (containers, furniture, props).
+- [*] Add 6-8 entries to `assets/manifest.json` per the schema. Pick `displayName`s that fit the cozy-villain aesthetic.
+- [*] Confirm `IconRenderer` boot-time pass produces thumbnails for all entries.
+- [*] Manual test: switch to Decor tab, scroll the catalogue, confirm every new tile renders + the scrollbar appears and scrolls smoothly.
+- [*] Verify in browser.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- **8 new `decor.floor` entries** added between `decor.bottles` and the wall-decor block — `decor.barrel.small`, `decor.keg`, `decor.box.large`, `decor.shelf.small`, `decor.stool`, `decor.trunk`, `decor.chest.gold`, `decor.plate.food`. Total floor decor: 8 → 16. With the 3 existing wall-decor entries, the Decor tab now surfaces 19 catalogue tiles across two foreach blocks.
+- **All new entries are `tier: "core"`** — consistent with existing decor and required for `IconRenderer.renderCatalogue` to produce thumbnails at boot. The renderer reads from `assets.get(id)` which throws on unloaded assets; world-tier would mean missing thumbnails until first use. Heavier boot vs cleaner UX — V7 takes the cleaner UX. Lazy-loaded decor is a candidate optimisation for a later version (the renderer would need a deferred-rendering pass for world-tier items).
+- **Variety axis** picked: 4 containers (barrel-small, keg, box-large, trunk), 3 furniture/storage (shelf, stool, gold chest), 1 surface placeable (plated meal). Mirrors the existing distribution and gives the user enough visual differentiation to confirm individual tile rendering during the scroll test.
+- **`decor.plate.food` is `placeableOnSurface`** — gives the Decor tab a second surface placeable (alongside `decor.candle.triple` and `decor.bottles`) for testing surface-placement UX with more options. The plate sits at the table's `surfaceY`.
+- **No new tests** — manifest additions are pure data + the icon-rendering path is already covered by the existing icon-renderer tests. Full suite **579 / 33** unchanged.
+- **Scrollbar styling needed after browser verify** — the default browser scrollbar clashed with the cozy chrome. Added cozy-themed scrollbar rules to `.authoring-panel-content` covering both Firefox (`scrollbar-width`, `scrollbar-color`) and WebKit/Chromium (`::-webkit-scrollbar` pseudo-elements). Track = `--cozy-purple-deep`; thumb = `--cozy-neon-dim`; thumb hover = `--cozy-neon`. Standard cozy interaction vocabulary — neon-dim baseline → neon highlight on hover, same swap the buttons use.
+- **Mouse-wheel zoom bleed-through.** During Task 9 browser verify, scrolling the catalogue also zoomed the world camera — the `wheel` event fires on the document, not the canvas. Fixed by passing `event.target` through `Input.onWheel`'s emit payload (mirroring how `pointerdown`/`pointermove` carry it) and adding the same `event.target.tagName !== "CANVAS"` guard to `BuilderCamera.onWheel` that `onPointerDown` already uses. Catalogue scroll now stays contained; world zoom only fires when the wheel originates over the canvas.
+- **Adjacent-catalogue visual separator.** Floor decor + wall decor in the Decor tab read as one continuous tile grid without a break. Added `.authoring-panel-catalogue + .authoring-panel-catalogue { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--cozy-neon-dim); }` so any second catalogue in a tab gets a faint divider line above it. Generalises — any future tab with multiple catalogue sections gets the same treatment without per-section CSS.
 
 ---
 
@@ -414,22 +435,25 @@ Full V7 sweep — exercise every new flow end-to-end, sweep for dead code from T
 
 ### Steps
 
-- [ ] Bump `VERSION` to `V7_10_0`.
-- [ ] Add the "UI architecture model" note to [CLAUDE.md](../../.claude/CLAUDE.md) (one VM per surface; constructor injection; AppViewModel as composition root; communication direction rules — verbatim from the design's Architecture section).
-- [ ] Grep for legacy tool-id callers (`decor:place`, `decor:wall:place`, `build:paint`, etc.) — confirm whether the verb-based aliases route through cleanly.
-- [ ] Sweep `cozy.css` for rules referencing removed selectors (`#hud-actions`, `#camera-mode-chip`, `.authoring-panel-tools`).
-- [ ] Manual: every top-menu action.
-- [ ] Manual: every tool-bar tool across all 3 tabs.
-- [ ] Manual: pickup flow — 5 cancel paths.
-- [ ] Manual: save → reload → confirm placement state.
-- [ ] Manual: load lifecycle — no chrome flash.
-- [ ] Manual: catalogue scrollbar in Decor tab.
-- [ ] Run `npm test` final; confirm green.
-- [ ] Verify in browser.
+- [*] Bump `VERSION` to `V7_10_0`.
+- [*] Add the "UI architecture model" note to [CLAUDE.md](../../.claude/CLAUDE.md) (one VM per surface; constructor injection; AppViewModel as composition root; communication direction rules — verbatim from the design's Architecture section).
+- [*] Grep for legacy tool-id callers (`decor:place`, `decor:wall:place`, `build:paint`, etc.) — confirm whether the verb-based aliases route through cleanly.
+- [*] Sweep `cozy.css` for rules referencing removed selectors (`#hud-actions`, `#camera-mode-chip`, `.authoring-panel-tools`).
+- [*] Manual: every top-menu action.
+- [*] Manual: every tool-bar tool across all 3 tabs.
+- [*] Manual: pickup flow — 5 cancel paths.
+- [*] Manual: save → reload → confirm placement state.
+- [*] Manual: load lifecycle — no chrome flash.
+- [*] Manual: catalogue scrollbar in Decor tab.
+- [*] Run `npm test` final; confirm green.
+- [*] Verify in browser.
 
 ### Decisions
 
-<!-- Filled in during execution. -->
+- **CLAUDE.md gained a new "UI architecture — one view-model per chrome surface" section** under "App singleton owns top-level orchestration". Covers: one VM per surface; constructor injection (no post-hoc patching); AppViewModel as composition root; services hold logic / VMs translate; communication direction matrix (parent↔child, sibling-via-parent, VM→service direct, service→VM via emitter or observable). Future chrome surfaces follow the same shape.
+- **CSS sweep removed `.authoring-panel-tools`, `.tool-tile`, `.tool-tile:hover`, `.tool-tile.is-active`** — orphaned after the Task 5 panel cleanup. The selectors had no surviving HTML referents; left no visual gap (tool bar handles those buttons now).
+- **Legacy tool-id audit: nothing emits them.** Searched `scripts/`, `tests/`, and `index.html` for `decor:place`, `decor:wall:place`, `build:paint`, `build:erase`, `build:block:place`, `build:block:erase`, `decor:erase`, `minion:spawn`, `minion:erase` — zero hits. The legacy case arms in `buildToolFromId` are unreachable. Per Task 3's plan (kept as documented aliases for one-version forgiveness), they remain in place; V8 sweep can prune them.
+- Test count: **579 / 33** — unchanged from Task 9. Final V7 baseline.
 
 ---
 
@@ -443,3 +467,4 @@ Full V7 sweep — exercise every new flow end-to-end, sweep for dead code from T
 
 - **Wall decor pickup** (deferred from Task 2). `EdgePlacement`-anchored wall decor (banners, tapestries) currently can't be picked up — the snapshot model is GridPlacement-shaped. Adding a second snapshot variant + matching `placeFromSnapshot` path would unblock it; out of V7 scope, candidate for V8.
 - **Post-pickup place is currently duplicative** (flagged after Task 6 browser verify). The Task 3 stub `armBuildForSnapshot` arms a regular `<tab>:build:<kind>` tool, which lets the user place unlimited clones of the picked-up kind. Task 7's snapshot-consume path must clear the slot after one successful place and disarm the tool — the picked-up entity is a single-shot held item, not a re-arm of catalogue place mode.
+- **Surface-placed decor always snaps to the host tile's centre** (flagged during Task 9 browser verify). `decor.plate.food` lands at the centre of the table tile regardless of where the click hit, like every other surface placeable. The broader behaviour — sub-tile placement of decor within a surface — is out of V7 scope, deferred to a future "sub-grid placement for decor" version. Not a manifest bug; the placeableOnSurface flag is correctly set.

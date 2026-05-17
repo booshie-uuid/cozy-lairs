@@ -24,7 +24,8 @@
 <body>
     <div id="canvas-wrapper"></div>
 
-    <header id="top-menu" data-bind="with: topMenu">
+    <header id="top-menu" style="display: none"
+            data-bind="visible: isReady() && topMenu(), with: topMenu">
         <div class="top-menu-cluster top-menu-cluster-left">
             <button class="top-menu-button"
                     title="Save"
@@ -74,23 +75,21 @@
         </div>
     </div>
 
-    <div id="min-viewport-overlay" data-bind="visible: viewportTooSmall">
+    <div id="min-viewport-overlay" style="display: none"
+         data-bind="visible: isReady() && viewportTooSmall()">
         <div class="min-viewport-inner">
             <h2>Cozy Lairs needs a bit more room</h2>
             <p>Try resizing the window to at least 1024×640.</p>
         </div>
     </div>
 
-    <div id="toast-tray" data-bind="foreach: toasts">
-        <div class="toast"
-             data-bind="text: message, css: 'is-' + level"></div>
-    </div>
+    <div id="toast-tray"
+         data-bind="template: { name: 'toast-template', foreach: toasts }"></div>
 
-    <div id="hint-tray" data-bind="foreach: hints">
-        <div class="toast hint is-info" data-bind="text: message"></div>
-    </div>
+    <div id="hint-tray"
+         data-bind="template: { name: 'hint-template', foreach: hints }"></div>
 
-    <div id="confirm-modal"
+    <div id="confirm-modal" style="display: none"
          data-bind="visible: confirmModal.visible, with: confirmModal">
         <div class="confirm-modal-backdrop"></div>
         <div class="confirm-modal-box">
@@ -103,7 +102,7 @@
         </div>
     </div>
 
-    <div id="controls-overlay" data-bind="visible: controlsVisible">
+    <div id="controls-overlay" style="display: none" data-bind="visible: controlsVisible">
         <div class="controls-overlay-backdrop"></div>
         <div class="controls-overlay-modal">
             <h2 class="controls-overlay-title">Welcome to Cozy Lairs</h2>
@@ -163,8 +162,8 @@
         </div>
     </div>
 
-    <aside id="authoring-panel"
-           data-bind="visible: authoringPanel() && authoringPanel().isVisible(),
+    <aside id="authoring-panel" style="display: none"
+           data-bind="visible: isReady() && authoringPanel() && authoringPanel().isVisible(),
                       with: authoringPanel">
         <nav class="authoring-panel-tabs" data-bind="foreach: tabs">
             <button class="authoring-panel-tab"
@@ -226,8 +225,8 @@
         </section>
     </aside>
 
-    <footer id="tool-bar"
-            data-bind="visible: toolBar() && toolBar().isVisible(), with: toolBar">
+    <footer id="tool-bar" style="display: none"
+            data-bind="visible: isReady() && toolBar() && toolBar().isVisible(), with: toolBar">
         <!-- ko foreach: visibleTools -->
         <button class="tool-bar-button"
                 data-bind="click: function() { $parent.onClick(verb); },
@@ -316,10 +315,20 @@
         </section>
     </aside>
 
-    <div id="fps-chip" data-bind="visible: dev.isOpen">
+    <div id="fps-chip" style="display: none" data-bind="visible: dev.isOpen">
         <span data-bind="text: dev.fpsDisplay"></span>
         <span class="fps-chip-unit">fps</span>
     </div>
+
+    <!-- KO templates. `<script type="text/html">` is not executed and not
+         rendered by browsers — the right home for chrome-styled list items
+         so the template element doesn't flash before bindings interpret it. -->
+    <script type="text/html" id="toast-template">
+        <div class="toast" data-bind="text: message, css: 'is-' + level"></div>
+    </script>
+    <script type="text/html" id="hint-template">
+        <div class="toast hint is-info" data-bind="text: message"></div>
+    </script>
 
     <script type="module" src="./scripts/app.js"></script>
 </body>

@@ -132,6 +132,71 @@
             "meta":        { "placeableOnSurface": true }
         },
         {
+            "id":          "decor.barrel.small",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/barrel_small.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Small Barrel"
+        },
+        {
+            "id":          "decor.keg",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/keg_decorated.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Keg"
+        },
+        {
+            "id":          "decor.box.large",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/box_large.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Large Box"
+        },
+        {
+            "id":          "decor.shelf.small",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/shelf_small.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Small Shelf"
+        },
+        {
+            "id":          "decor.stool",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/stool.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Stool"
+        },
+        {
+            "id":          "decor.trunk",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/trunk_large_A.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Trunk"
+        },
+        {
+            "id":          "decor.chest.gold",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/chest_gold.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Gold Chest"
+        },
+        {
+            "id":          "decor.plate.food",
+            "path":        "assets/kaykit/dungeon-remastered/models/gltf/plate_food_A.gltf",
+            "type":        "gltf",
+            "tier":        "core",
+            "kind":        "decor.floor",
+            "displayName": "Plated Meal",
+            "meta":        { "placeableOnSurface": true }
+        },
+        {
             "id":          "decor.banner.blue",
             "path":        "assets/kaykit/dungeon-remastered/models/gltf/banner_blue.gltf",
             "type":        "gltf",

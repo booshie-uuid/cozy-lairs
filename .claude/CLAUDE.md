@@ -53,6 +53,24 @@ Future-version intentions the user has stated (cost system, tech-tree, minion-dr
 
 `scripts/app.js` defines a small `App` class, instantiates a single instance, exposes it on `window.App`, and runs `app.start()` from the bootstrap. The view-model and any cross-cutting control logic (lifecycle, top-level coordination) live as fields/methods on that singleton.
 
+### UI architecture — one view-model per chrome surface
+
+Every chrome surface owns one view-model class under `scripts/modules/ui/` (e.g. `TopMenuViewModel`, `ToolBarViewModel`, `AuthoringPanel`, `ConfirmModalViewModel`). The view-model holds the surface's KO observables, presentation-only state, and the methods that templates bind to. New chrome surfaces follow the same shape — class + constructor + KO bindings — so future maintainers always know where state for a given surface lives.
+
+**Constructor injection, no post-hoc patching.** View-models receive their dependencies as constructor args — services (`saveService`, `devConsole`), shared observables (`cameraMode`, `selectedKind`), and parent callbacks (`onToggleMode`, `resetLair`). Once constructed, the view-model's public surface is frozen for the lifetime of the binding. Don't `this.viewModel.someMethod = () => …` after the fact; if a dependency isn't ready at AppViewModel-construction time, gate the view-model's *installation* until it is (see `installAuthoringPanel` / `installTopMenu` / `installToolBar`).
+
+**`AppViewModel` is the composition root.** Its job is to construct each surface view-model in the right order with the right wiring, expose them as named observable fields (so late-installed VMs can flip from null), and run `ko.applyBindings(viewModel)` once. After bindings, the App singleton does no further view-model mutation — it only calls into services.
+
+**Services hold business logic; view-models translate user intent into service calls.** `WorldEditor`, `SaveService`, `AssetManager`, `DevConsole`, `Pickup` (App.pickedUp slot + methods) all stay plain services. View-models call services; services emit events / update observables back. Templates never reach past their view-model.
+
+**Communication direction matrix:**
+
+- Parent → child: dependency injection at construction.
+- Child → parent: callbacks passed at construction (e.g. `onSelectTool`).
+- Sibling → sibling: via the parent — no direct refs between view-models.
+- View-model → service: plain method call (`saveService.save()`).
+- Service → view-model: `Emitter` event subscription set up at construction, or shared observable.
+
 ### Bootstrap entry points use a DOM-ready guard
 
 Wrap the bootstrap call in an explicit DOM-ready check even when the script tag is `type="module"`. Reads more clearly than relying on module-defer semantics and never breaks if the script tag placement changes.
@@ -72,6 +90,39 @@ Pad spaces before `=` / `{` only when 3+ consecutive lines have the same shape a
 ### KO custom binding handlers live in `bindings.js`
 
 All `ko.bindingHandlers.*` registrations live in `scripts/modules/ui/bindings.js`. Other UI modules import `bindings.js` for its side effect once, before `ko.applyBindings`. KO is loaded as a UMD via classic `<script>` and accessed in modules with `const ko = window.ko;` aliased at the top of the file.
+
+### Chrome visibility contract — every conditional surface starts hidden
+
+KO bindings only take effect *after* `ko.applyBindings` runs. Between page load and that call, every element with a chrome-style CSS rule (`display: flex`, background, border) renders briefly in its CSS-default state. To prevent the flash, V7 codified three rules — apply them to every new chrome surface:
+
+1. **`isReady` participates in every visibility predicate.** Any conditionally-visible chrome adds `isReady()` as a conjunct so nothing renders during asset preload. The `#loading-overlay` (`fadeOut: isReady`) is the one inverse — it's the *only* thing visible during the load window.
+
+2. **Default hidden via inline `style="display: none"`.** KO's `visible: true` writes `style.display = ''`, which restores the CSS default — so an inline `display: none` baseline is cleanly overridden when the predicate flips true. Class-based hiding (`.hidden { display: none }`) doesn't compose this way because the `visible:true` reset can't override a class rule. Surfaces with their own off-screen baseline (`#dev-console`'s `translateX(100%)`, `#fatal-overlay`'s `hidden` attribute, `#save-status-chip`'s `opacity: 0`) opt out — they're already invisible without the inline style.
+
+3. **Chrome-styled `foreach` templates live in `<script type="text/html">`.** Browsers don't render `<script>` element contents regardless of attributes, so an item template kept there can't flash. Virtual `<!-- ko foreach -->` markers do *not* solve this — the template element between the markers is still a real DOM node that the browser parses and styles before KO interprets the binding.
+
+   ```html
+   <!-- DON'T — template div sits in the DOM with chrome styling until KO clones it: -->
+   <div id="toast-tray" data-bind="foreach: toasts">
+       <div class="toast" data-bind="text: message"></div>
+   </div>
+
+   <!-- ALSO DON'T — virtual binding markers are comments but the inner div is still real DOM: -->
+   <div id="toast-tray">
+       <!-- ko foreach: toasts -->
+       <div class="toast" data-bind="text: message"></div>
+       <!-- /ko -->
+   </div>
+
+   <!-- DO — template lives in a script element, never rendered: -->
+   <div id="toast-tray" data-bind="template: { name: 'toast-template', foreach: toasts }"></div>
+   ...
+   <script type="text/html" id="toast-template">
+       <div class="toast" data-bind="text: message"></div>
+   </script>
+   ```
+
+   Exception: a `foreach` whose template has no chrome styling (no border, no background, no padding — just bare text or grid-positioned children) doesn't need the script-template form. Also fine if the enclosing parent is already in a `display: none` subtree (e.g. catalogue tiles inside an `#authoring-panel` that itself starts hidden).
 
 ### Shared error classes in their own module
 

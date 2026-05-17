@@ -57,11 +57,11 @@ class Tool
 
     /* DEFAULT HOOK STUBS *****************************************************/
 
-    onCellHover(_cell)              {}
-    onCellClick(_cell, _button)     {}
-    onWallEdgeHover(_edge)          {}
+    onCellHover(_cell) {}
+    onCellClick(_cell, _button) {}
+    onWallEdgeHover(_edge) {}
     onWallEdgeClick(_edge, _button) {}
-    rotate(_direction)              {}
+    rotate(_direction) {}
 
 
     /* SUBCLASS HOOKS *********************************************************/

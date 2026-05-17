@@ -40,7 +40,7 @@ import "./modules/ui/bindings.js";
 
 const ko = window.ko;
 
-const VERSION = "V7_7_0";
+const VERSION = "V7_10_0";
 
 const GRID_WIDTH = 20;
 const GRID_DEPTH = 20;

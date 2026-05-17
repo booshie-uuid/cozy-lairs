@@ -39,9 +39,9 @@ class FloorPaintTool extends Tool
         this.positionGhostAtCell(cell.cx, cell.cz);
 
         const grid = this.editor.world.grid;
-        if(!this.editor.canPaintFloor(cell.cx, cell.cz))     { this.setGhostColour(TINT_INVALID); }
-        else if(grid.isFloor(cell.cx, cell.cz))              { this.setGhostColour(TINT_INVALID); }
-        else                                                  { this.setGhostColour(TINT_VALID);   }
+        if(!this.editor.canPaintFloor(cell.cx, cell.cz)) { this.setGhostColour(TINT_INVALID); }
+        else if(grid.isFloor(cell.cx, cell.cz)) { this.setGhostColour(TINT_INVALID); }
+        else { this.setGhostColour(TINT_VALID); }
     }
 
     onCellClick(cell, button)

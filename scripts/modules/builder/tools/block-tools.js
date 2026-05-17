@@ -107,6 +107,7 @@ class BlockEraseTool extends Tool
     snapToEntity(entity)
     {
         if(!this.ghostMesh) { return; }
+        
         const bbox = new THREE.Box3().setFromObject(entity.object3D);
         const size = new THREE.Vector3();
         const centre = new THREE.Vector3();
